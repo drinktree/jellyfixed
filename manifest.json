@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.41.0",
+        "changelog": "Glitch fixes from live use. (1) The home hero billboard now truly starts at the top of the page — the stock home page carries 7.5em of top padding that left a dark band above the hero (scoped to the active home tab so the Favorites tab keeps its normal spacing). (2) Detail-page preview clips now fill the whole backdrop instead of only the top 40vh band (they attach to the full-viewport backdrop container, sit above the rotating backdrop images, and are guarded per item id — in-app navigation between detail pages previously left the old clip running and blocked new ones). (3) With logo art visible, shows no longer display the redundant text title: the original-title line (anime romaji) and the series-name heading on episode/season pages are hidden along with the main title; the episode name stays.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.41/custom-theme-v2.5.41.zip",
+        "checksum": "8580d2eb3c24ed7157012b2d2743ce1e",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.40.0",
         "changelog": "Netflix-fidelity polish. Detail page now shows the title LOGO ART above the metadata line (left-aligned, like Netflix), falling back to the text title when no logo exists or it fails to load (phones/TV keep the text title). Player: red seekbar with red thumb (Live-TV untimed streams keep a clear bar), Netflix-style controls that grow on hover without the circular puddle. 'More Like This' is a static boxart grid instead of a side-scroller (correct 10.11 #similarCollapsible selectors — the old ones were dead, so the 'Similar titles' toggle now actually works too). Episode lists: white titles, clamped synopsis, quiet #404040 separators. Genres restyled as quiet links; maturity badge sharp-cornered; year/duration near-white; synopsis pure white 16px; one consistent weight-500 header voice; header tabs are bare Netflix text instead of pills; theme font now reaches every control (set at html level); action sheets and dialog buttons de-cyaned. MatchScore off now restores the stock star rating instead of a green-number hybrid.",
         "targetAbi": "10.11.0.0",

@@ -1300,8 +1300,7 @@
     // the previous page surviving; setupDetailClip rebuilds for the new item.
     function cleanupDetailClip() {
         document.querySelectorAll('.nf-detail-video').forEach(nfKillVideo);
-        var bd = document.querySelector('#itemBackdrop[data-nf-clip]');
-        if (bd) bd.removeAttribute('data-nf-clip');
+        document.querySelectorAll('[data-nf-clip]').forEach(function (el) { el.removeAttribute('data-nf-clip'); });
     }
     function setupDetailClip() {
         try {
@@ -1309,14 +1308,24 @@
             if (nfReducedMotion()) return;
             if (!/#\/details/i.test(location.hash)) return;
             if (typeof ApiClient === 'undefined' || !ApiClient.getItem || !ApiClient.getCurrentUserId) return;
-            var backdrop = document.querySelector('#itemBackdrop');
-            if (!backdrop || backdrop.getAttribute('data-nf-clip') === '1') return;
+            // Attach into the FULL-VIEWPORT fixed backdrop container (the element the
+            // theme uses as the detail backdrop). The page's own #itemBackdrop is only
+            // 40vh tall — clips there played in the top band while the lower half kept
+            // showing the still image. Fall back to #itemBackdrop if backdrops are off.
+            var backdrop = document.querySelector('.backdropContainer') || document.querySelector('#itemBackdrop');
+            if (!backdrop) return;
             var idm = location.hash.match(/[?&]id=([a-f0-9]+)/i);
             var id = idm && idm[1];
             if (!id) return;
+            // Guard by ITEM ID, self-cleaning on mismatch: in-app forward navigation
+            // (pushState) never fires hashchange, and the marker now lives on a
+            // singleton that survives navigation — a boolean guard left the previous
+            // page's clip running and blocked every later detail page's clip.
+            if (backdrop.getAttribute('data-nf-clip') === id) return;
+            cleanupDetailClip();
             var uid = ApiClient.getCurrentUserId();
             if (!uid) return;
-            backdrop.setAttribute('data-nf-clip', '1');
+            backdrop.setAttribute('data-nf-clip', id);
             var stillHere = function () { return location.hash.indexOf(id) !== -1; };
             function attach(playId, ms, ticks) {
                 if (!stillHere() || backdrop.querySelector('.nf-detail-video')) return;

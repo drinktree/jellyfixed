@@ -410,8 +410,13 @@ body, .mainDrawer, .dialog {
     }
 
     /* :not(.lazy-hidden): only swap the text title out once the logo image has
-       actually rendered — a failed load keeps the title. */
-    html:not(.layout-mobile):not(.layout-tv) .detailLogo:not(.hide):not(.lazy-hidden) ~ .detailPageWrapperContainer h1.itemName {
+       actually rendered — a failed load keeps the title. Besides the main h1,
+       also hide the small original-title line (anime shows: romaji under the
+       logo) and the series-name h1 on episode/season pages (redundant with the
+       series logo) — the episode name h3.subtitle stays visible. */
+    html:not(.layout-mobile):not(.layout-tv) .detailLogo:not(.hide):not(.lazy-hidden) ~ .detailPageWrapperContainer h1.itemName,
+    html:not(.layout-mobile):not(.layout-tv) .detailLogo:not(.hide):not(.lazy-hidden) ~ .detailPageWrapperContainer h1.parentName,
+    html:not(.layout-mobile):not(.layout-tv) .detailLogo:not(.hide):not(.lazy-hidden) ~ .detailPageWrapperContainer .originalTitle {
         display: none !important;
     }
 }
@@ -1290,6 +1295,13 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
    HERO BILLBOARD CAROUSEL (built by headerButton.js on the home page)
    Rotating full-bleed backdrops with logo, meta, actions, dots + pause.
    ============================================= */
+/* The home page itself carries padding-top: 7.5em (stock .libraryPage rule) —
+   with the hero present that painted a ~40px band above the billboard. Zero it
+   so the hero truly starts at the viewport top under the transparent header.
+   Scoped to the ACTIVE home tab: the hero also sits (hidden) in #homeTab while
+   the Favorites tab is shown, which must keep the stock padding. */
+.page.homePage:has(#homeTab.is-active .nf-hero) { padding-top: 0 !important; }
+
 .nf-hero {
     position: relative;
     width: 100%;
@@ -1332,7 +1344,9 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
 /* Detail page ("Mehr Infos") backdrop clip — fills #itemBackdrop, fades in over the image. */
 .nf-detail-video {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    object-fit: cover; z-index: 0;
+    /* z-index 1: stock rotates backdrops by APPENDING new .backdropImage (z-auto)
+       siblings every 10s — at z 0 the fresh image painted over the playing clip. */
+    object-fit: cover; z-index: 1;
     opacity: 0; transition: opacity 1.2s ease;
 }
 .nf-detail-video.show { opacity: 1; }
