@@ -248,7 +248,7 @@ namespace Jellyfin.Plugin.CustomTheme
 
             if (!config.ShowSimilar)
             {
-                sb.AppendLine(".similarSection { display: none !important; }");
+                sb.AppendLine("#similarCollapsible { display: none !important; }");
             }
 
             if (config.HeaderBlur)
@@ -418,8 +418,8 @@ namespace Jellyfin.Plugin.CustomTheme
                 {
                     sb.AppendLine(@".card:hover { transform: none !important; box-shadow: none !important; z-index: 60 !important; }
 .card:hover .cardScalable { transform: scale(1.2) !important; transform-origin: center center !important; box-shadow: 0 18px 40px rgba(0,0,0,0.85) !important; border-radius: 6px !important; }
-.scrollSlider > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: translateX(30px) !important; }
-.scrollSlider > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: translateX(-30px) !important; }
+.scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: translateX(30px) !important; }
+.scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: translateX(-30px) !important; }
 .scrollSlider > .card:first-child:hover .cardScalable, .nf-row-track > .card:first-child:hover .cardScalable { transform-origin: left center !important; }
 .scrollSlider > .card:last-child:hover .cardScalable, .nf-row-track > .card:last-child:hover .cardScalable { transform-origin: right center !important; }
 @media (prefers-reduced-motion: reduce) {

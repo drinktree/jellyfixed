@@ -20,6 +20,14 @@
    GLOBAL
    ============================================= */
 
+/* The base font lives on <html> in jellyfin-web (with lang-specific Noto
+   overrides); setting it here makes EVERY element that uses font-family:
+   inherit — inputs, selects, buttons, tabs, dialogs — pick up the theme font.
+   (.material-icons keeps its own icon font-family and is unaffected.) */
+html {
+    font-family: var(--font-netflix) !important;
+}
+
 body, .mainDrawer, .dialog {
     background-color: var(--bg-dark) !important;
     color: var(--text-main) !important;
@@ -114,33 +122,33 @@ body, .mainDrawer, .dialog {
     width: auto !important;
 }
 
+/* Netflix nav items are BARE text — no pills, borders or hover backgrounds;
+   active is simply bold white, hover dims. */
 .headerTabs .emby-tab-button {
     background: transparent !important;
-    color: var(--text-muted) !important;
+    color: #e5e5e5 !important;
     font-family: var(--font-netflix) !important;
     font-size: 0.9rem !important;
-    font-weight: 500 !important;
-    padding: 7px 20px !important;
+    font-weight: 400 !important;
+    padding: 7px 12px !important;
     height: auto !important;
-    transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease !important;
+    transition: color 0.25s ease !important;
     text-transform: none !important;
-    border: 1px solid transparent !important;
-    border-radius: 20px !important;
+    border: none !important;
+    border-radius: 0 !important;
     letter-spacing: 0.02em !important;
     position: relative !important;
 }
 
 .headerTabs .emby-tab-button:hover {
-    color: var(--text-main) !important;
-    border-color: rgba(255,255,255,0.25) !important;
-    background-color: rgba(255,255,255,0.06) !important;
+    color: var(--text-muted) !important;
+    background-color: transparent !important;
 }
 
 .headerTabs .emby-tab-button-active {
     color: var(--text-main) !important;
     font-weight: 700 !important;
-    background-color: rgba(255,255,255,0.1) !important;
-    border-color: rgba(255,255,255,0.3) !important;
+    background-color: transparent !important;
 }
 
 .tabs-viewmenubar.emby-tabs { overflow: visible !important; width: auto !important; height: auto !important; }
@@ -177,9 +185,11 @@ body, .mainDrawer, .dialog {
        Native overflow (auto) must stand. Home rows use their own .nf-row-scroll. */
 }
 
+/* Netflix row headers are #e5e5e5 at weight 500, not bold — one header voice
+   everywhere (the theme's own genre rows already use 500). */
 .sectionTitle {
     font-size: 1.3rem !important;
-    font-weight: 700 !important;
+    font-weight: 500 !important;
     margin-bottom: 0.4rem !important;
     color: #e5e5e5 !important;
     font-family: var(--font-netflix) !important;
@@ -375,14 +385,39 @@ body, .mainDrawer, .dialog {
     pointer-events: none !important;
 }
 
-/* --- DETAIL LOGO (title card image) ---
-   Jellyfin renders .detailLogo as a direct child of the page with a default
-   horizontal offset that puts it off-screen (left:-336px in testing), and it
-   sits detached above the title/buttons block. Rather than fight a fragile
-   position that also breaks for the many library items that have NO logo art,
-   we hide it and render a single, reliable big title via .itemName below —
-   which is what Netflix falls back to when no logo exists. */
-.detailLogo {
+/* --- DETAIL LOGO (title card image) — Netflix shows the logo art above the
+   metadata line, left-aligned, and only falls back to a text title when no
+   logo exists. .detailLogo is always in the DOM; Jellyfin toggles .hide on it
+   (renderLogo) and paints the art as a background-image. Its positioning
+   context is the viewport-filling .mainAnimatedPage, and our content column
+   starts at 30vh — so the logo sits in the 11vh→27vh band above it. The
+   sibling selector hides the redundant text title whenever the logo shows. */
+@media (min-width: 769px) {
+    html:not(.layout-mobile):not(.layout-tv) .detailLogo:not(.hide) {
+        display: block !important;
+        position: absolute !important;
+        top: 11vh !important;
+        inset-inline-start: 4% !important;
+        right: auto !important;
+        width: min(440px, 34vw) !important;
+        height: 16vh !important;
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+        background-position: left bottom !important;
+        filter: drop-shadow(0 3px 12px rgba(0, 0, 0, 0.75));
+        z-index: 3 !important;
+        pointer-events: none !important;
+    }
+
+    /* :not(.lazy-hidden): only swap the text title out once the logo image has
+       actually rendered — a failed load keeps the title. */
+    html:not(.layout-mobile):not(.layout-tv) .detailLogo:not(.hide):not(.lazy-hidden) ~ .detailPageWrapperContainer h1.itemName {
+        display: none !important;
+    }
+}
+
+/* Phones / TV layout: keep the reliable text title (stock hides the logo there). */
+.layout-mobile .detailLogo, .layout-tv .detailLogo {
     display: none !important;
 }
 
@@ -462,7 +497,7 @@ body, .mainDrawer, .dialog {
 /* --- METADATA ROW (year, rating, score) --- */
 .itemMiscInfo {
     font-family: var(--font-netflix) !important;
-    color: var(--text-muted) !important;
+    color: #d2d2d2 !important; /* Netflix's year/duration read near-white */
     font-size: 0.95rem !important;
     margin-top: 2px !important;
     display: flex !important;
@@ -474,20 +509,19 @@ body, .mainDrawer, .dialog {
    flex row (above), so flex `order` puts the rating first without touching the DOM. */
 .itemMiscInfo .starRatingContainer { order: -1 !important; }
 
-/* Green match score like Netflix */
+/* Rating value sizing only — the green "% Match" color + star hide live in the
+   MatchScore option (CssGenerator), so turning that off restores stock rating. */
 .starRatingValue {
-    color: #46d369 !important;
-    font-weight: 700 !important;
     font-size: 1rem !important;
 }
 
-/* Content rating badge */
+/* Content rating badge — Netflix's maturity box is sharp-cornered */
 .mediaInfoOfficialRating {
     border: 1px solid rgba(255,255,255,0.4) !important;
-    border-radius: 3px !important;
+    border-radius: 0 !important;
     padding: 1px 6px !important;
     font-size: 0.75rem !important;
-    color: var(--text-muted) !important;
+    color: #bcbcbc !important;
     line-height: 1.4 !important;
 }
 
@@ -731,14 +765,13 @@ body, .mainDrawer, .dialog {
     z-index: 3 !important;
 }
 
-/* Description text */
+/* Description text — Netflix synopsis is white 16px/24px */
 .overview-text, .itemOverview {
-    font-size: 0.95rem !important;
-    line-height: 1.6 !important;
-    color: #d2d2d2 !important;
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    color: #fff !important;
     font-family: var(--font-netflix) !important;
     margin-bottom: 20px !important;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.5) !important;
 }
 
 /* Tags, external links */
@@ -775,7 +808,7 @@ body, .mainDrawer, .dialog {
 .detailPageContent .verticalSection .sectionTitle,
 .detailPageSecondaryContainer .sectionTitle {
     font-size: 1.4rem !important;
-    font-weight: 700 !important;
+    font-weight: 500 !important;
     margin-top: 10px !important;
     margin-bottom: 12px !important;
     color: #e5e5e5 !important;
@@ -822,7 +855,7 @@ body, .mainDrawer, .dialog {
 }
 
 /* --- ÄHNLICHES / SIMILAR SECTION --- */
-.similarSection .card .cardScalable {
+#similarCollapsible .card .cardScalable {
     border-radius: 6px !important;
 }
 
@@ -838,21 +871,6 @@ body, .mainDrawer, .dialog {
 .itemOverview-seeMore:hover {
     color: var(--accent-red-hover) !important;
     text-decoration: underline !important;
-}
-
-/* --- TAGS — Netflix pill style --- */
-.itemTag {
-    background-color: rgba(255,255,255,0.08) !important;
-    border-radius: 4px !important;
-    padding: 4px 10px !important;
-    font-size: 0.8rem !important;
-    color: var(--text-muted) !important;
-    transition: background-color 0.2s ease !important;
-}
-
-.itemTag:hover {
-    background-color: rgba(255,255,255,0.15) !important;
-    color: var(--text-main) !important;
 }
 
 /* --- GENRES ROW — better spacing --- */
@@ -1208,7 +1226,6 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
     .itemName { font-size: 1.8rem !important; }
     .headerLeft::before { font-size: 2rem; }
     .detailPagePrimaryContent { max-width: 100% !important; }
-    .detailLogo { margin-top: 15vh !important; max-width: 250px !important; }
     .detailPageWrapperContainer { padding-top: 20vh !important; }
     .mainDetailButtons { gap: 8px !important; }
     .btnPlay, .btnResume, .btnReplay { height: 38px !important; font-size: 1rem !important; padding: 8px 20px 8px 16px !important; }
@@ -1253,24 +1270,11 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
 
 /* --- Detail page: richer backdrop + typography --- */
 .itemName { letter-spacing: -0.01em !important; }
-.detailPageContent .genreItems, .genreItems {
-    display: flex !important; flex-wrap: wrap !important; gap: 6px !important;
-}
-.genreItems .button-link {
-    background: rgba(255,255,255,0.08) !important;
-    border-radius: 16px !important;
-    padding: 3px 12px !important;
-    font-size: 0.8rem !important;
-    color: #ddd !important;
-    transition: background 0.2s ease !important;
-}
-.genreItems .button-link:hover { background: rgba(255,255,255,0.18) !important; }
-
 /* Overview / tagline readability over backdrop */
 .detailSectionContent .overview-text, .itemOverview {
-    font-size: 1.02rem !important;
-    line-height: 1.55 !important;
-    color: #d8d8d8 !important;
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    color: #fff !important;
     max-width: 680px !important;
 }
 
@@ -1740,5 +1744,98 @@ html.transparentDocument .view-transition { animation: none !important; }
     .alphaPicker-letter:hover { transform: none !important; }
     .nf-hero-btn:hover, .nf-pop-btn:hover { transform: none !important; }
 }
+
+/* =============================================
+   NETFLIX FIDELITY POLISH (v2.5.40)
+   ============================================= */
+
+/* --- Player: red seekbar + round red thumb (stock is hardcoded #00a4dc).
+   Applies to all emby-sliders (volume too — Netflix's volume is also red). */
+.mdl-slider-background-lower { background-color: var(--accent-red) !important; }
+/* Live TV / untimed streams mark the fill "clear" — keep it clear, not red. */
+.mdl-slider-background-lower.mdl-slider-background-lower-clear { background-color: transparent !important; }
+.mdl-slider-background-upper { background: rgba(255,255,255,0.4) !important; }
+.mdl-slider::-webkit-slider-thumb { background: var(--accent-red) !important; }
+.mdl-slider::-moz-range-thumb { background: var(--accent-red) !important; }
+.videoOsdBottom .sliderMarker { background: #fff !important; }
+
+/* --- Player: Netflix-style controls — big glyphs that grow on hover, no
+   circular hover puddle; themed title/time text. */
+.videoOsdBottom .paper-icon-button-light {
+    background: transparent !important;
+    transition: transform 0.15s ease !important;
+}
+.videoOsdBottom .paper-icon-button-light:hover {
+    background: transparent !important;
+    transform: scale(1.18) !important;
+    color: #fff !important;
+}
+.videoOsdBottom .paper-icon-button-light .material-icons { font-size: 1.6em; }
+.osdTitle, .osdMediaInfo, .osdTextContainer, .osdPositionText, .osdDurationText {
+    font-family: var(--font-netflix) !important;
+}
+
+/* --- Detail: "More Like This" as a static boxart grid, not a side-scroller.
+   (10.11 markup: #similarCollapsible > .emby-scroller > .scrollSlider.similarContent) */
+#similarCollapsible .emby-scroller { overflow: visible !important; }
+#similarCollapsible .emby-scrollbuttons { display: none !important; }
+#similarCollapsible .scrollSlider {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px !important;
+    white-space: normal !important;
+    transform: none !important;
+}
+#similarCollapsible .scrollSlider > .card { width: auto !important; min-width: 0 !important; }
+
+/* --- Detail: episode rows — white titles, gray synopsis, quiet #404040
+   separators instead of floating rounded chips. */
+.detailPageContent .listItem {
+    border-radius: 0 !important;
+    border-bottom: 1px solid #404040 !important;
+    padding: 14px 8px !important;
+}
+.detailPageContent .listItem:last-child { border-bottom: none !important; }
+.detailPageContent .listItemBody h3,
+.detailPageContent .listItemBody .listItemBodyText:first-child {
+    color: #fff !important;
+    font-weight: 500 !important;
+    font-size: 1rem !important;
+}
+.detailPageContent .listItem .secondary,
+.detailPageContent .listItemBodyText.secondary {
+    color: #d2d2d2 !important;
+    font-size: 0.9rem !important;
+    line-height: 1.5 !important;
+}
+/* Clamp only the synopsis — the media-info line is a flex row of divs and
+   would turn into a vertical stack under a -webkit-box clamp. */
+.detailPageContent .listItem-overview {
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* --- Detail: genres as Netflix's quiet comma-separated links (stock already
+   joins them with ', '; this just sets the quiet color + hover). Tags are
+   covered by the .itemTags a rule earlier. */
+.genresGroup .genres .button-link, .genres a.button-link {
+    background: none !important;
+    padding: 0 !important;
+    font-size: 0.9rem !important;
+    color: #ddd !important;
+}
+.genresGroup .genres .button-link:hover, .genres a.button-link:hover {
+    color: #fff !important;
+    text-decoration: underline !important;
+}
+
+/* --- Menus: action sheets ('...' menus, playback settings) — Netflix-dark,
+   no cyan. The .dialog base styling already applies; polish the items. */
+.actionSheet { font-family: var(--font-netflix) !important; }
+.actionSheet .actionSheetMenuItem:hover { background: rgba(255,255,255,0.08) !important; }
+.actionSheet .actionsheetMenuItemIcon { color: #e5e5e5 !important; }
+.actionSheetTitle { color: #fff !important; }
+.dialog .button-flat:not(.button-submit):not(.button-accent),
+.dialog a[is=emby-linkbutton]:not(.button-accent) { color: #fff !important; }
+.dialog .button-flat:not(.button-submit):not(.button-accent):hover { color: var(--text-muted) !important; }
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */
