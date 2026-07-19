@@ -33,6 +33,62 @@
         try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
     }
 
+    // ---- Session cache (stale-while-revalidate): home rows/hero/CW build in ONE
+    // frame from cached data on every revisit instead of popping in row by row.
+    // Keys carry the user id (never cross accounts) and a fingerprint of the
+    // settings that change what the cached HTML would contain.
+    function nfCacheKey(part, uid) {
+        // uid is passed explicitly on WRITES (captured when the fetch started):
+        // resolving it at write time could file a slow response arriving after a
+        // user switch under the NEW account's key.
+        uid = uid || (typeof ApiClient !== 'undefined' && ApiClient.getCurrentUserId && ApiClient.getCurrentUserId()) || 'anon';
+        var fp = [cfg('CardStyle', 'mixed'), String(cfg('GenreRowsExclude', ''))].join('|');
+        return 'nfct1:' + uid + ':' + fp + ':' + part;
+    }
+    function nfCacheGet(part, maxAgeMs) {
+        try {
+            var raw = sessionStorage.getItem(nfCacheKey(part));
+            if (!raw) return null;
+            var obj = JSON.parse(raw);
+            if (!obj || (Date.now() - obj.ts) > maxAgeMs) return null;
+            return obj.v;
+        } catch (e) { return null; }
+    }
+    function nfCacheSet(part, v, uid) {
+        try { sessionStorage.setItem(nfCacheKey(part, uid), JSON.stringify({ ts: Date.now(), v: v })); } catch (e) {}
+    }
+
+    // ---- Lazy row artwork: a home build used to fire ~120 thumbnail requests at
+    // once. Cards carry data-nf-bg; one shared observer fills them near-viewport.
+    var nfImgIO = ('IntersectionObserver' in window) ? new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+            if (!en.isIntersecting) return;
+            var el = en.target;
+            nfImgIO.unobserve(el);
+            var u = el.getAttribute('data-nf-bg');
+            if (u) { el.style.backgroundImage = "url('" + u + "')"; el.removeAttribute('data-nf-bg'); }
+        });
+    }, { rootMargin: '50%' }) : null;
+    var nfObserved = [];
+    function nfLazyImages(root) {
+        if (nfImgIO) {
+            // Prune targets that left the DOM before ever intersecting — the
+            // observer would otherwise pin their whole card subtrees forever.
+            nfObserved = nfObserved.filter(function (el) {
+                if (el.isConnected) return true;
+                nfImgIO.unobserve(el);
+                return false;
+            });
+        }
+        root.querySelectorAll('[data-nf-bg]').forEach(function (el) {
+            if (nfImgIO) { nfImgIO.observe(el); nfObserved.push(el); }
+            else {
+                el.style.backgroundImage = "url('" + el.getAttribute('data-nf-bg') + "')";
+                el.removeAttribute('data-nf-bg');
+            }
+        });
+    }
+
     var FONTS = [
         ['inter', 'Inter'], ['poppins', 'Poppins'], ['montserrat', 'Montserrat'],
         ['roboto', 'Roboto'], ['oswald', 'Oswald'], ['raleway', 'Raleway'],
@@ -401,6 +457,11 @@
             var userId = ApiClient.getCurrentUserId();
             if (!userId) return;
 
+            if (heroCache.uid !== userId || !heroCache.items) {
+                // Survive full page reloads too (sessionStorage, same TTL).
+                var stored = nfCacheGet('hero', HERO_CACHE_MS);
+                if (stored && stored.length) { heroCache.uid = userId; heroCache.items = stored; heroCache.ts = Date.now(); }
+            }
             if (heroCache.uid === userId && heroCache.items && heroCache.items.length && (Date.now() - heroCache.ts) < HERO_CACHE_MS) {
                 renderHero(container, heroCache.items);
                 return;
@@ -430,6 +491,7 @@
                 heroCache.uid = userId;
                 heroCache.items = items;
                 heroCache.ts = Date.now();
+                nfCacheSet('hero', items, userId);
                 if (!c.querySelector('.nf-hero')) renderHero(c, items);
             }).catch(function () { heroBusy = false; });
         } catch (e) { heroBusy = false; }
@@ -657,7 +719,7 @@
             '<div class="cardBox cardBox-bottompadded">' +
               '<div class="cardScalable">' +
                 '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
-                '<a href="' + href + '" data-action="link" class="cardImageContainer cardContent itemAction" aria-label="' + esc(item.Name) + '" style="background-image:url(\'' + img + '\')"></a>' +
+                '<a href="' + href + '" data-action="link" class="cardImageContainer cardContent itemAction" aria-label="' + esc(item.Name) + '" data-nf-bg="' + esc(img) + '"></a>' +
                 '<div class="cardOverlayContainer itemAction" data-action="link">' +
                   '<a href="' + href + '" data-action="link" class="cardImageContainer"></a>' +
                   '<div class="cardOverlayButtonContainer cardOverlayButtonContainer-centered">' +
@@ -693,27 +755,47 @@
             String(cfg('GenreRowsExclude', 'Documentary, Dokumentarfilm, Dokumentation'))
                 .split(',').forEach(function (g) { g = g.trim().toLowerCase(); if (g) excluded[g] = true; });
 
+            function addGenreSection(g, its) {
+                if (!its.length || !isHomePage()) { return; }
+                var c = activeHomeContainer();
+                if (!c || c.getAttribute('data-nf-rows') !== '1') { return; }
+                var sec = document.createElement('div');
+                sec.className = 'verticalSection nf-genre-section';
+                sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + esc(g) + '</h2>' +
+                    '<div class="nf-row-scroll"><div class="nf-row-track">' +
+                    its.map(function (it) { return buildCardHtml(it, sid); }).join('') +
+                    '</div></div>';
+                c.appendChild(sec);
+                nfRowNav(sec);
+                nfLazyImages(sec);
+            }
+
+            // Instant path: fully cached rows (name + items) build in one frame —
+            // no network, no row-by-row pop-in. Rows rotate when the cache expires.
+            var cachedRows = nfCacheGet('rows', GENRE_CACHE_MS);
+            if (cachedRows && cachedRows.length) {
+                genreBusy = false;
+                cachedRows.forEach(function (row) { addGenreSection(row.g, row.items); });
+                return;
+            }
+
             function buildRows(genres) {
-                genres.filter(function (g) { return !excluded[String(g).trim().toLowerCase()]; })
-                    .slice(0, GENRE_MAX_ROWS)
-                    .forEach(function (g) {
+                var picked = genres.filter(function (g) { return !excluded[String(g).trim().toLowerCase()]; })
+                    .slice(0, GENRE_MAX_ROWS);
+                var collected = [];
+                var settled = 0;
+                picked.forEach(function (g) {
                     ApiClient.getItems(userId, {
                         IncludeItemTypes: 'Movie,Series', Recursive: true, Genres: g,
                         SortBy: 'Random', Limit: 20, ImageTypeLimit: 1, EnableImageTypes: 'Backdrop,Thumb,Primary'
                     }).then(function (r) {
                         var its = ((r && r.Items) || []).filter(function (x) { return (x.BackdropImageTags && x.BackdropImageTags.length) || (x.ImageTags && (x.ImageTags.Thumb || x.ImageTags.Primary)); });
-                        if (!its.length || !isHomePage()) { return; }
-                        var c = activeHomeContainer();
-                        if (!c || c.getAttribute('data-nf-rows') !== '1') { return; }
-                        var sec = document.createElement('div');
-                        sec.className = 'verticalSection nf-genre-section';
-                        sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + esc(g) + '</h2>' +
-                            '<div class="nf-row-scroll"><div class="nf-row-track">' +
-                            its.map(function (it) { return buildCardHtml(it, sid); }).join('') +
-                            '</div></div>';
-                        c.appendChild(sec);
-                        nfRowNav(sec);
-                    }).catch(function () {});
+                        if (its.length) { collected.push({ g: g, items: its }); }
+                        addGenreSection(g, its);
+                    }).catch(function () {}).then(function () {
+                        settled++;
+                        if (settled === picked.length && collected.length) { nfCacheSet('rows', collected, userId); }
+                    });
                 });
             }
 
@@ -779,6 +861,46 @@
             container.setAttribute('data-nf-cw', '1');
             var sid = ApiClient.serverId && ApiClient.serverId();
 
+            function cwFingerprint(items) {
+                return items.map(function (i) { return i.Id + ':' + Math.round((i.UserData && i.UserData.PlayedPercentage) || 0); }).join(',');
+            }
+
+            function cwCardsHtml(items) {
+                return items.map(function (item) {
+                    var pct = (item.UserData && item.UserData.PlayedPercentage) || 0;
+                    var name = item.Type === 'Episode' ? (item.SeriesName || item.Name) : item.Name;
+                    var href = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
+                    return '<a class="nf-cw-card" href="' + href + '">' +
+                        '<div class="nf-cw-thumb" data-nf-bg="' + esc(cwImage(item)) + '">' +
+                            '<div class="nf-cw-play"><span class="material-icons" aria-hidden="true">play_arrow</span></div>' +
+                            '<div class="nf-cw-prog"><i style="width:' + Math.max(2, Math.min(100, pct)) + '%"></i></div>' +
+                        '</div>' +
+                        '<div class="nf-cw-title">' + esc(name || '') + '</div></a>';
+                }).join('');
+            }
+
+            function insertCwSection(items) {
+                var c = activeHomeContainer();
+                if (!c || c.getAttribute('data-nf-cw') !== '1' || c.querySelector('.nf-cw-section')) { return null; }
+                var sec = document.createElement('div');
+                sec.className = 'verticalSection nf-cw-section';
+                sec.setAttribute('data-nf-fp', cwFingerprint(items));
+                sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + nfL().cw + '</h2>' +
+                    '<div class="nf-cw-scroll"><div class="nf-cw-track">' + cwCardsHtml(items) + '</div></div>';
+                var hero = c.querySelector('.nf-hero');
+                if (hero && hero.nextSibling) { c.insertBefore(sec, hero.nextSibling); }
+                else { c.insertBefore(sec, c.firstChild); }
+                nfRowNav(sec);
+                nfLazyImages(sec);
+                return sec;
+            }
+
+            // Instant path: paint the cached row immediately, then refresh below —
+            // Continue Watching must stay CURRENT (progress changes constantly), so
+            // the fresh result diff-updates the row only when it actually changed.
+            var cachedCw = nfCacheGet('cw', 30 * 60 * 1000);
+            if (cachedCw && cachedCw.length) { insertCwSection(cachedCw); }
+
             ApiClient.getItems(userId, {
                 Filters: 'IsResumable', SortBy: 'DatePlayed', SortOrder: 'Descending',
                 Recursive: true, MediaTypes: 'Video', Limit: 12,
@@ -786,32 +908,24 @@
             }).then(function (res) {
                 cwBusy = false;
                 var items = (res && res.Items) || [];
-                if (!items.length || !isHomePage()) { return; }
+                if (!isHomePage()) { return; }
                 var c = activeHomeContainer();
                 if (!c || c.getAttribute('data-nf-cw') !== '1') { return; }
-                var cards = items.map(function (item) {
-                    var pct = (item.UserData && item.UserData.PlayedPercentage) || 0;
-                    var name = item.Type === 'Episode' ? (item.SeriesName || item.Name) : item.Name;
-                    var href = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
-                    return '<a class="nf-cw-card" href="' + href + '">' +
-                        '<div class="nf-cw-thumb" style="background-image:url(\'' + cwImage(item) + '\')">' +
-                            '<div class="nf-cw-play"><span class="material-icons" aria-hidden="true">play_arrow</span></div>' +
-                            '<div class="nf-cw-prog"><i style="width:' + Math.max(2, Math.min(100, pct)) + '%"></i></div>' +
-                        '</div>' +
-                        '<div class="nf-cw-title">' + esc(name || '') + '</div></a>';
-                }).join('');
-                var sec = document.createElement('div');
-                sec.className = 'verticalSection nf-cw-section';
-                sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + nfL().cw + '</h2>' +
-                    '<div class="nf-cw-scroll"><div class="nf-cw-track">' + cards + '</div></div>';
-                var hero = c.querySelector('.nf-hero');
-                if (hero && hero.nextSibling) { c.insertBefore(sec, hero.nextSibling); }
-                else { c.insertBefore(sec, c.firstChild); }
-                nfRowNav(sec);
+                nfCacheSet('cw', items, userId);
+                var sec = c.querySelector('.nf-cw-section');
+                if (!sec) {
+                    if (items.length) { insertCwSection(items); }
+                    return;
+                }
+                if (!items.length) { sec.remove(); return; }
+                if (sec.getAttribute('data-nf-fp') === cwFingerprint(items)) { return; }
+                sec.setAttribute('data-nf-fp', cwFingerprint(items));
+                var track = sec.querySelector('.nf-cw-track');
+                if (track) { track.innerHTML = cwCardsHtml(items); nfLazyImages(sec); }
             }).catch(function () {
                 cwBusy = false;
                 var c = activeHomeContainer();
-                if (c) c.removeAttribute('data-nf-cw');
+                if (c && !c.querySelector('.nf-cw-section')) c.removeAttribute('data-nf-cw');
             });
         } catch (e) { cwBusy = false; }
     }
@@ -827,8 +941,23 @@
             document.documentElement.classList.toggle('nf-home', onHome && cfg('CleanHome', true) === true);
             if (cfg('CleanHome', true) !== true || !onHome) { return; }
             var c = activeHomeContainer();
-            if (c && (c.querySelector('.nf-genre-section') || c.querySelector('.nf-cw-section'))) {
+            if (!c) { return; }
+            if (c.querySelector('.nf-genre-section') || c.querySelector('.nf-cw-section')) {
                 c.classList.add('nf-owned');
+                c.classList.remove('nf-reveal-native');
+            }
+            // Failsafe for the instant native-row hide the generated CSS applies
+            // under Clean Home: if OUR rows fail to build (API down, empty
+            // library), reveal the native home instead of leaving it blank.
+            // (The hero coexists with native rows, so it doesn't count as "built".)
+            if (!c.getAttribute('data-nf-failsafe')) {
+                c.setAttribute('data-nf-failsafe', '1');
+                setTimeout(function () {
+                    if (!document.body.contains(c)) { return; }
+                    if (!c.querySelector('.nf-genre-section') && !c.querySelector('.nf-cw-section')) {
+                        c.classList.add('nf-reveal-native');
+                    }
+                }, 7000);
             }
         } catch (e) {}
     }
@@ -1277,7 +1406,9 @@
             document.querySelectorAll('.starRatingValue, .starRatingContainer').forEach(function (el) {
                 if (el.dataset.ctMatch) return;
                 var n = parseFloat((el.textContent || '').replace(',', '.'));
-                if (isNaN(n) || n < 0 || n > 10) return;
+                // Mark even invalid values: unmarked elements are visibility-hidden
+                // by the generated CSS to stop the "7.8 -> 78% Match" text flicker.
+                if (isNaN(n) || n < 0 || n > 10) { el.dataset.ctMatch = '0'; return; }
                 el.dataset.ctMatch = '1';
                 el.textContent = Math.round(n * 10) + '% Match';
                 // The match score leads the metadata row via CSS (flex `order` on
@@ -1432,7 +1563,9 @@
         // SPA-survival (learned from jellyfin-plugin-custom-tabs): Jellyfin recreates the
         // header/home on client-side navigation, which can drop our button/tabs/takeover.
         // Patch history + listen to nav events and re-apply (with a short settle delay).
-        function reapply() { setTimeout(scheduleDynamic, 250); }
+        // 50ms settle (was 250) — the MutationObserver catches later DOM anyway;
+        // a long delay just made our rows visibly late after navigation.
+        function reapply() { setTimeout(scheduleDynamic, 50); }
         ['pushState', 'replaceState'].forEach(function (m) {
             var orig = history[m];
             if (typeof orig === 'function' && !orig.__ctPatched) {

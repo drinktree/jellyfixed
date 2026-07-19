@@ -409,6 +409,17 @@ namespace Jellyfin.Plugin.CustomTheme
         /// <summary>Netflix-style extras: hover preview cards, Top 10 numbers, glass, OLED, detail polish.</summary>
         private static void AppendNetflixExtras(StringBuilder sb, PluginConfiguration config)
         {
+            if (config.CleanHome && config.GenreRows)
+            {
+                // Hide native/foreign home rows IMMEDIATELY — they used to render
+                // first and flash until the theme's own rows arrived (.nf-owned).
+                // Gated on GenreRows (the feature that actually replaces the rows),
+                // and self-excluded under .nf-reveal-native: headerButton.js adds
+                // that class as a failsafe when the theme's rows fail to build, and
+                // natives then return to their natural display.
+                sb.AppendLine(".homeSectionsContainer:not(.nf-reveal-native) > *:not(.nf-hero):not(.nf-cw-section):not(.nf-genre-section) { display: none !important; }");
+            }
+
             if (config.HoverPreviewCard)
             {
                 // Overlay styling — independent of the zoom motion.
@@ -456,8 +467,13 @@ namespace Jellyfin.Plugin.CustomTheme
             {
                 // Community rating is restyled green; headerButton.js rewrites the value to "x% Match".
                 // Detail pages put the value directly in .starRatingContainer (no .starRatingValue).
+                // Unprocessed elements stay invisible briefly so the raw "7.8" never
+                // flashes before becoming "78% Match"; the animation reveals them
+                // anyway after 2.5s if the script can't process them (fail open).
                 sb.AppendLine(@".starRatingValue, .starRatingContainer { color: #46d369 !important; font-weight: 700 !important; }
-.starIcon { display: none !important; }");
+.starIcon { display: none !important; }
+.starRatingValue:not([data-ct-match]), .starRatingContainer:not([data-ct-match]) { visibility: hidden; animation: nfMatchReveal 0s 2.5s forwards; }
+@keyframes nfMatchReveal { to { visibility: visible; } }");
             }
 
             if (config.TopTenRow)

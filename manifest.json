@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.45.0",
+        "changelog": "Performance & native-feel release. Home now has a session cache (per user, settings-aware): the hero, Continue Watching and all genre rows rebuild in a single frame from cached data when you navigate back — no more row-by-row pop-in — refreshing in the background (Continue Watching diff-updates only when your progress actually changed; rows rotate when the 10-minute cache expires). Native home rows are hidden instantly under Clean Home instead of flashing before the theme's rows replace them (with a fail-open reveal if the theme's rows can't build, and no pre-hide when genre rows are disabled). Row artwork lazy-loads near the viewport instead of firing ~120 thumbnail requests per home build. Ratings no longer flash '7.8' before becoming '78% Match'. Navigation re-apply delay cut from 250ms to 50ms. Caches are keyed per user (an account switch never shows another profile's rows).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.45/custom-theme-v2.5.45.zip",
+        "checksum": "94855b93a3a77bd29c2390f4e868b169",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.44.0",
         "changelog": "Cast & Crew photos are back: the person-card frame's only real height source (the padding spacer) was zeroed in favor of aspect-ratio, which some clients (e.g. Jellyfin Media Player's older Chromium) don't honor — the whole image circle collapsed to 0px, leaving names without faces. Restored the universal percentage-padding mechanism (square, round-cropped as before; empirically verified in modern and legacy engines). The detail-page title logo now sits directly above the match/year/duration line instead of floating near the top (the layout math missed the in-flow 40vh backdrop spacer and the stock ribbon pull-up). The critic-rating tomato is restored to the metadata line (user preference).",
         "targetAbi": "10.11.0.0",
