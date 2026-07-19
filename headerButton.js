@@ -1298,8 +1298,25 @@
             destroyPopEl();
             popEl = pop;
             document.body.appendChild(pop);
-            requestAnimationFrame(function () { pop.classList.add('show'); });
-            streamClipInto(pop, item);
+
+            // Reveal only once the artwork is ALREADY painted — showing the tile
+            // while the image was still loading flashed a black box first.
+            var shown = false;
+            function reveal() {
+                if (shown || popEl !== pop) return;
+                shown = true;
+                requestAnimationFrame(function () { pop.classList.add('show'); });
+                streamClipInto(pop, item);
+            }
+            if (media) {
+                var im = new Image();
+                im.onload = reveal;
+                im.onerror = reveal;
+                im.src = media;
+                setTimeout(reveal, 400); // slow network: show anyway with the fade
+            } else {
+                reveal();
+            }
         }).catch(function () {});
     }
 

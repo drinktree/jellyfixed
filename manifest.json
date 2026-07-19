@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.46.0",
+        "changelog": "Hover polish: hovering a card no longer triple-animates (in-place zoom, then a black tile, then the preview). With the hover popup enabled the card itself now stays still — the popup IS the expansion, like Netflix — and the preview tile only appears once its artwork has actually loaded (with a 400ms fail-open so slow networks still get the tile). The plain card zoom still works as before when the popup feature is turned off.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.46/custom-theme-v2.5.46.zip",
+        "checksum": "d53ef8639017403d38d15cb19202b3c2",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.45.0",
         "changelog": "Performance & native-feel release. Home now has a session cache (per user, settings-aware): the hero, Continue Watching and all genre rows rebuild in a single frame from cached data when you navigate back — no more row-by-row pop-in — refreshing in the background (Continue Watching diff-updates only when your progress actually changed; rows rotate when the 10-minute cache expires). Native home rows are hidden instantly under Clean Home instead of flashing before the theme's rows replace them (with a fail-open reveal if the theme's rows can't build, and no pre-hide when genre rows are disabled). Row artwork lazy-loads near the viewport instead of firing ~120 thumbnail requests per home build. Ratings no longer flash '7.8' before becoming '78% Match'. Navigation re-apply delay cut from 250ms to 50ms. Caches are keyed per user (an account switch never shows another profile's rows).",
         "targetAbi": "10.11.0.0",

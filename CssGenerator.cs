@@ -430,29 +430,13 @@ namespace Jellyfin.Plugin.CustomTheme
 .cardOverlayContainer .paper-icon-button-light:hover { transform: scale(1.15) !important; background: rgba(255,255,255,0.25) !important; }
 .cardOverlayContainer .cardOverlayButton-br .paper-icon-button-light { background: rgba(255,255,255,0.92) !important; color: #000 !important; }");
 
-                // Zoom motion — respects the CardHoverScale toggle (this block used to
-                // silently re-enable zoom that AppendLayout had just disabled). The
-                // neighbour-slide targets horizontal ROWS only: .scrollSlider (native)
-                // and .nf-row-track (our genre rows); .itemsContainer used to shear
-                // whole grid pages sideways.
-                if (config.CardHoverScale)
-                {
-                    sb.AppendLine(@".card:hover { transform: none !important; box-shadow: none !important; z-index: 60 !important; }
-.card:hover .cardScalable { transform: scale(1.2) !important; transform-origin: center center !important; box-shadow: 0 18px 40px rgba(0,0,0,0.85) !important; border-radius: 6px !important; }
-.scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: translateX(30px) !important; }
-.scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: translateX(-30px) !important; }
-.scrollSlider > .card:first-child:hover .cardScalable, .nf-row-track > .card:first-child:hover .cardScalable { transform-origin: left center !important; }
-.scrollSlider > .card:last-child:hover .cardScalable, .nf-row-track > .card:last-child:hover .cardScalable { transform-origin: right center !important; }
-@media (prefers-reduced-motion: reduce) {
-.card:hover .cardScalable { transform: none !important; }
-.scrollSlider > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: none !important; }
-.scrollSlider > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: none !important; }
-}");
-                }
-                else
-                {
-                    sb.AppendLine(".card:hover { z-index: 60 !important; }");
-                }
+                // NO in-place zoom while the popup feature is on: the popup IS the
+                // hover expansion (Netflix cards themselves stay still). Zooming the
+                // card first and then swapping to the floating tile read as a
+                // double animation / glitch. CardHoverScale still governs the plain
+                // zoom when the popup feature is turned off (base-sheet rules).
+                sb.AppendLine(".card:hover { transform: none !important; box-shadow: none !important; z-index: 60 !important; }");
+                sb.AppendLine(".card:hover .cardScalable { transform: none !important; box-shadow: none !important; }");
             }
 
             if (config.NavLeft)
