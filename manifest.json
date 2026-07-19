@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.47.0",
+        "changelog": "Hover fix, take two: the in-place card zoom is back exactly as before (it was removed in 2.5.46 — that was the wrong call). The actual 'black screen' was the preview clip's <video> element painting solid black over the artwork before its first frame decoded; popup clips now stay invisible and fade in only once frames are actually rendering (same treatment the hero and detail clips already had). The popup tile also still preloads its artwork before appearing.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.47/custom-theme-v2.5.47.zip",
+        "checksum": "c4aff6858b221eb44ae41cf9ee099116",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.46.0",
         "changelog": "Hover polish: hovering a card no longer triple-animates (in-place zoom, then a black tile, then the preview). With the hover popup enabled the card itself now stays still — the popup IS the expansion, like Netflix — and the preview tile only appears once its artwork has actually loaded (with a 400ms fail-open so slow networks still get the tile). The plain card zoom still works as before when the popup feature is turned off.",
         "targetAbi": "10.11.0.0",

@@ -1529,7 +1529,10 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
 }
 .nf-pop.show { opacity: 1; transform: scale(1); }
 .nf-pop-media { display: block; text-decoration: none; position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000 center / cover no-repeat; }
-.nf-pop-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Popup clip stays invisible until it actually renders frames — otherwise the
+   frame-less video element paints solid black over the artwork. */
+.nf-pop-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.45s ease; }
+.nf-pop-media video.show { opacity: 1; }
 .nf-pop-fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, #181818 2%, transparent 55%); }
 .nf-pop-info { padding: 8px 16px 16px; }
 .nf-pop-actions { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }

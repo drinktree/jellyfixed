@@ -1174,6 +1174,9 @@
         var media = pop.querySelector('.nf-pop-media');
         if (!media || popEl !== pop) return;
         var video = nfNewClipVideo('');
+        // Fade in only once frames are actually rendering — a <video> without a
+        // decoded frame paints SOLID BLACK over the artwork (the "black screen").
+        video.addEventListener('playing', function () { video.classList.add('show'); });
         nfClaim(video);
         nfClipSrc(video, playId, ms, ticks);
         media.insertBefore(video, media.firstChild);
