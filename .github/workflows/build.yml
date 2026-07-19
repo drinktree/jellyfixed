@@ -1,0 +1,128 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build
+        run: dotnet build -c Release --nologo
+
+      - name: Package (verify)
+        run: |
+          mkdir -p dist
+          cp bin/Release/net9.0/Jellyfin.Plugin.CustomTheme.dll bin/Release/net9.0/CustomTheme.FileTransformation.dll meta.json dist/
+          (cd dist && zip -q -X plugin.zip Jellyfin.Plugin.CustomTheme.dll CustomTheme.FileTransformation.dll meta.json)
+          echo "MD5: $(md5sum dist/plugin.zip | cut -d' ' -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: dist/plugin.zip
+
+  # Auto-release: on every push to main, if meta.json's version has no release yet,
+  # build it, create the tag + release, attach the zip and pin the checksum.
+  # No manual tagging needed — just merge a version-bumping PR.
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Two version-bump pushes landing on main close together (e.g. two merged PRs) must not
+    # run this job concurrently — v2.5.35's release was silently lost this way: two overlapping
+    # runs raced past the "does the tag exist yet" check before either had created it.
+    concurrency:
+      group: release-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Auto tag, build & publish release if the version is new
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          VERSION="$(python3 -c "import json;print(json.load(open('meta.json'))['version'])")"
+          SHORT="${VERSION%.0}"          # 2.5.14.0 -> 2.5.14
+          TAG="v${SHORT}"
+          ZIP="custom-theme-${TAG}.zip"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — nothing to do."
+            exit 0
+          fi
+
+          dotnet build -c Release --nologo
+          mkdir -p dist
+          cp bin/Release/net9.0/Jellyfin.Plugin.CustomTheme.dll bin/Release/net9.0/CustomTheme.FileTransformation.dll meta.json dist/
+          (cd dist && zip -q -X "$ZIP" Jellyfin.Plugin.CustomTheme.dll CustomTheme.FileTransformation.dll meta.json)
+          MD5="$(md5sum "dist/$ZIP" | cut -d' ' -f1)"
+          echo "### Released $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "MD5 \`$MD5\`" >> "$GITHUB_STEP_SUMMARY"
+
+          # Creates the tag at the current main commit AND the release in one step.
+          gh release create "$TAG" "dist/$ZIP" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes "Automated release. Plugin zip MD5: \`${MD5}\`."
+
+          # Pin the checksum into manifest.json and push back. [skip ci] stops this
+          # commit from re-triggering the workflow.
+          python3 - "$VERSION" "$MD5" <<'PY'
+          import json, sys
+          version, md5 = sys.argv[1], sys.argv[2]
+          data = json.load(open('manifest.json'))
+          for pkg in data:
+              for ver in pkg.get('versions', []):
+                  if ver.get('version') in (version, version + '.0'):
+                      ver['checksum'] = md5
+          with open('manifest.json', 'w') as f:
+              json.dump(data, f, indent=2)
+              f.write('\n')
+          PY
+          if ! git diff --quiet manifest.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add manifest.json
+            git commit -m "Pin manifest checksum for ${TAG} [skip ci]"
+
+            # main can have moved (another push landed while this job built/uploaded the
+            # release) — rebase onto the latest main and retry a few times before giving up.
+            # This was the actual cause of v2.5.35's checksum never being pinned.
+            pushed=0
+            for attempt in 1 2 3 4 5; do
+              if git push origin HEAD:main; then
+                pushed=1
+                break
+              fi
+              echo "Push attempt ${attempt} failed, fetching latest main and rebasing..."
+              git fetch origin main
+              git rebase origin/main || { echo "::error::Rebase conflict pinning checksum for ${TAG} — resolve manifest.json manually (MD5 ${MD5} is in the job summary)."; git rebase --abort || true; break; }
+              sleep $((attempt * 2))
+            done
+            if [ "$pushed" -ne 1 ]; then
+              echo "::warning::Could not push manifest update after retries (branch protection?). Copy the MD5 from the job summary into manifest.json manually."
+            fi
+          fi

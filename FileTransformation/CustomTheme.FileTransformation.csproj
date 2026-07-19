@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Name contains ".FileTransformation" so consumer plugins (e.g. Media Bar)
+         that scan for an assembly whose FullName contains ".FileTransformation"
+         discover this provider. -->
+    <AssemblyName>CustomTheme.FileTransformation</AssemblyName>
+    <RootNamespace>Jellyfin.Plugin.FileTransformation</RootNamespace>
+    <Version>2.5.38.0</Version>
+  </PropertyGroup>
+
+</Project>

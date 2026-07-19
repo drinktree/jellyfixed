@@ -1,0 +1,9 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.nupkg
+custom-theme-*.zip
+dist/

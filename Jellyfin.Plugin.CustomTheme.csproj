@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Jellyfin.Plugin.CustomTheme</AssemblyName>
+    <RootNamespace>Jellyfin.Plugin.CustomTheme</RootNamespace>
+    <Version>2.5.38.0</Version>
+    <AssemblyVersion>2.5.38.0</AssemblyVersion>
+    <FileVersion>2.5.38.0</FileVersion>
+  </PropertyGroup>
+
+  <!-- The bundled File Transformation provider is a separate assembly so its name
+       contains ".FileTransformation"; exclude its sources from this project and
+       reference it instead. -->
+  <ItemGroup>
+    <Compile Remove="FileTransformation/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="FileTransformation/CustomTheme.FileTransformation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Model" Version="10.11.0" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
+  </ItemGroup>
+
+  <!-- ASP.NET types for the self-contained index.html injection middleware
+       (IStartupFilter, IApplicationBuilder, HttpContext, StreamResponseBodyFeature). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="netflix.css" />
+    <EmbeddedResource Include="configPage.html" />
+    <EmbeddedResource Include="headerButton.js" />
+  </ItemGroup>
+
+</Project>

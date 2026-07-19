@@ -1,0 +1,1744 @@
+/* =============================================
+   CUSTOM THEME FOR JELLYFIN 10.11+
+   NOTE: no @import here — CssGenerator prepends a Google Fonts import for the
+   ONE selected font family (all 15 families used to load on every page).
+   ============================================= */
+
+:root {
+    --accent-red: #E50914;
+    --accent-red-hover: #ff0a16;
+    --bg-dark: #141414;
+    --bg-darker: #000000;
+    --text-main: #FFFFFF;
+    --text-muted: #B3B3B3;
+    --card-radius: 4px;
+    --font-netflix: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    --nav-height: 68px;
+}
+
+/* =============================================
+   GLOBAL
+   ============================================= */
+
+body, .mainDrawer, .dialog {
+    background-color: var(--bg-dark) !important;
+    color: var(--text-main) !important;
+    font-family: var(--font-netflix) !important;
+    -webkit-font-smoothing: antialiased;
+}
+
+.backgroundContainer {
+    background-color: var(--bg-dark) !important;
+    color: var(--text-main) !important;
+    font-family: var(--font-netflix) !important;
+}
+
+/* =============================================
+   HEADER — Netflix top bar
+   ============================================= */
+
+.skinHeader {
+    background: #141414 !important;
+    height: var(--nav-height) !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    position: fixed !important;
+    width: 100% !important;
+    z-index: 10000 !important;
+    transition: background 0.4s ease !important;
+    backdrop-filter: none !important;
+}
+
+/* Netflix: over a billboard, the header is transparent with a top scrim at the
+   very top, and goes solid #141414 once scrolled. headerButton.js toggles
+   .nf-scrolled on window scroll; .skinHeader-withBackground marks billboard views.
+   Non-billboard views keep the solid default above. */
+.skinHeader-withBackground:not(.nf-scrolled) {
+    background: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 40%, transparent 100%) !important;
+}
+
+.skinHeader-blurred {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Netflix layout: nav/logo on the left, search + theme + profile pushed to the
+   far right. Jellyfin packs .headerRight right after .headerLeft (justify-start),
+   so it sat mid-left; auto start-margin absorbs the free space and pins it right.
+   Logical properties keep the header correct under RTL locales. */
+.skinHeader .headerRight { margin-inline-start: auto !important; }
+
+.headerTop {
+    height: var(--nav-height) !important;
+}
+
+/* Hide Jellyfin branding */
+.pageTitleWithLogo, .pageTitleWithDefaultLogo, .headerLogo {
+    display: none !important;
+}
+
+/* Netflix N logo */
+.headerLeft::before {
+    content: 'N';
+    color: var(--accent-red);
+    font-weight: 900;
+    font-size: 2.6rem;
+    letter-spacing: -2px;
+    cursor: pointer;
+    text-shadow: 0 0 15px rgba(229, 9, 20, 0.4);
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+    transform: scaleY(1.1);
+    font-family: var(--font-netflix);
+}
+
+.headerLeft {
+    display: flex !important;
+    align-items: center !important;
+    padding-inline-start: 4% !important;
+}
+
+/* Header tabs centered */
+.headerTabs.sectionTabs {
+    background: transparent !important;
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    top: 0 !important;
+    margin: 0 !important;
+    height: var(--nav-height) !important;
+    display: flex !important;
+    align-items: center !important;
+    z-index: 10 !important;
+    width: auto !important;
+}
+
+.headerTabs .emby-tab-button {
+    background: transparent !important;
+    color: var(--text-muted) !important;
+    font-family: var(--font-netflix) !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    padding: 7px 20px !important;
+    height: auto !important;
+    transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease !important;
+    text-transform: none !important;
+    border: 1px solid transparent !important;
+    border-radius: 20px !important;
+    letter-spacing: 0.02em !important;
+    position: relative !important;
+}
+
+.headerTabs .emby-tab-button:hover {
+    color: var(--text-main) !important;
+    border-color: rgba(255,255,255,0.25) !important;
+    background-color: rgba(255,255,255,0.06) !important;
+}
+
+.headerTabs .emby-tab-button-active {
+    color: var(--text-main) !important;
+    font-weight: 700 !important;
+    background-color: rgba(255,255,255,0.1) !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+
+.tabs-viewmenubar.emby-tabs { overflow: visible !important; width: auto !important; height: auto !important; }
+.emby-tabs-slider { display: flex !important; gap: 8px !important; }
+.emby-tab-button::after, .emby-tab-button .tabButtonActive-bg { display: none !important; }
+
+/* Header right */
+.headerRight {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding-inline-end: 4% !important;
+}
+
+.headerRight .headerButton { color: var(--text-main) !important; opacity: 0.85; transition: opacity 0.2s ease !important; }
+.headerRight .headerButton:hover { opacity: 1; }
+.headerUserButton { border-radius: 4px !important; overflow: hidden; }
+.headerSyncButton, .headerCastButton, .headerAudioPlayerButton { display: none !important; }
+
+/* =============================================
+   HOME PAGE
+   ============================================= */
+
+.homeSectionsContainer {
+    padding-top: calc(var(--nav-height) + 10px) !important;
+}
+
+.verticalSection {
+    margin-bottom: 0.8rem !important;
+    padding: 0 4% !important;
+    /* NOTE: do NOT force overflow:visible here — on detail/search pages the
+       horizontal scroll container itself carries the .verticalSection class, and
+       forcing it visible stops it clipping/scrolling and blows the page width out.
+       Native overflow (auto) must stand. Home rows use their own .nf-row-scroll. */
+}
+
+.sectionTitle {
+    font-size: 1.3rem !important;
+    font-weight: 700 !important;
+    margin-bottom: 0.4rem !important;
+    color: #e5e5e5 !important;
+    font-family: var(--font-netflix) !important;
+}
+
+.sectionTitle:hover { color: var(--text-main) !important; }
+.padded-left, .padded-right { padding: 0 !important; }
+
+/* Section title arrow on hover — Netflix "explore" feel */
+.sectionTitle .sectionTitleTextButton {
+    color: var(--accent-red) !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    opacity: 0 !important;
+    transition: opacity 0.3s ease !important;
+}
+
+.verticalSection:hover .sectionTitle .sectionTitleTextButton {
+    opacity: 1 !important;
+}
+
+/* "Meine Medien" library cards — bigger, Netflix-style */
+.section0 .card.overflowBackdropCard {
+    min-width: 250px !important;
+}
+
+.section0 .card.overflowBackdropCard .cardImageContainer {
+    border-radius: 6px !important;
+}
+
+/* --- HOME SCROLL ROWS — Netflix-style tight packing ---
+   (single canonical block; a second 25px copy further down used to shadow this) */
+.homeSectionsContainer .scrollSlider {
+    padding-bottom: 25px !important;
+    margin-bottom: -25px !important;
+    gap: 6px !important;
+}
+
+/* Make backdrop cards (Als Nächstes, etc.) wider to fill viewport */
+.homeSectionsContainer .card.overflowBackdropCard {
+    min-width: 320px !important;
+}
+
+/* Make portrait cards bigger and fill row better */
+.homeSectionsContainer .card.overflowPortraitCard:not(.personCard) {
+    min-width: 160px !important;
+}
+
+/* Remove excess empty space between sections. The :has() variant lives in its
+   own rule: one unsupported selector in a comma list would invalidate the whole
+   list on older TV/WebView engines, breaking the plain .hide/:empty rules too. */
+.verticalSection.hide,
+.homeSectionsContainer .verticalSection:empty {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.verticalSection:has(.scrollSlider:empty) {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Hide empty home sections that have no cards (but never our own Continue
+   Watching / genre rows — their cards use .nf-cw-card, not .card). */
+.homeSectionsContainer .verticalSection:not(:has(.card)):not(:has(.listItem)):not(.nf-cw-section):not(.nf-genre-section) {
+    display: none !important;
+    margin: 0 !important;
+}
+
+/* =============================================
+   CARDS
+   ============================================= */
+
+.card {
+    transition: transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.35s ease !important;
+    overflow: visible !important;
+    border-radius: var(--card-radius) !important;
+}
+
+/* z-index 60: above siblings/rows but always below the fixed header (10000)
+   and the hover popup — a 99999 here used to paint hovered cards OVER the header. */
+.card:hover {
+    transform: scale(1.09) translateY(-6px) !important;
+    z-index: 60 !important;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.8) !important;
+}
+
+.scrollSlider > .card:first-child:hover { transform-origin: left center !important; }
+.scrollSlider > .card:last-child:hover { transform-origin: right center !important; }
+
+.cardScalable { border-radius: var(--card-radius) !important; box-shadow: none !important; overflow: hidden !important; }
+.cardImageContainer { border-radius: var(--card-radius) !important; transition: filter 0.3s ease !important; }
+.card:hover .cardImageContainer { filter: brightness(1.1) !important; }
+.cardContent { border-radius: var(--card-radius) !important; }
+.cardText { font-family: var(--font-netflix) !important; font-size: 0.8rem !important; color: var(--text-muted) !important; transition: color 0.2s ease !important; }
+.card:hover .cardText { color: var(--text-main) !important; }
+.cardText-first { color: var(--text-main) !important; font-weight: 600 !important; font-size: 0.85rem !important; }
+.cardText-secondary { color: var(--text-muted) !important; font-size: 0.75rem !important; }
+
+.cardOverlayContainer {
+    border-radius: var(--card-radius) !important;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 40%, transparent 60%) !important;
+    opacity: 0 !important;
+    transition: opacity 0.3s ease !important;
+}
+
+.card:hover .cardOverlayContainer {
+    opacity: 1 !important;
+}
+
+/* Unplayed count badge — Netflix red pill */
+.indicator {
+    background-color: var(--accent-red) !important;
+    font-family: var(--font-netflix) !important;
+    font-weight: 700 !important;
+    border-radius: 3px !important;
+    font-size: 0.7rem !important;
+    padding: 1px 5px !important;
+    min-width: 18px !important;
+    text-align: center !important;
+}
+
+/* Played checkmark indicator */
+.indicator.indicatorIcon {
+    background-color: rgba(0,0,0,0.7) !important;
+    border-radius: 50% !important;
+    padding: 2px !important;
+}
+
+/* Horizontal scroll — Netflix-style edge arrows.
+   SCOPED to the home container only: globally forcing emby-scroller to
+   overflow:visible breaks horizontal scrolling on detail/search/library pages
+   (their card rows expand to full width and blow out the page). Our own home
+   rows use .nf-row-scroll / .nf-cw-scroll, so this only affects (hidden) native
+   home scrollers and never leaks to other pages. */
+/* Jellyfin's .emby-scroller defaults to overflow:visible here (it scrolls via JS),
+   and our theme never restored clipping -> detail/search/episode card rows expanded
+   to full width and blew the page out to 9000px+. Force horizontal auto-scroll
+   globally; home is unaffected (its rows use .nf-row-scroll / .nf-cw-scroll, and
+   native home sections are hidden). VERIFIED live: detail docWidth back to viewport. */
+.emby-scroller { overflow-x: auto !important; }
+.emby-scrollbuttons-button {
+    background: rgba(20,20,20,0.7) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    transition: background 0.2s ease, transform 0.2s ease !important;
+    backdrop-filter: blur(4px) !important;
+}
+.emby-scrollbuttons-button:hover {
+    background: rgba(20,20,20,0.95) !important;
+    transform: scale(1.1) !important;
+}
+
+/* =============================================
+   DETAIL PAGE — FULL NETFLIX LAYOUT
+   ============================================= */
+
+/* --- BACKDROP: Use Jellyfin's built-in .backdropContainer --- */
+/* Jellyfin sets the backdrop image on .backdropImage inside .backdropContainer.
+   We bring it to z-index 0 (above body bg) and overlay the gradient on .backgroundContainer. */
+
+.backdropContainer {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 100vh !important;
+    z-index: 0 !important;
+}
+
+.backdropImage {
+    background-size: cover !important;
+    background-position: center 20% !important;
+}
+
+/* Make detail page transparent so backdrop shows through */
+.itemDetailPage {
+    background: transparent !important;
+}
+
+/* .backgroundContainer is a sibling of .backdropContainer (NOT inside .itemDetailPage).
+   When on a detail page, Jellyfin adds .withBackdrop class.
+   We make it transparent and apply the Netflix gradient overlay here (z-index 1, above backdrop). */
+.backgroundContainer.withBackdrop {
+    background-color: transparent !important;
+    background-image:
+        linear-gradient(to top, var(--bg-dark) 0%, rgba(20,20,20,0.7) 20%, transparent 50%),
+        linear-gradient(to right, rgba(20,20,20,0.85) 0%, transparent 35%),
+        linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 15%) !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+}
+
+/* --- DETAIL LOGO (title card image) ---
+   Jellyfin renders .detailLogo as a direct child of the page with a default
+   horizontal offset that puts it off-screen (left:-336px in testing), and it
+   sits detached above the title/buttons block. Rather than fight a fragile
+   position that also breaks for the many library items that have NO logo art,
+   we hide it and render a single, reliable big title via .itemName below —
+   which is what Netflix falls back to when no logo exists. */
+.detailLogo {
+    display: none !important;
+}
+
+/* --- PAGE WRAPPER: Content overlays the backdrop --- */
+.detailPageWrapperContainer {
+    position: relative !important;
+    z-index: 3 !important;
+    margin-top: 0 !important;
+    padding-top: 30vh !important;
+}
+
+.detailPagePrimaryContainer {
+    padding: 0 4% !important;
+    position: relative !important;
+    z-index: 3 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* --- DETAIL RIBBON: Vertical flow --- */
+.detailRibbon {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    background: transparent !important;
+    gap: 12px !important;
+    padding: 0 !important;
+    margin-bottom: 20px !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+/* Fix infoWrapper from old row layout */
+.infoWrapper {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 700px !important;
+}
+
+/* Hide poster — Netflix never shows it on detail page */
+.detailImageContainer {
+    display: none !important;
+}
+
+/* --- TITLE --- */
+.nameContainer {
+    width: 100% !important;
+    max-width: 700px !important;
+}
+
+.itemName {
+    font-size: 3rem !important;
+    font-weight: 900 !important;
+    margin-bottom: 6px !important;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.8) !important;
+    font-family: var(--font-netflix) !important;
+    line-height: 1.05 !important;
+    color: var(--text-main) !important;
+}
+
+/* Prevent title truncation */
+.itemName.infoText {
+    text-overflow: clip !important;
+    white-space: normal !important;
+    overflow: visible !important;
+}
+
+/* Original title smaller */
+.originalTitle {
+    font-size: 1rem !important;
+    font-weight: 400 !important;
+    color: var(--text-muted) !important;
+    margin-bottom: 4px !important;
+}
+
+/* --- METADATA ROW (year, rating, score) --- */
+.itemMiscInfo {
+    font-family: var(--font-netflix) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.95rem !important;
+    margin-top: 2px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+/* Netflix leads the metadata line with the green match score — .itemMiscInfo is a
+   flex row (above), so flex `order` puts the rating first without touching the DOM. */
+.itemMiscInfo .starRatingContainer { order: -1 !important; }
+
+/* Green match score like Netflix */
+.starRatingValue {
+    color: #46d369 !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+}
+
+/* Content rating badge */
+.mediaInfoOfficialRating {
+    border: 1px solid rgba(255,255,255,0.4) !important;
+    border-radius: 3px !important;
+    padding: 1px 6px !important;
+    font-size: 0.75rem !important;
+    color: var(--text-muted) !important;
+    line-height: 1.4 !important;
+}
+
+/* "Ends at 11:20 PM" is a player-style estimate Netflix never shows on a title
+   page — drop it from the detail metadata row for a cleaner Netflix line. */
+.itemMiscInfo .endsAt { display: none !important; }
+
+/* =============================================
+   DETAIL PAGE BUTTONS — Netflix style
+   ============================================= */
+
+.mainDetailButtons {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    align-items: center !important;
+    width: auto !important;
+    margin-top: 8px !important;
+    margin-bottom: 20px !important;
+    position: relative !important;
+    z-index: 5 !important;
+}
+
+/* ▶ Play button — large white Netflix button with text label */
+.btnPlay, .btnResume, .btnReplay {
+    background-color: white !important;
+    color: black !important;
+    border-radius: 4px !important;
+    padding: 10px 28px 10px 22px !important;
+    font-weight: 700 !important;
+    text-transform: none !important;
+    font-size: 1.1rem !important;
+    font-family: var(--font-netflix) !important;
+    transition: background-color 0.2s ease !important;
+    min-width: auto !important;
+    height: 42px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.btnPlay:hover, .btnResume:hover, .btnReplay:hover {
+    background-color: rgba(255,255,255,0.75) !important;
+}
+
+/* Netflix-style text label on the primary play button (scoped to the detail
+   page so card-hover play buttons keep their icon-only look). Jellyfin's
+   button only contains the ▶ icon, so we append the word after it. Jellyfin's
+   .detailButton base lays the icon out in a column, which would stack the
+   label under the icon — force a single horizontal row that grows to fit. */
+.mainDetailButtons .btnPlay,
+.mainDetailButtons .btnResume,
+.mainDetailButtons .btnReplay {
+    flex-direction: row !important;
+    width: auto !important;
+    white-space: nowrap !important;
+    padding: 10px 26px 10px 20px !important;
+}
+/* Labels come from custom properties set by headerButton.js to match the client
+   language; the fallbacks keep sensible English text if the script is absent. */
+.mainDetailButtons .btnPlay::after { content: var(--ct-label-play, 'Play'); }
+.mainDetailButtons .btnResume::after { content: var(--ct-label-resume, 'Resume'); }
+.mainDetailButtons .btnReplay::after { content: var(--ct-label-replay, 'Replay'); }
+.mainDetailButtons .btnPlay::after,
+.mainDetailButtons .btnResume::after,
+.mainDetailButtons .btnReplay::after {
+    font-family: var(--font-netflix) !important;
+    font-weight: 700 !important;
+    font-size: 1.05rem !important;
+    letter-spacing: 0.01em !important;
+    margin-left: 4px !important;
+    line-height: 1 !important;
+}
+
+/* Circle icon buttons (watched, favorite, more) — Netflix ring style.
+   Scoped to the DETAIL page: unscoped, these hijacked the video OSD's own
+   .btnUserRating (forced display:inline-flex beat the OSD's .hide, showing a
+   phantom button over the player). */
+.mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, .mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands {
+    background-color: rgba(42, 42, 42, 0.6) !important;
+    border: 2px solid rgba(255,255,255,0.5) !important;
+    border-radius: 50% !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.15s ease !important;
+    position: relative !important;
+}
+
+.mainDetailButtons .btnPlaystate:hover, .mainDetailButtons .btnUserRating:hover, .mainDetailButtons .btnShare:hover, .mainDetailButtons .btnMoreCommands:hover {
+    border-color: white !important;
+    background-color: rgba(255,255,255,0.1) !important;
+    transform: scale(1.1) !important;
+}
+
+/* --- ACTIVE STATES: green check when watched, red heart when favorited --- */
+.mainDetailButtons .btnPlaystate.playstatebutton-played {
+    border-color: #46d369 !important;
+    background-color: rgba(70, 211, 105, 0.15) !important;
+}
+
+.mainDetailButtons .btnPlaystate.playstatebutton-played .detailButton-icon {
+    color: #46d369 !important;
+}
+
+.mainDetailButtons .btnUserRating.ratingbutton-withrating {
+    border-color: #E50914 !important;
+    background-color: rgba(229, 9, 20, 0.15) !important;
+}
+
+.mainDetailButtons .btnUserRating.ratingbutton-withrating .detailButton-icon {
+    color: #E50914 !important;
+}
+
+/* Circle buttons — show icon only, hide any text labels */
+.mainDetailButtons .btnPlaystate .detailButton-content,
+.mainDetailButtons .btnUserRating .detailButton-content,
+.mainDetailButtons .btnShare .detailButton-content,
+.mainDetailButtons .btnMoreCommands .detailButton-content {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    gap: 0 !important;
+}
+
+/* Hide text spans in circle buttons but keep icons */
+.mainDetailButtons .btnPlaystate .detailButton-content .detailButton-text,
+.mainDetailButtons .btnUserRating .detailButton-content .detailButton-text,
+.mainDetailButtons .btnShare .detailButton-content .detailButton-text,
+.mainDetailButtons .btnMoreCommands .detailButton-content .detailButton-text {
+    display: none !important;
+}
+
+/* Ensure circle button icons are visible and sized */
+.mainDetailButtons .btnPlaystate .detailButton-icon,
+.mainDetailButtons .btnUserRating .detailButton-icon,
+.mainDetailButtons .btnShare .detailButton-icon,
+.mainDetailButtons .btnMoreCommands .detailButton-icon {
+    font-size: 20px !important;
+    display: inline-block !important;
+    color: white !important;
+}
+
+/* --- TOOLTIPS for circle buttons on hover --- */
+.mainDetailButtons .btnPlaystate::after,
+.mainDetailButtons .btnUserRating::after,
+.mainDetailButtons .btnMoreCommands::after {
+    position: absolute !important;
+    bottom: -32px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    background: #e5e5e5 !important;
+    color: #141414 !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    font-family: var(--font-netflix) !important;
+    padding: 4px 10px !important;
+    border-radius: 3px !important;
+    white-space: nowrap !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+    z-index: 100 !important;
+}
+
+.mainDetailButtons .btnPlaystate::after { content: var(--ct-tip-watched, 'Watched') !important; }
+.mainDetailButtons .btnUserRating::after { content: var(--ct-tip-favorite, 'Favorite') !important; }
+.mainDetailButtons .btnMoreCommands::after { content: var(--ct-tip-more, 'More') !important; }
+
+.mainDetailButtons .btnPlaystate:hover::after,
+.mainDetailButtons .btnUserRating:hover::after,
+.mainDetailButtons .btnMoreCommands:hover::after,
+.mainDetailButtons .btnPlaystate:focus-visible::after,
+.mainDetailButtons .btnUserRating:focus-visible::after,
+.mainDetailButtons .btnMoreCommands:focus-visible::after {
+    opacity: 1 !important;
+}
+
+/* Tooltip arrow */
+.mainDetailButtons .btnPlaystate::before,
+.mainDetailButtons .btnUserRating::before,
+.mainDetailButtons .btnMoreCommands::before {
+    content: '' !important;
+    position: absolute !important;
+    bottom: -8px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    border-left: 5px solid transparent !important;
+    border-right: 5px solid transparent !important;
+    border-bottom: 5px solid #e5e5e5 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+    z-index: 100 !important;
+}
+
+.mainDetailButtons .btnPlaystate:hover::before,
+.mainDetailButtons .btnUserRating:hover::before,
+.mainDetailButtons .btnMoreCommands:hover::before,
+.mainDetailButtons .btnPlaystate:focus-visible::before,
+.mainDetailButtons .btnUserRating:focus-visible::before,
+.mainDetailButtons .btnMoreCommands:focus-visible::before {
+    opacity: 1 !important;
+}
+
+/* Hide ALL non-essential buttons — keep only Play + circle action buttons */
+.mainDetailButtons .btnSplitVersions,
+.mainDetailButtons .btnCancelSeriesTimer,
+.mainDetailButtons .btnCancelTimer,
+.mainDetailButtons .btnRecord,
+.mainDetailButtons .btnDownload,
+.mainDetailButtons .btnPlayTrailer,
+.mainDetailButtons .btnShuffle,
+.mainDetailButtons .btnInstantMix {
+    display: none !important;
+}
+
+/* Respect Jellyfin's .hide class — must override our display:inline-flex */
+.mainDetailButtons .detailButton.hide {
+    display: none !important;
+}
+
+/* =============================================
+   DETAIL PAGE CONTENT (below buttons)
+   ============================================= */
+
+.detailPagePrimaryContent {
+    max-width: 700px !important;
+    padding: 0 !important;
+    position: relative !important;
+    z-index: 3 !important;
+}
+
+.detailPagePrimaryContent .detailSection {
+    position: relative !important;
+    z-index: 3 !important;
+}
+
+/* Description text */
+.overview-text, .itemOverview {
+    font-size: 0.95rem !important;
+    line-height: 1.6 !important;
+    color: #d2d2d2 !important;
+    font-family: var(--font-netflix) !important;
+    margin-bottom: 20px !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5) !important;
+}
+
+/* Tags, external links */
+.itemTags, .itemExternalLinks { font-size: 0.85rem !important; }
+.itemTags a, .itemExternalLinks a { color: var(--text-muted) !important; transition: color 0.2s ease !important; }
+.itemTags a:hover, .itemExternalLinks a:hover { color: var(--text-main) !important; }
+
+/* Metadata (genres, studio) */
+.mediaInfoItem, .itemGenres, .itemStudios {
+    font-family: var(--font-netflix) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.9rem !important;
+}
+
+.mediaInfoItem a, .itemGenres a, .itemStudios a { color: var(--text-muted) !important; transition: color 0.2s ease !important; }
+.mediaInfoItem a:hover, .itemGenres a:hover, .itemStudios a:hover { color: var(--text-main) !important; }
+
+/* Detail sections (seasons, cast, similar) */
+.detailSection { padding: 0 4% !important; }
+
+/* Fix: detailPageContent has huge left padding (for poster) — reset it */
+.detailPageContent {
+    padding-left: 4% !important;
+    padding-right: 4% !important;
+}
+
+.detailPageSecondaryContainer {
+    position: relative;
+    z-index: 3;
+    background: linear-gradient(to bottom, var(--bg-dark) 0%, #181818 100%) !important;
+    padding-top: 30px !important;
+}
+
+.detailPageContent .verticalSection .sectionTitle,
+.detailPageSecondaryContainer .sectionTitle {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    margin-top: 10px !important;
+    margin-bottom: 12px !important;
+    color: #e5e5e5 !important;
+    letter-spacing: 0.01em !important;
+}
+
+/* --- NEXT UP SECTION — Netflix "Als Nächstes" card --- */
+.nextUpSection .card {
+    max-width: 350px !important;
+}
+
+.nextUpSection .card .cardScalable {
+    border-radius: 6px !important;
+    overflow: hidden !important;
+}
+
+/* --- EPISODE LIST ITEMS — Netflix dark row style --- */
+.detailVerticalSection .listItem-border {
+    border-color: rgba(255,255,255,0.08) !important;
+}
+
+.listItem {
+    transition: background-color 0.2s ease !important;
+    border-radius: 4px !important;
+}
+
+.listItem:hover {
+    background-color: rgba(255,255,255,0.05) !important;
+}
+
+.listItemBody {
+    font-family: var(--font-netflix) !important;
+}
+
+.listItemBodyText {
+    color: var(--text-muted) !important;
+    font-size: 0.85rem !important;
+    line-height: 1.5 !important;
+}
+
+/* Season cards */
+.detailVerticalSection .card.overflowPortraitCard:not(.personCard) .cardScalable {
+    border-radius: 6px !important;
+}
+
+/* --- ÄHNLICHES / SIMILAR SECTION --- */
+.similarSection .card .cardScalable {
+    border-radius: 6px !important;
+}
+
+/* --- DESCRIPTION "Mehr anzeigen" button --- */
+.itemOverview-seeMore {
+    color: var(--accent-red) !important;
+    font-family: var(--font-netflix) !important;
+    font-weight: 600 !important;
+    transition: color 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+.itemOverview-seeMore:hover {
+    color: var(--accent-red-hover) !important;
+    text-decoration: underline !important;
+}
+
+/* --- TAGS — Netflix pill style --- */
+.itemTag {
+    background-color: rgba(255,255,255,0.08) !important;
+    border-radius: 4px !important;
+    padding: 4px 10px !important;
+    font-size: 0.8rem !important;
+    color: var(--text-muted) !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.itemTag:hover {
+    background-color: rgba(255,255,255,0.15) !important;
+    color: var(--text-main) !important;
+}
+
+/* --- GENRES ROW — better spacing --- */
+.detailPagePrimaryContent .itemGenres {
+    margin-top: 8px !important;
+    margin-bottom: 4px !important;
+}
+
+.detailPagePrimaryContent .itemGenres a {
+    color: var(--text-muted) !important;
+    font-size: 0.9rem !important;
+}
+
+.detailPagePrimaryContent .itemGenres a:hover {
+    color: var(--text-main) !important;
+}
+
+/* --- EXTERNAL LINKS (IMDb, TMDB etc) --- */
+.itemExternalLinks {
+    margin-top: 4px !important;
+    margin-bottom: 16px !important;
+}
+
+.itemExternalLinks a {
+    color: rgba(255,255,255,0.6) !important; /* 0.4 failed WCAG AA contrast */
+    font-size: 0.8rem !important;
+    transition: color 0.2s ease !important;
+}
+
+.itemExternalLinks a:hover {
+    color: var(--text-main) !important;
+}
+
+/* --- MARKIERUNGEN / TAGS LABEL --- */
+.detailPagePrimaryContent .fieldDescription,
+.detailPagePrimaryContent label {
+    color: rgba(255,255,255,0.6) !important; /* 0.4 failed WCAG AA contrast */
+    font-size: 0.8rem !important;
+    font-family: var(--font-netflix) !important;
+}
+
+/* --- MEDIA INFO TABLE (Video/Audio on episode pages) --- */
+.mediaInfoContent {
+    font-family: var(--font-netflix) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.85rem !important;
+}
+
+.mediaInfoContent td {
+    padding: 3px 16px 3px 0 !important;
+}
+
+/* --- PERSON CARD — no outline on hover, subtle scale only --- */
+.personCard:hover {
+    outline: none !important;
+    outline-color: transparent !important;
+    box-shadow: none !important;
+    transform: scale(1.05) !important;
+}
+
+/* Cast/crew section — align left like other sections */
+.detailPageSecondaryContainer .verticalSection {
+    padding: 0 4% !important;
+}
+
+.detailPageSecondaryContainer .verticalSection .sectionTitle {
+    text-align: left !important;
+}
+
+/* --- CAST / PERSON CARDS — Netflix round style --- */
+.personCard .cardPadder {
+    padding-bottom: 0 !important;
+}
+
+.personCard .cardScalable {
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    width: 100% !important;
+    aspect-ratio: 1 / 1 !important;
+    position: relative !important;
+}
+
+.personCard .cardImageContainer {
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.personCard .cardBox {
+    text-align: center !important;
+}
+
+.personCard .cardText {
+    text-align: center !important;
+}
+
+/* Media info (Video/Audio labels on episode pages) */
+.mediaInfoStream {
+    font-family: var(--font-netflix) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.85rem !important;
+}
+
+/* =============================================
+   LOGIN PAGE
+   ============================================= */
+
+#loginPage { background-color: var(--bg-darker) !important; }
+
+.visual-card {
+    background-color: rgba(0,0,0,0.85) !important;
+    padding: 60px !important;
+    border-radius: 8px !important;
+    max-width: 450px !important;
+}
+
+/* 10.11 login markup: plain form, no .visual-card — give it the Netflix box */
+#loginPage form, .loginPage form {
+    background: rgba(0, 0, 0, 0.75) !important;
+    padding: 48px 56px 56px !important;
+    border-radius: 8px !important;
+    max-width: 420px !important;
+    margin: 8vh auto 0 !important;
+}
+
+/* Kill the cyan accents: focused labels and checkboxes go Netflix */
+#loginPage .inputLabel, #loginPage .inputLabelFocused, #loginPage .inputLabelUnfocused,
+.inputLabelFocused { color: var(--text-muted) !important; }
+input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !important; }
+/* The filled box of a checked Jellyfin checkbox is .checkboxOutline (default
+   #00a4dc cyan). It is a sibling AFTER the input, not a descendant of the label
+   span, so the old "+ span > .checkboxIcon-checked" selector never matched it. */
+.checkboxOutline { border-color: var(--text-muted) !important; }
+.emby-checkbox:checked ~ .checkboxOutline {
+    background-color: var(--accent-red) !important;
+    border-color: var(--accent-red) !important;
+}
+.checkboxIcon { color: #fff !important; }
+/* Toggle switches (settings, dashboard) — checked track/thumb go red too. */
+.emby-toggle:checked + .toggleButton-track { background-color: rgba(229,9,20,0.5) !important; }
+.emby-toggle:checked + .toggleButton-track + .toggleButton-thumb,
+.emby-toggle:checked ~ .toggleButton-thumb { background-color: var(--accent-red) !important; }
+
+.inputContainer input, .emby-input {
+    background-color: #333 !important;
+    border: none !important;
+    border-radius: 4px !important;
+    color: white !important;
+    font-family: var(--font-netflix) !important;
+}
+
+.raised.button-submit, .emby-button.button-submit {
+    background-color: var(--accent-red) !important;
+    color: white !important;
+    border-radius: 4px !important;
+    font-weight: 700 !important;
+    font-family: var(--font-netflix) !important;
+    text-transform: none !important;
+}
+
+.raised.button-submit:hover, .emby-button.button-submit:hover {
+    background-color: var(--accent-red-hover) !important;
+}
+
+/* =============================================
+   SIDE DRAWER
+   ============================================= */
+
+.mainDrawer { background-color: var(--bg-darker) !important; }
+.navMenuOption { font-family: var(--font-netflix) !important; color: var(--text-muted) !important; transition: color 0.2s ease, background 0.2s ease !important; }
+.navMenuOption:hover { color: var(--text-main) !important; background-color: rgba(255,255,255,0.08) !important; }
+.navMenuOption-selected { color: var(--text-main) !important; background-color: rgba(255,255,255,0.1) !important; }
+
+/* Nav drawer vs. fixed header: the drawer (top:0) used to run under the
+   transparent billboard header, so its top entries collided with the logo/tabs.
+   Push the drawer's items below the header, and make the header solid #141414
+   while the drawer is open so the top reads cleanly (no see-through collision). */
+.mainDrawer-scrollContainer { padding-top: var(--nav-height) !important; }
+body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; }
+/* Gated off during playback: a filter on .mainAnimatedPages creates a containing
+   block that re-anchors the fixed OSD bar away from the viewport. */
+html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPages { filter: brightness(0.55) !important; transition: filter 0.2s ease !important; }
+
+/* =============================================
+   MISC
+   ============================================= */
+
+/* Progress bar — Netflix red */
+.itemProgressBar-inner, .progressBarFill { background-color: var(--accent-red) !important; }
+.itemProgressBar {
+    background-color: rgba(255,255,255,0.2) !important;
+    border-radius: 0 !important;
+    height: 3px !important;
+}
+
+/* Dialogs — dark Netflix style */
+.dialog {
+    border-radius: 8px !important;
+    background-color: #181818 !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7) !important;
+}
+.formDialogHeader {
+    background-color: #181818 !important;
+    font-family: var(--font-netflix) !important;
+    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+}
+.formDialogFooter {
+    background-color: #181818 !important;
+    border-top: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+.button-flat, .emby-button { text-transform: none !important; font-family: var(--font-netflix) !important; }
+.button-accent, .fab { background-color: var(--accent-red) !important; }
+
+/* Scrollbar styling lives in one place in the DESIGN REFINEMENTS section below
+   (two competing blocks used to shadow each other). */
+
+.toast {
+    background-color: rgba(51,51,51,0.95) !important;
+    color: var(--text-main) !important;
+    font-family: var(--font-netflix) !important;
+    border-radius: 4px !important;
+    backdrop-filter: blur(10px) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+}
+
+.adminDrawerLogo { display: none !important; }
+.detailButton-content { font-family: var(--font-netflix) !important; text-transform: none !important; }
+.selectServer, .loginPage .readOnlyContent { background-color: var(--bg-darker) !important; }
+
+/* =============================================
+   SMOOTH PAGE TRANSITIONS
+   ============================================= */
+
+.view-transition {
+    animation: nfFadeIn 0.35s ease !important;
+}
+
+@keyframes nfFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Section titles — Netflix "explore more" arrow on hover */
+.sectionTitle-linkbutton {
+    transition: color 0.2s ease !important;
+}
+
+.sectionTitle-linkbutton:hover {
+    color: var(--text-main) !important;
+}
+
+/* =============================================
+   LIBRARY / BROWSE PAGES
+   ============================================= */
+
+/* Filter/sort bar */
+.alphaPicker {
+    font-family: var(--font-netflix) !important;
+}
+
+.alphaPicker-letter {
+    color: var(--text-muted) !important;
+    transition: color 0.15s ease, transform 0.15s ease !important;
+}
+
+.alphaPicker-letter:hover {
+    color: var(--text-main) !important;
+    transform: scale(1.2) !important;
+}
+
+.alphaPicker-letter-selected {
+    color: var(--text-main) !important;
+    font-weight: 700 !important;
+}
+
+/* Dropdown selects */
+.emby-select {
+    background-color: #333 !important;
+    color: white !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    border-radius: 4px !important;
+    font-family: var(--font-netflix) !important;
+    transition: border-color 0.2s ease !important;
+}
+
+.emby-select:hover, .emby-select:focus {
+    border-color: rgba(255,255,255,0.4) !important;
+}
+
+/* =============================================
+   PLAYBACK & VIDEO PLAYER
+   ============================================= */
+
+.videoOsdBottom {
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%) !important;
+}
+
+.osdTimeText {
+    font-family: var(--font-netflix) !important;
+}
+
+/* =============================================
+   SEARCH
+   ============================================= */
+
+.searchFields {
+    font-family: var(--font-netflix) !important;
+}
+
+.searchfields-txtSearch, #txtSearch {
+    background-color: rgba(0,0,0,0.7) !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    color: white !important;
+    font-family: var(--font-netflix) !important;
+    border-radius: 4px !important;
+    transition: border-color 0.2s ease, background-color 0.2s ease !important;
+}
+
+.searchfields-txtSearch:focus, #txtSearch:focus {
+    border-color: white !important;
+    background-color: rgba(0,0,0,0.9) !important;
+}
+
+/* =============================================
+   SELECTION / FOCUS STATES
+   ============================================= */
+
+*:focus-visible {
+    outline: 2px solid var(--accent-red) !important;
+    outline-offset: 2px !important;
+}
+
+/* Tab focus ring — underline plus a visible border so the focused tab
+   stands out even at a glance */
+.emby-tab-button:focus-visible {
+    outline: none !important;
+    text-decoration: underline !important;
+    text-underline-offset: 4px !important;
+    border-color: rgba(255,255,255,0.7) !important;
+}
+
+/* =============================================
+   RESPONSIVE
+   ============================================= */
+
+@media (max-width: 768px) {
+    .itemName { font-size: 1.8rem !important; }
+    .headerLeft::before { font-size: 2rem; }
+    .detailPagePrimaryContent { max-width: 100% !important; }
+    .detailLogo { margin-top: 15vh !important; max-width: 250px !important; }
+    .detailPageWrapperContainer { padding-top: 20vh !important; }
+    .mainDetailButtons { gap: 8px !important; }
+    .btnPlay, .btnResume, .btnReplay { height: 38px !important; font-size: 1rem !important; padding: 8px 20px 8px 16px !important; }
+    /* Keep touch targets at 40px minimum on phones */
+    .mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, .mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands { width: 40px !important; height: 40px !important; min-width: 40px !important; }
+}
+
+/* =============================================
+   DESIGN REFINEMENTS (v2.1)
+   ============================================= */
+
+/* --- Custom scrollbar (the standard property wins on Chromium 121+, so both
+   declarations are kept visually identical) --- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.32); border: 2px solid transparent; background-clip: padding-box; }
+* { scrollbar-color: rgba(255,255,255,0.2) transparent; }
+
+.skinHeader { transition: background 0.4s ease, backdrop-filter 0.4s ease !important; }
+
+.sectionTitle .sectionTitleTextButton::after { content: ' \203A'; }
+
+/* --- Cards: smoother, deeper Netflix hover (transform lives in the base
+   .card:hover rule in the CARDS section) --- */
+.card { will-change: transform; }
+.cardImageContainer { transition: filter 0.3s ease, transform 0.35s cubic-bezier(0.33,1,0.68,1) !important; }
+.card:hover .cardScalable { box-shadow: 0 16px 38px rgba(0,0,0,0.85) !important; }
+.cardOverlayContainer { background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.25) 45%, transparent 65%) !important; }
+.cardOverlayButtonContainer .cardOverlayButton-br,
+.cardOverlayContainer .paper-icon-button-light {
+    transition: transform 0.2s ease, background 0.2s ease !important;
+}
+.cardOverlayContainer .paper-icon-button-light:hover { transform: scale(1.15) !important; }
+/* primary (play) overlay button — white circle */
+.cardOverlayContainer .btnPlay {
+    background: rgba(255,255,255,0.9) !important;
+    color: #000 !important;
+    border-radius: 50% !important;
+}
+.cardOverlayContainer .btnPlay:hover { background: #fff !important; }
+
+/* --- Detail page: richer backdrop + typography --- */
+.itemName { letter-spacing: -0.01em !important; }
+.detailPageContent .genreItems, .genreItems {
+    display: flex !important; flex-wrap: wrap !important; gap: 6px !important;
+}
+.genreItems .button-link {
+    background: rgba(255,255,255,0.08) !important;
+    border-radius: 16px !important;
+    padding: 3px 12px !important;
+    font-size: 0.8rem !important;
+    color: #ddd !important;
+    transition: background 0.2s ease !important;
+}
+.genreItems .button-link:hover { background: rgba(255,255,255,0.18) !important; }
+
+/* Overview / tagline readability over backdrop */
+.detailSectionContent .overview-text, .itemOverview {
+    font-size: 1.02rem !important;
+    line-height: 1.55 !important;
+    color: #d8d8d8 !important;
+    max-width: 680px !important;
+}
+
+/* Round cast images bigger with a soft ring */
+.personCard .cardImageContainer { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06) !important; }
+.personCard .cardText-first { font-weight: 600 !important; color: var(--text-main) !important; }
+
+/* CT-FIX: .cardImageContainer must stay ABSOLUTE (Jellyfin default). 'relative'
+   collapsed the container to 0px → blurry + unclickable cards. */
+.cardImageContainer { position: absolute !important; }
+
+/* =============================================
+   HERO BILLBOARD CAROUSEL (built by headerButton.js on the home page)
+   Rotating full-bleed backdrops with logo, meta, actions, dots + pause.
+   ============================================= */
+.nf-hero {
+    position: relative;
+    width: 100%;
+    height: 80vh;
+    min-height: 480px;
+    max-height: 860px;
+    margin: calc(var(--nav-height) * -1 - 10px) 0 1vw;
+    overflow: hidden;
+    background: #0b0b0b;
+}
+.nf-hero-slide {
+    position: absolute; inset: 0;
+    opacity: 0;
+    transition: opacity 1s ease;
+    pointer-events: none;
+}
+.nf-hero-slide.active { opacity: 1; pointer-events: auto; }
+.nf-hero-bg {
+    position: absolute; inset: 0;
+    background-size: cover;
+    background-position: center 15%;
+    transform: scale(1.01);
+}
+/* Ken Burns slow zoom on the visible slide (Media Bar technique) */
+.nf-hero-slide.active .nf-hero-bg {
+    animation: nf-kenburns 16s ease-out forwards;
+}
+@keyframes nf-kenburns {
+    from { transform: scale(1.01); }
+    to   { transform: scale(1.1); }
+}
+/* Self-contained autoplay clip of the actual title (a remux of the file itself, not a
+   YouTube trailer) — fades in over the backdrop on the active slide. */
+.nf-hero-video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: 1;
+    opacity: 0; transition: opacity 1.2s ease;
+}
+.nf-hero-video.show { opacity: 1; }
+/* Detail page ("Mehr Infos") backdrop clip — fills #itemBackdrop, fades in over the image. */
+.nf-detail-video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: 0;
+    opacity: 0; transition: opacity 1.2s ease;
+}
+.nf-detail-video.show { opacity: 1; }
+.nf-hero-slide::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    /* Solid bg-dark band at the very bottom so the hero dissolves into the page
+       instead of leaving a hard colored edge when scrolling. */
+    background:
+        linear-gradient(to top, var(--bg-dark) 0%, var(--bg-dark) 5%, rgba(20,20,20,0.6) 24%, transparent 52%),
+        linear-gradient(130deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 38%, transparent 62%);
+}
+.nf-hero-content {
+    position: absolute; left: 0; bottom: 0; z-index: 3;
+    padding: 0 4% 9vh;
+    max-width: 680px;
+}
+.nf-hero-logo { max-width: 80%; max-height: 170px; margin-bottom: 18px; filter: drop-shadow(0 3px 12px rgba(0,0,0,0.75)); }
+.nf-hero-title {
+    font-family: var(--font-netflix);
+    font-weight: 900; font-size: clamp(2rem, 4.4vw, 4rem); line-height: 1.02;
+    color: var(--text-main); text-shadow: 0 3px 16px rgba(0,0,0,0.85);
+    margin-bottom: 14px;
+}
+.nf-hero-meta {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 14px; font-size: 0.95rem; color: #e5e5e5; font-weight: 600;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.9);
+}
+.nf-hero-match { color: #46d369; font-weight: 700; }
+.nf-hero-rating { border: 1px solid rgba(255,255,255,0.45); border-radius: 3px; padding: 0 6px; font-size: 0.8rem; }
+.nf-hero-overview {
+    font-family: var(--font-netflix);
+    font-size: 1.05rem; line-height: 1.45; color: #dcdcdc;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.9);
+    margin-bottom: 20px;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.nf-hero-actions { display: flex; gap: 12px; align-items: center; }
+.nf-hero-btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: var(--font-netflix); font-weight: 700; font-size: 1.1rem;
+    padding: 12px 28px; border-radius: 5px; border: none; cursor: pointer;
+    text-decoration: none; transition: background 0.2s ease, transform 0.12s ease;
+}
+.nf-hero-btn .material-icons { font-size: 1.6rem; }
+.nf-hero-btn:hover { transform: scale(1.03); }
+.nf-hero-play { background: #fff; color: #000; }
+.nf-hero-play:hover { background: rgba(255,255,255,0.78); }
+.nf-hero-info { background: rgba(109,109,110,0.6); color: #fff; }
+.nf-hero-info:hover { background: rgba(109,109,110,0.4); }
+.nf-hero-list {
+    background: rgba(42,42,42,0.6); color: #fff;
+    width: 48px; height: 48px; padding: 0; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5); justify-content: center;
+}
+.nf-hero-list:hover { border-color: #fff; background: rgba(42,42,42,0.85); transform: none; }
+.nf-hero-list.active .material-icons { color: #46d369; }
+.nf-hero-controls {
+    position: absolute; right: 0; bottom: 9vh; z-index: 4;
+    display: flex; align-items: center; gap: 14px;
+}
+.nf-hero-ctrl {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.5); background: rgba(20,20,20,0.35); color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.nf-hero-ctrl:hover { border-color: #fff; }
+.nf-hero-dots { display: flex; gap: 2px; align-items: center; padding-inline-end: 4%; }
+/* Dots are real buttons: keyboard-focusable, labelled, with a ≥24px hit area. */
+.nf-hero-dot {
+    min-width: 17px; height: 24px; padding: 0;
+    border: none; background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.nf-hero-dot::before {
+    content: ''; width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255,255,255,0.35); transition: all 0.25s ease;
+}
+.nf-hero-dot.active::before { background: #fff; width: 26px; border-radius: 5px; }
+
+@media (max-width: 768px) {
+    .nf-hero { height: 62vh; min-height: 360px; }
+    .nf-hero-content { padding-bottom: 6vh; max-width: 92%; }
+    .nf-hero-logo { max-height: 110px; }
+    .nf-hero-title { font-size: 2rem; }
+    .nf-hero-overview { -webkit-line-clamp: 2; font-size: 0.92rem; }
+    .nf-hero-btn { font-size: 0.92rem; padding: 9px 18px; }
+    .nf-hero-controls { bottom: 6vh; }
+}
+
+/* =============================================
+   CURATED GENRE ROWS (built by headerButton.js) — replaces Home Screen Sections
+   ============================================= */
+.nf-genre-section { margin: 0 0 1.4vw; }
+/* Netflix rows show no text under the artwork — title/match live in the hover popup. */
+.nf-genre-section .nf-card .cardText { display: none !important; }
+.nf-genre-section .nf-card .cardBox { padding-bottom: 0 !important; }
+.nf-genre-section .sectionTitle {
+    padding-left: 4%;
+    font-size: clamp(1.1rem, 1.4vw, 1.45rem);
+    font-weight: 500; color: #e5e5e5; letter-spacing: normal;
+    margin: 0 0 0.5em;
+}
+.nf-row-scroll {
+    overflow-x: auto; overflow-y: visible;
+    scrollbar-width: none; -ms-overflow-style: none;
+    padding: 6px 4% 22px;
+}
+.nf-row-scroll::-webkit-scrollbar { display: none; }
+.nf-row-track { display: flex; gap: 0.5vw; align-items: flex-start; }
+/* ~6 landscape cards across like Netflix (was ~4). The 3-class selector + !important
+   overrides the global ".homeSectionsContainer .card.overflowBackdropCard {min-width:320px}". */
+.nf-genre-section .card.nf-card {
+    flex: 0 0 auto;
+    width: clamp(165px, 15.2vw, 285px) !important;
+    min-width: 0 !important;
+    margin: 0;
+}
+/* Landscape 16:9 boxart (Netflix-style) for genre-row cards */
+.nf-genre-section .cardPadder-overflowBackdrop { padding-bottom: 56.25%; }
+.nf-genre-section .nf-card .cardImageContainer {
+    background-size: cover !important;
+    background-position: center center !important;
+    border-radius: 4px;
+}
+
+/* =============================================
+   TOP NAV TABS (built by headerButton.js) — replaces Custom Tabs
+   ============================================= */
+.nf-nav-tabs { display: flex; gap: 20px; align-items: center; margin-left: 26px; }
+.nf-nav-tab {
+    color: #e5e5e5; font-family: var(--font-netflix);
+    font-size: 0.95rem; font-weight: 500; text-decoration: none;
+    opacity: 0.82; white-space: nowrap;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+.nf-nav-tab:hover { opacity: 1; color: var(--text-muted); }
+.nf-nav-tab.active { color: var(--text-main); font-weight: 700; opacity: 1; }
+@media (max-width: 768px) { .nf-nav-tabs { display: none; } }
+
+/* =============================================
+   SELF-ENFORCING HERO — neutralize a co-installed Media Bar
+   When OUR hero is present, undo the top offset / margin a Media Bar pushes onto
+   the home container (it sets top:<heroHeight> inline). Stylesheet !important
+   beats the inline value regardless of timing, so there is never a gap or a
+   double hero. Scoped with :has() so it only applies when our hero is active. */
+.homeSectionsContainer:has(> .nf-hero) { top: 0 !important; margin-top: 0 !important; }
+
+/* Crossfade polish: fade each slide's text/logo with the slide so two slides'
+   content never overlap during the 1s background crossfade. */
+.nf-hero-content { transition: opacity 0.5s ease; }
+.nf-hero-slide:not(.active) .nf-hero-content { opacity: 0; }
+
+/* =============================================
+   NETFLIX HOVER-EXPAND POPUP (built by headerButton.js)
+   Floating preview card on card hover: backdrop+clip, action buttons, meta.
+   ============================================= */
+.nf-pop {
+    position: fixed; z-index: 10010; /* above the fixed header (10000) */
+    border-radius: 6px; overflow: hidden;
+    background: #181818;
+    box-shadow: 0 12px 45px rgba(0,0,0,0.8);
+    font-family: var(--font-netflix);
+    opacity: 0; transform: scale(0.92); transform-origin: center bottom;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.nf-pop.show { opacity: 1; transform: scale(1); }
+.nf-pop-media { display: block; text-decoration: none; position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000 center / cover no-repeat; }
+.nf-pop-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.nf-pop-fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, #181818 2%, transparent 55%); }
+.nf-pop-info { padding: 8px 16px 16px; }
+.nf-pop-actions { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.nf-pop-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5); background: rgba(42,42,42,0.55); color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease;
+}
+.nf-pop-btn .material-icons { font-size: 22px; }
+.nf-pop-btn.play { background: #fff; color: #000; border-color: #fff; }
+.nf-pop-btn.play:hover { background: rgba(255,255,255,0.8); }
+.nf-pop-btn:hover { border-color: #fff; background: rgba(60,60,60,0.8); }
+.nf-pop-btn.more { margin-left: auto; }
+.nf-pop-btn.nf-pop-list.active .material-icons { color: #46d369; }
+.nf-pop-title { font-weight: 700; font-size: 1rem; color: #fff; margin-bottom: 7px; line-height: 1.2; }
+.nf-pop-meta { display: flex; align-items: center; gap: 9px; font-size: 0.82rem; color: #ddd; margin-bottom: 7px; flex-wrap: wrap; }
+.nf-pop-match { color: #46d369; font-weight: 700; }
+.nf-pop-rating { border: 1px solid rgba(255,255,255,0.4); padding: 0 5px; border-radius: 3px; font-size: 0.72rem; }
+.nf-pop-genres { font-size: 0.82rem; color: #ccc; }
+.nf-pop-genres span:not(:last-child)::after { content: '•'; margin: 0 7px; color: #777; }
+@media (max-width: 768px) { .nf-pop { display: none; } }
+
+/* =============================================
+   HOME TAKEOVER (managed by headerButton.js) — clean, Netflix-only home
+   Once our own rows exist the container gets .nf-owned and every foreign row
+   (native sections, Media Bar / Home Sections / other plugins) is hidden, so
+   there is no blur, no duplication and no empty gaps. The page tab bar is
+   hidden only on the home page (html.nf-home) so library pages keep their tabs.
+   ============================================= */
+.homeSectionsContainer.nf-owned > *:not(.nf-hero):not(.nf-cw-section):not(.nf-genre-section) { display: none !important; }
+html.nf-home .skinHeader .headerTabs { display: none !important; }
+
+/* Continue Watching row — own sharp landscape cards with progress (no blurhash) */
+.nf-cw-section { margin: 0 0 2.4vw; }
+.nf-cw-section .sectionTitle { padding-left: 4%; font-size: clamp(1.05rem, 1.35vw, 1.45rem); font-weight: 700; color: #e5e5e5; letter-spacing: 0.2px; margin: 0 0 0.5em; }
+.nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; padding: 6px 4% 22px; }
+.nf-cw-scroll::-webkit-scrollbar { display: none; }
+.nf-cw-track { display: flex; gap: 0.5vw; align-items: flex-start; }
+.nf-cw-card { flex: 0 0 auto; width: clamp(220px, 19vw, 340px); text-decoration: none; }
+.nf-cw-thumb {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    border-radius: 5px; overflow: hidden;
+    background: #222 center / cover no-repeat;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    transition: outline 0.15s ease;
+}
+.nf-cw-card:hover .nf-cw-thumb { outline: 2px solid #fff; }
+.nf-cw-play {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s ease;
+}
+.nf-cw-card:hover .nf-cw-play { opacity: 1; }
+.nf-cw-play .material-icons { color: #fff; font-size: 26px; }
+.nf-cw-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,0.25); }
+.nf-cw-prog > i { display: block; height: 100%; background: var(--accent-red, #E50914); }
+.nf-cw-title { margin-top: 7px; font-size: 0.85rem; color: #d2d2d2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 768px) { .nf-cw-card { width: 60vw; } }
+
+/* =============================================
+   NETFLIX-STYLE LOADING ANIMATION (self-contained, CSS only)
+   Recolors Jellyfin's own spinner to Netflix red + a clean red ring, and gives
+   the initial preloader a Netflix-black backdrop. Branding CSS loads early, so
+   this also covers the very first app load — no companion plugin needed.
+   ============================================= */
+/* Initial preloader / loading screen background — the full-page backdrop only.
+   NOTE: the spinner element (.docspinner) is deliberately NOT given a background here,
+   otherwise it paints a small black square next to our centered ring. */
+html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !important; }
+
+/* Hide Jellyfin's native Material spinner arcs and box — our ::after ring replaces them
+   (otherwise a black 122px square / a second spinner shows behind the ring). */
+.mdl-spinner__layer-1, .mdl-spinner__layer-2, .mdl-spinner__layer-3, .mdl-spinner__layer-4 { border-color: transparent !important; }
+.mdl-spinner__gap-patch, .mdl-spinner__circle { border-color: transparent !important; }
+
+/* Netflix-style loading spinner — a centered rotating ring (user-supplied design).
+   position:fixed so it sits dead-centre regardless of its container (fixes the loader
+   stuck top-left); the rotate animation overrides transforms so we center via negative
+   margins. Arcs use the accent red — the original #000 would be invisible on the black
+   loading backdrop. Pure CSS, self-contained (no JS / companion plugin). */
+.docspinner, .loadingSpinner, .mainAnimatedPages > .loading {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+.docspinner::after, .loadingSpinner::after, .mainAnimatedPages > .loading::after {
+    content: '';
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 50px;
+    height: 50px;
+    margin: -25px 0 0 -25px !important;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 8px solid;
+    border-color: var(--accent-red, #E50914) transparent;
+    animation: nf-loadspin 1s infinite;
+    z-index: 100000;
+}
+@keyframes nf-loadspin { to { transform: rotate(.5turn); } }
+
+/* =============================================
+   DESIGN POLISH — frosted-glass surfaces, softer depth, smoother hovers.
+   CSS-only, additive (inspired by Jamfin / Abyss / Jellyfin-Better-Styles).
+   ============================================= */
+/* Frosted-glass slide-in settings panel */
+.ct-overlay {
+    background: rgba(18, 18, 20, 0.72) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: -12px 0 48px rgba(0, 0, 0, 0.6);
+}
+/* Frosted hover-preview popup with deeper, softer shadow */
+.nf-pop {
+    background: rgba(24, 24, 26, 0.82) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+}
+.nf-pop-media { border-radius: 8px 8px 0 0; }
+/* Softer, lifted card hover (depth in addition to the existing scale) */
+.card .cardScalable {
+    transition: transform .28s cubic-bezier(.2, .7, .2, 1), box-shadow .28s ease !important;
+}
+.card:hover .cardScalable {
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+    border-radius: 6px;
+}
+/* Micro-interactions on the round action buttons */
+.nf-hero-btn, .nf-pop-btn {
+    transition: transform .15s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.nf-hero-btn:hover { transform: translateY(-1px); }
+.nf-pop-btn:hover { transform: scale(1.08); }
+/* Slightly glassy genre/trend section headers */
+.nf-genre-section .sectionTitle, .nf-cw-section .sectionTitle {
+    letter-spacing: .2px;
+}
+
+/* =============================================
+   ROW SCROLL ARROWS (built by headerButton.js) — hidden scrollbars need a way
+   to reach off-screen cards on desktop; Netflix-style hover chevrons.
+   ============================================= */
+.nf-row-wrap { position: relative; }
+.nf-row-arrow {
+    position: absolute; top: 6px; bottom: 22px; width: 4%; min-width: 36px;
+    z-index: 6; border: none; padding: 0; color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s ease;
+}
+.nf-row-arrow-back { left: 0; background: linear-gradient(to right, rgba(20,20,20,0.8), transparent); }
+.nf-row-arrow-fwd { right: 0; background: linear-gradient(to left, rgba(20,20,20,0.8), transparent); }
+.nf-row-wrap:hover .nf-row-arrow, .nf-row-arrow:focus-visible { opacity: 1; }
+.nf-at-start .nf-row-arrow-back, .nf-at-end .nf-row-arrow-fwd { visibility: hidden; }
+.nf-row-arrow .material-icons { font-size: 34px; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+@media (max-width: 768px), (hover: none) { .nf-row-arrow { display: none; } }
+
+/* =============================================
+   LEGACY ENGINE FALLBACKS — TVs / old WebViews without aspect-ratio keep
+   working layouts (cast circles and 16:9 thumbs used to collapse to 0 height).
+   ============================================= */
+@supports not (aspect-ratio: 1 / 1) {
+    .personCard .cardPadder { padding-bottom: 100% !important; }
+    .nf-cw-thumb { height: 0; padding-top: 56.25%; }
+    .nf-pop-media { height: 0; padding-top: 56.25%; }
+}
+
+/* =============================================
+   VIDEO PLAYBACK — never cover or displace the player.
+   jellyfin-web puts the inline <video> in a fixed, z-index-less
+   .videoPlayerContainer inserted as body's FIRST child: everything later in
+   the DOM paints over it. During playback the client adds
+   .transparentDocument to <html> and expects every layer above the video to
+   go transparent. This theme's opaque !important backgrounds (body,
+   .backgroundContainer) defeated that, so in the mobile apps' WebViews
+   (which play inline by default) the video was invisible behind the theme —
+   iPhone Safari only worked because fullscreen there is the native player.
+   ============================================= */
+html.transparentDocument,
+html.transparentDocument body,
+html.transparentDocument .backgroundContainer,
+html.transparentDocument .backdropContainer,
+html.transparentDocument .mainAnimatedPage,
+html.transparentDocument .page {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+}
+/* withBackdrop only remains during BACKDROP-level transparency (theme media /
+   trailers playing behind the UI) — keep stock's dim there instead of full
+   transparency, and drop the theme's opaque gradients. */
+html.transparentDocument .backgroundContainer.withBackdrop {
+    background-color: rgba(0, 0, 0, 0.86) !important;
+    background-image: none !important;
+}
+/* Theme overlay layers must never sit above the player either. */
+html.transparentDocument body::after { display: none !important; }
+html.transparentDocument .nf-pop { display: none !important; }
+/* The incoming-page transform would re-anchor the fixed OSD bar (containing
+   block); no page-enter animation while the player is up. */
+html.transparentDocument .view-transition { animation: none !important; }
+/* During playback the client restyles the main header itself (.osdHeader:
+   in-flow, scrim gradient, fades with the OSD). Hand it back — the theme's
+   fixed solid-black header would otherwise sit on top of the video. */
+.skinHeader.osdHeader {
+    position: relative !important;
+    z-index: 1 !important;
+    height: 7.5em !important; /* stock OSD scrim height */
+    background: linear-gradient(180deg, rgba(16,16,16,0.75), rgba(16,16,16,0)) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    /* The OSD hide logic waits for this transitionend before display:none-ing
+       the header — without it an invisible but CLICKABLE back button floats
+       over the video (the theme's transition override dropped opacity). */
+    transition: opacity 0.3s ease-out !important;
+    /* Restore stock safe-area padding the theme's global padding:0 removed
+       (notched phones in landscape put the back button in the cutout). */
+    padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left) !important;
+}
+.skinHeader.osdHeader.osdHeader-hidden { opacity: 0 !important; }
+/* No Netflix "N" in the player header — it sits next to the back button. */
+.skinHeader.osdHeader .headerLeft::before { display: none !important; }
+
+/* =============================================
+   REDUCED MOTION — no autoplay-adjacent animation for users who opted out.
+   (headerButton.js additionally skips the autoplay clips entirely.)
+   ============================================= */
+@media (prefers-reduced-motion: reduce) {
+    .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
+    .view-transition { animation: none !important; }
+    .card, .cardScalable, .cardImageContainer, .nf-hero-slide, .nf-hero-content,
+    .nf-pop, .ct-overlay, .ct-overlay-bg { transition: none !important; }
+    .card:hover { transform: none !important; }
+    .card:hover .cardScalable { transform: none !important; }
+    .alphaPicker-letter:hover { transform: none !important; }
+    .nf-hero-btn:hover, .nf-pop-btn:hover { transform: none !important; }
+}
+
+/* === END OF BASE THEME — runtime options are appended by CssGenerator === */

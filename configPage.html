@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Custom Theme</title>
+    <style>
+        .ct-wrap { max-width: 760px; }
+        .ct-intro { color: #888; margin-bottom: 20px; }
+        .ct-section { margin-bottom: 20px; padding: 16px 18px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+        .ct-section h3 { margin: 0 0 8px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #999; }
+        .ct-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; min-height: 40px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .ct-row:last-child { border-bottom: none; }
+        .ct-row label.ct-label { font-size: 0.95rem; }
+        .ct-row select, .ct-row input[type="text"] { background: #292929; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 7px 10px; font-size: 0.85rem; min-width: 180px; }
+        .ct-row input[type="color"] { width: 44px; height: 30px; border: 2px solid #555; border-radius: 4px; cursor: pointer; padding: 0; background: none; }
+        .ct-row input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; accent-color: #E50914; }
+        .ct-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+        .ct-save { background: #E50914; color: #fff; border: none; padding: 12px 32px; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+        .ct-save:hover { background: #ff0a16; }
+        .ct-reset { background: transparent; color: #aaa; border: 1px solid #555; padding: 12px 24px; border-radius: 4px; font-size: 0.9rem; cursor: pointer; }
+        .ct-reset:hover { border-color: #E50914; color: #fff; }
+        .ct-status { margin-top: 14px; padding: 10px 14px; border-radius: 4px; display: none; }
+        .ct-status.success { display: block; background: rgba(70,211,105,0.15); color: #46d369; }
+        .ct-status.error { display: block; background: rgba(229,9,20,0.15); color: #E50914; }
+    </style>
+</head>
+<body>
+    <div id="CustomThemeConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+         data-require="emby-input,emby-button,emby-select,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary ct-wrap">
+                <h2>Custom Theme</h2>
+                <p class="ct-intro">A Netflix-inspired skin for Jellyfin. Settings are stored on the server and apply to every device. After saving, reload the web page to see the new look.</p>
+
+                <div id="ctSections"></div>
+
+                <div class="ct-actions">
+                    <button type="button" class="ct-save" id="ctSave">Save &amp; Apply</button>
+                    <button type="button" class="ct-reset" id="ctReset">Reset to defaults</button>
+                </div>
+                <div class="ct-status" id="ctStatus"></div>
+            </div>
+        </div>
+
+    <script type="text/javascript">
+    (function () {
+        var PLUGIN_ID = '78b7b285-8d9e-4e4c-8e4d-7a71f76d4e2a';
+
+        var FONTS = [
+            ['inter', 'Inter'], ['poppins', 'Poppins'], ['montserrat', 'Montserrat'],
+            ['roboto', 'Roboto'], ['oswald', 'Oswald'], ['raleway', 'Raleway'],
+            ['nunito', 'Nunito'], ['bebas', 'Bebas Neue'], ['lato', 'Lato'],
+            ['sourcesans', 'Source Sans'], ['ubuntu', 'Ubuntu'], ['playfair', 'Playfair Display'],
+            ['quicksand', 'Quicksand'], ['comfortaa', 'Comfortaa'], ['righteous', 'Righteous']
+        ];
+
+        // Single source of truth for every setting.
+        var SECTIONS = [
+            ['Injection', [
+                ['OwnInjection', 'toggle', 'Self-contained injection via built-in middleware (no File Transformation plugin needed)'],
+                ['ProvideFileTransformation', 'toggle', 'Provide File Transformation to other plugins (e.g. Media Bar) so they work without the separate plugin']
+            ]],
+            ['Netflix Features', [
+                ['CleanHome', 'toggle', 'Clean Netflix home (hide native rows, plugin owns the home page)'],
+                ['HeroBillboard', 'toggle', 'Hero carousel on the home page'],
+                ['GenreRows', 'toggle', 'Genre rows on the home page'],
+                ['NavTabs', 'toggle', 'Top navigation tabs'],
+                ['HoverPreviewCard', 'toggle', 'Hover expand card (grows + info panel with buttons)'],
+                ['PreviewClips', 'toggle', 'Autoplay preview clip on hover (streams ~30s from the middle, nothing stored)'],
+                ['TopTenRow', 'toggle', 'Top 10 rank numbers on the first content row'],
+                ['MatchScore', 'toggle', 'Show rating as green "x% Match" (Netflix style)'],
+                ['GlassEffect', 'toggle', 'Frosted-glass blur (header, dialogs, drawer)'],
+                ['OledBlack', 'toggle', 'OLED pure-black background']
+            ]],
+            ['Colors', [
+                ['SeasonalTheme', 'select', 'Theme preset', [['default','Default'],['monochrome','Monochrome'],['colorful','Colorful'],['christmas','Christmas'],['halloween','Halloween'],['summer','Summer'],['ocean','Ocean']]],
+                ['AccentColor', 'color', 'Accent color'],
+                ['BgColor', 'color', 'Background'],
+                ['TextColor', 'color', 'Text color'],
+                ['MutedColor', 'color', 'Muted text'],
+                ['ProgressColor', 'select', 'Progress bar', [['accent','Accent'],['red','Red'],['green','Green'],['blue','Blue'],['purple','Purple']]]
+            ]],
+            ['Logo & Header', [
+                ['LogoStyle', 'select', 'Logo style', [['jellyfin','Jellyfin'],['netflix','Netflix N'],['letter','Letter'],['custom','Custom image'],['none','None']]],
+                ['LogoLetter', 'select', 'Logo letter', 'AZ'],
+                ['CustomLogoUrl', 'text', 'Logo image URL'],
+                ['NavLeft', 'toggle', 'Left-aligned navigation (Netflix style)'],
+                ['HeaderBlur', 'toggle', 'Header blur effect']
+            ]],
+            ['Elements', [
+                ['ShowBadges', 'toggle', 'Unplayed count badges'],
+                ['ShowPlayed', 'toggle', 'Watched checkmarks'],
+                ['ShowBackdrop', 'toggle', 'Backdrop image'],
+                ['RoundCast', 'toggle', 'Round cast images'],
+                ['ShowDescription', 'toggle', 'Description'],
+                ['ShowTags', 'toggle', 'Tags'],
+                ['ShowExternalLinks', 'toggle', 'External links (IMDb, TMDB)'],
+                ['ShowSimilar', 'toggle', 'Similar titles'],
+                ['SpoilerMode', 'toggle', 'Spoiler mode (blur unwatched)']
+            ]],
+            ['Detail Page Buttons', [
+                ['ShowBtnWatched', 'toggle', 'Watched button'],
+                ['ShowBtnFavorite', 'toggle', 'Favorite button'],
+                ['ShowBtnMore', 'toggle', 'More button']
+            ]],
+            ['Layout', [
+                ['FontFamily', 'select', 'Font', FONTS],
+                ['FontSize', 'select', 'Font size', [['small','Small'],['normal','Normal'],['large','Large']]],
+                ['CardRadius', 'select', 'Card rounding', [['0','Square'],['4','Light'],['8','Medium'],['16','Round']]],
+                ['CardSize', 'select', 'Card size', [['small','Small'],['normal','Normal'],['large','Large']]],
+                ['CardStyle', 'select', 'Card shape', [['mixed','Mixed'],['portrait','Portrait'],['landscape','Landscape']]],
+                ['CardHoverScale', 'toggle', 'Card hover zoom'],
+                ['CardInfoOverlay', 'toggle', 'Card info overlay'],
+                ['GradientStrength', 'select', 'Backdrop gradient', [['light','Light'],['medium','Medium'],['heavy','Heavy']]],
+                ['TitleSize', 'select', 'Detail title size', [['small','Small'],['large','Large'],['huge','Huge']]],
+                ['AnimSpeed', 'select', 'Animation speed', [['fast','Fast'],['normal','Normal'],['slow','Slow'],['off','Off']]],
+                ['SidebarCompact', 'toggle', 'Compact sidebar'],
+                ['AmbientGlow', 'toggle', 'Ambient glow']
+            ]]
+        ];
+
+        var INT_KEYS = { CardRadius: true };
+
+        function fields() {
+            var out = [];
+            SECTIONS.forEach(function (s) { s[1].forEach(function (f) { out.push(f); }); });
+            return out;
+        }
+
+        function optionsFor(f) {
+            var opts = f[3];
+            if (opts === 'AZ') {
+                opts = [];
+                for (var i = 65; i <= 90; i++) { var c = String.fromCharCode(i); opts.push([c, c]); }
+            }
+            return opts || [];
+        }
+
+        function render() {
+            var html = '';
+            SECTIONS.forEach(function (section) {
+                html += '<div class="ct-section"><h3>' + section[0] + '</h3>';
+                section[1].forEach(function (f) {
+                    var key = f[0], type = f[1], label = f[2];
+                    html += '<div class="ct-row" data-field="' + key + '"><label class="ct-label" for="ct' + key + '">' + label + '</label>';
+                    if (type === 'toggle') {
+                        html += '<input type="checkbox" id="ct' + key + '">';
+                    } else if (type === 'color') {
+                        html += '<input type="color" id="ct' + key + '">';
+                    } else if (type === 'text') {
+                        html += '<input type="text" id="ct' + key + '" placeholder="https://...">';
+                    } else {
+                        html += '<select id="ct' + key + '">';
+                        optionsFor(f).forEach(function (o) { html += '<option value="' + o[0] + '">' + o[1] + '</option>'; });
+                        html += '</select>';
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+            });
+            document.getElementById('ctSections').innerHTML = html;
+            document.getElementById('ctLogoStyle').addEventListener('change', updateVisibility);
+        }
+
+        function apply(config) {
+            fields().forEach(function (f) {
+                var key = f[0], type = f[1];
+                var el = document.getElementById('ct' + key);
+                if (!el) return;
+                if (type === 'toggle') {
+                    el.checked = config[key] !== false;
+                } else if (config[key] !== undefined && config[key] !== null) {
+                    el.value = String(config[key]);
+                }
+            });
+            updateVisibility();
+        }
+
+        function collect(config) {
+            fields().forEach(function (f) {
+                var key = f[0], type = f[1];
+                var el = document.getElementById('ct' + key);
+                if (!el) return;
+                if (type === 'toggle') config[key] = el.checked;
+                else if (INT_KEYS[key]) config[key] = parseInt(el.value, 10);
+                else config[key] = el.value;
+            });
+            return config;
+        }
+
+        function updateVisibility() {
+            var logo = document.getElementById('ctLogoStyle').value;
+            document.querySelector('[data-field="LogoLetter"]').style.display = logo === 'letter' ? '' : 'none';
+            document.querySelector('[data-field="CustomLogoUrl"]').style.display = logo === 'custom' ? '' : 'none';
+        }
+
+        function status(msg, ok) {
+            var s = document.getElementById('ctStatus');
+            // Clear any inline display:none from a previous auto-hide, otherwise the
+            // message never shows again after the first successful save.
+            s.style.display = '';
+            s.className = 'ct-status ' + (ok ? 'success' : 'error');
+            s.textContent = msg;
+            clearTimeout(status._t);
+            if (ok) status._t = setTimeout(function () { s.className = 'ct-status'; }, 5000);
+        }
+
+        function load() {
+            if (typeof ApiClient === 'undefined' || !ApiClient.getPluginConfiguration) {
+                setTimeout(load, 200);
+                return;
+            }
+            ApiClient.getPluginConfiguration(PLUGIN_ID).then(apply);
+        }
+
+        function save() {
+            ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
+                ApiClient.updatePluginConfiguration(PLUGIN_ID, collect(config)).then(function (result) {
+                    if (window.Dashboard && Dashboard.processPluginConfigurationUpdateResult) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    }
+                    status('Saved and applied. Reload the page to see the new theme.', true);
+                }).catch(function (err) { status('Error: ' + err, false); });
+            });
+        }
+
+        function reset() {
+            if (!window.confirm('Reset all theme settings to their defaults?')) return;
+            ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
+                Object.keys(config).forEach(function (k) {
+                    if (k !== 'EnableInMainMenu') delete config[k];
+                });
+                ApiClient.updatePluginConfiguration(PLUGIN_ID, config).then(function () {
+                    load();
+                    status('Reset to defaults. Reload the page to see changes.', true);
+                }).catch(function (err) { status('Error: ' + err, false); });
+            });
+        }
+
+        render();
+        document.getElementById('ctSave').addEventListener('click', save);
+        document.getElementById('ctReset').addEventListener('click', reset);
+        document.querySelector('.pluginConfigurationPage').addEventListener('pageshow', load);
+        load();
+    })();
+    </script>
+    </div>
+</body>
+</html>
