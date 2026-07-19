@@ -422,13 +422,11 @@ namespace Jellyfin.Plugin.CustomTheme
 
             if (config.HoverPreviewCard)
             {
-                // Overlay styling — independent of the zoom motion.
-                sb.AppendLine(@".cardOverlayContainer { background: linear-gradient(to top, rgba(20,20,20,0.97) 0%, rgba(20,20,20,0.75) 40%, transparent 75%) !important; }
-.card:hover .cardOverlayContainer { opacity: 1 !important; }
-.cardOverlayButtonContainer { display: flex !important; align-items: center !important; gap: 6px !important; }
-.cardOverlayContainer .paper-icon-button-light { background: rgba(255,255,255,0.12) !important; border: 1px solid rgba(255,255,255,0.5) !important; border-radius: 50% !important; width: 30px !important; height: 30px !important; transition: transform 0.15s ease, background 0.15s ease !important; }
-.cardOverlayContainer .paper-icon-button-light:hover { transform: scale(1.15) !important; background: rgba(255,255,255,0.25) !important; }
-.cardOverlayContainer .cardOverlayButton-br .paper-icon-button-light { background: rgba(255,255,255,0.92) !important; color: #000 !important; }");
+                // With the popup enabled, the ON-CARD hover overlay must never show:
+                // its near-opaque dark gradient faded in over the zoomed artwork and
+                // read as "a black thing blocking the image" until the popup arrived.
+                // All hover actions/info live in the popup itself (Netflix behavior).
+                sb.AppendLine(".card:hover .cardOverlayContainer { opacity: 0 !important; pointer-events: none !important; }");
 
                 // Zoom motion — respects the CardHoverScale toggle. The
                 // neighbour-slide targets horizontal ROWS only: .scrollSlider (native)

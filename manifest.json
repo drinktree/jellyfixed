@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.48.0",
+        "changelog": "The dark overlay that covered most of the zoomed card until the preview tile arrived is gone: with the hover popup enabled, the on-card hover overlay (a near-opaque bottom gradient with mini buttons) is now fully suppressed — the zoomed card shows clean artwork and all actions live in the popup, like Netflix. Installs with the popup feature disabled keep the classic on-card overlay.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.48/custom-theme-v2.5.48.zip",
+        "checksum": "b4144e6025043b53f77b5349a1654c2b",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.47.0",
         "changelog": "Hover fix, take two: the in-place card zoom is back exactly as before (it was removed in 2.5.46 — that was the wrong call). The actual 'black screen' was the preview clip's <video> element painting solid black over the artwork before its first frame decoded; popup clips now stay invisible and fade in only once frames are actually rendering (same treatment the hero and detail clips already had). The popup tile also still preloads its artwork before appearing.",
         "targetAbi": "10.11.0.0",
