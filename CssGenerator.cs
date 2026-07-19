@@ -327,11 +327,21 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine(".nf-cw-card { width: clamp(260px, 22.5vw, 400px) !important; }");
             }
 
-            // Card style
+            // Card style. Native cards can only be reshaped (their image is baked into
+            // the markup); the theme's own genre-row cards re-render with the matching
+            // art client-side (headerButton.js nfCardImage), so they get their own
+            // shape + width rules here and are excluded from the native rule.
             if (config.CardStyle == "portrait")
             {
-                sb.AppendLine(".card.overflowBackdropCard .cardPadder { padding-bottom: 150% !important; }");
-                sb.AppendLine(".card.overflowBackdropCard .cardImageContainer { background-position: center !important; }");
+                sb.AppendLine(".card.overflowBackdropCard:not(.nf-card) .cardPadder { padding-bottom: 150% !important; }");
+                sb.AppendLine(".card.overflowBackdropCard:not(.nf-card) .cardImageContainer { background-position: center !important; }");
+                sb.AppendLine(".nf-genre-section .cardPadder-overflowBackdrop { padding-bottom: 150% !important; }");
+                var portraitWidth = config.CardSize == "small"
+                    ? "clamp(100px, 9vw, 170px)"
+                    : config.CardSize == "large"
+                        ? "clamp(150px, 13.5vw, 260px)"
+                        : "clamp(120px, 10.5vw, 200px)";
+                sb.AppendLine($".nf-genre-section .card.nf-card {{ width: {portraitWidth} !important; }}");
             }
             else if (config.CardStyle == "landscape")
             {

@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.42.0",
+        "changelog": "Card shape 'Portrait' now uses the right artwork: the theme's home genre rows re-render with the poster (Primary) art in a proper 2:3 frame instead of force-cropping the landscape titled boxart (which sliced title art in half). Portrait card widths scale with the Card size setting; landscape/mixed modes keep the titled Thumb boxart as before. Native Jellyfin cards (visible with Clean Home off) are still only reshaped — their image is baked into the markup — and no longer double-apply to the theme's own cards.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.42/custom-theme-v2.5.42.zip",
+        "checksum": "26c1312aa5c8da4cb9c0d119dbafe944",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.41.0",
         "changelog": "Glitch fixes from live use. (1) The home hero billboard now truly starts at the top of the page — the stock home page carries 7.5em of top padding that left a dark band above the hero (scoped to the active home tab so the Favorites tab keeps its normal spacing). (2) Detail-page preview clips now fill the whole backdrop instead of only the top 40vh band (they attach to the full-viewport backdrop container, sit above the rotating backdrop images, and are guarded per item id — in-app navigation between detail pages previously left the old clip running and blocked new ones). (3) With logo art visible, shows no longer display the redundant text title: the original-title line (anime romaji) and the series-name heading on episode/season pages are hidden along with the main title; the episode name stays.",
         "targetAbi": "10.11.0.0",

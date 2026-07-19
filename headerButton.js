@@ -634,10 +634,22 @@
         upd();
     }
 
+    // Row-card artwork must MATCH the configured card shape: portrait mode uses the
+    // poster (Primary) art; landscape/mixed keep the titled Thumb boxart. Cropping
+    // landscape art into a 2:3 frame (the old behavior) cut title art in half.
+    function nfCardImage(item) {
+        if (cfg('CardStyle', 'mixed') === 'portrait') {
+            var t = item.ImageTags || {};
+            if (t.Primary) return ApiClient.getScaledImageUrl(item.Id, { type: 'Primary', maxWidth: 400, tag: t.Primary });
+        }
+        return cwImage(item);
+    }
+
     function buildCardHtml(item, sid) {
-        // Netflix uses LANDSCAPE 16:9 boxart, not portrait posters. Prefer the titled Thumb
-        // (true boxart), then Backdrop/ParentBackdrop, then the portrait Primary cropped to 16:9.
-        var img = cwImage(item) || '';
+        // Netflix uses LANDSCAPE 16:9 boxart by default. Prefer the titled Thumb
+        // (true boxart), then Backdrop/ParentBackdrop, then the portrait Primary —
+        // unless the card shape is set to portrait (see nfCardImage).
+        var img = nfCardImage(item) || '';
         var href = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
         var year = item.ProductionYear || '';
         // Mirror Jellyfin's native overflow backdrop-card markup for native styling + delegation.
