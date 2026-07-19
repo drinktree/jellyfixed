@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.44.0",
+        "changelog": "Cast & Crew photos are back: the person-card frame's only real height source (the padding spacer) was zeroed in favor of aspect-ratio, which some clients (e.g. Jellyfin Media Player's older Chromium) don't honor — the whole image circle collapsed to 0px, leaving names without faces. Restored the universal percentage-padding mechanism (square, round-cropped as before; empirically verified in modern and legacy engines). The detail-page title logo now sits directly above the match/year/duration line instead of floating near the top (the layout math missed the in-flow 40vh backdrop spacer and the stock ribbon pull-up). The critic-rating tomato is restored to the metadata line (user preference).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.44/custom-theme-v2.5.44.zip",
+        "checksum": "146c4876492d2cbc7657c9ee0b0bf554",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.43.0",
         "changelog": "Detail-line fidelity: the critic-rating tomato is hidden (Netflix's metadata line is match/year/duration/maturity only) and the audio/subtitle/version selects are compacted to 420px so the title page reads less like a form.",
         "targetAbi": "10.11.0.0",

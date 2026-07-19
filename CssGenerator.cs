@@ -484,7 +484,7 @@ namespace Jellyfin.Plugin.CustomTheme
 
             // Detail page polish (always on — lightweight). Covers series: seasons + episode list.
             sb.AppendLine(@".detailPagePrimaryContent .sectionTitle { font-size: 1.3rem !important; font-weight: 700 !important; }
-.castContent .card, .peopleCards .card { --card-radius: 50%; }
+#castContent .card, .peopleCards .card { --card-radius: 50%; }
 /* Episode list rows */
 .listItem { border-radius: 8px !important; padding: 10px 12px !important; transition: background 0.2s ease !important; }
 .listItem:hover { background: rgba(255,255,255,0.07) !important; }

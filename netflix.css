@@ -396,7 +396,10 @@ body, .mainDrawer, .dialog {
     html:not(.layout-mobile):not(.layout-tv) .detailLogo:not(.hide) {
         display: block !important;
         position: absolute !important;
-        top: 11vh !important;
+        /* Metadata line really starts at 40vh (in-flow #itemBackdrop spacer)
+           + 30vh (wrapper padding) - 7.2em (stock desktop ribbon pull-up).
+           Logo bottom = that - 3vh; top = bottom - 16vh height. */
+        top: calc(51vh - 7.2em) !important;
         inset-inline-start: 4% !important;
         right: auto !important;
         width: min(440px, 34vw) !important;
@@ -532,10 +535,8 @@ body, .mainDrawer, .dialog {
 
 /* "Ends at 11:20 PM" is a player-style estimate Netflix never shows on a title
    page — drop it from the detail metadata row for a cleaner Netflix line.
-   Same for the critic-rating tomato: Netflix's line is match/year/duration/
-   maturity only. */
+   (The critic-rating tomato stays — user preference.) */
 .itemMiscInfo .endsAt { display: none !important; }
-.itemMiscInfo .mediaInfoCriticRating { display: none !important; }
 
 /* Compact the technical selects (subtitle/audio/version pickers) — a
    full-column dropdown reads as a form, not a title page. */
@@ -954,8 +955,13 @@ body, .mainDrawer, .dialog {
 }
 
 /* --- CAST / PERSON CARDS — Netflix round style --- */
+/* 100% (square) padder: the padder is the card's ONLY in-flow height source
+   (the image anchor is absolute). Zeroing it made the circle's height depend
+   entirely on aspect-ratio, which engines like Jellyfin Media Player's older
+   Chromium don't honor — the whole image area collapsed to 0px and cast faces
+   vanished. Percentage padding works everywhere; aspect-ratio agrees with it. */
 .personCard .cardPadder {
-    padding-bottom: 0 !important;
+    padding-bottom: 100% !important;
 }
 
 .personCard .cardScalable {
