@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.43.0",
+        "changelog": "Detail-line fidelity: the critic-rating tomato is hidden (Netflix's metadata line is match/year/duration/maturity only) and the audio/subtitle/version selects are compacted to 420px so the title page reads less like a form.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.43/custom-theme-v2.5.43.zip",
+        "checksum": "da9e1b3a9b43f32531be3ae944547d3c",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.42.0",
         "changelog": "Card shape 'Portrait' now uses the right artwork: the theme's home genre rows re-render with the poster (Primary) art in a proper 2:3 frame instead of force-cropping the landscape titled boxart (which sliced title art in half). Portrait card widths scale with the Card size setting; landscape/mixed modes keep the titled Thumb boxart as before. Native Jellyfin cards (visible with Clean Home off) are still only reshaped — their image is baked into the markup — and no longer double-apply to the theme's own cards.",
         "targetAbi": "10.11.0.0",

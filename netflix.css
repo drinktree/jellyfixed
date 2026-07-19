@@ -531,8 +531,16 @@ body, .mainDrawer, .dialog {
 }
 
 /* "Ends at 11:20 PM" is a player-style estimate Netflix never shows on a title
-   page — drop it from the detail metadata row for a cleaner Netflix line. */
+   page — drop it from the detail metadata row for a cleaner Netflix line.
+   Same for the critic-rating tomato: Netflix's line is match/year/duration/
+   maturity only. */
 .itemMiscInfo .endsAt { display: none !important; }
+.itemMiscInfo .mediaInfoCriticRating { display: none !important; }
+
+/* Compact the technical selects (subtitle/audio/version pickers) — a
+   full-column dropdown reads as a form, not a title page. */
+.itemDetailPage .selectContainer { max-width: 420px !important; }
+.itemDetailPage .selectContainer .emby-select { font-size: 0.9rem !important; }
 
 /* =============================================
    DETAIL PAGE BUTTONS — Netflix style
