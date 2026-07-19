@@ -51,6 +51,7 @@
             ['ProvideFileTransformation', 'toggle', 'Provide File Transformation to other plugins'],
             ['HeroBillboard', 'toggle', 'Hero carousel (replaces Media Bar)'],
             ['GenreRows', 'toggle', 'Genre rows (replaces Home Sections)'],
+            ['GenreRowsExclude', 'text', 'Hidden genre rows (comma-separated)'],
             ['NavTabs', 'toggle', 'Top nav tabs (replaces Custom Tabs)'],
             ['HoverPreviewCard', 'toggle', 'Hover expand card'],
             ['PreviewClips', 'toggle', 'Autoplay preview on hover'],
@@ -224,7 +225,7 @@
                 } else if (type === 'color') {
                     html += '<input type="color" data-key="' + key + '"' + aria + ' value="' + esc(config[key] || '#000000') + '">';
                 } else if (type === 'text') {
-                    html += '<input type="text" data-key="' + key + '"' + aria + ' value="' + esc(config[key] || '') + '" placeholder="https://...">';
+                    html += '<input type="text" data-key="' + key + '"' + aria + ' value="' + esc(config[key] || '') + '"' + (key === 'CustomLogoUrl' ? ' placeholder="https://..."' : '') + '>';
                 } else {
                     html += '<select data-key="' + key + '"' + aria + '>';
                     f[3].forEach(function (o) {
@@ -269,21 +270,30 @@
     var navViews = null;
     var navFetching = false;
 
+    // Mirrors appRouter.getRouteUrl in jellyfin-web 10.11 exactly. The old
+    // ".html" legacy paths (movies.html, list.html, …) no longer exist as
+    // routes there — a tab pointing at one (e.g. Collections -> list.html)
+    // just spun forever. The list route also requires serverId.
     function navRouteFor(v) {
         var ct = (v.CollectionType || '').toLowerCase();
-        if (ct === 'tvshows') return '#/tv.html?topParentId=' + v.Id;
-        if (ct === 'movies') return '#/movies.html?topParentId=' + v.Id;
-        if (ct === 'music') return '#/music.html?topParentId=' + v.Id;
-        if (ct === 'livetv') return '#/livetv.html';
-        // list.html reads parentId (topParentId is only for the movies/tv/music tab views).
-        return '#/list.html?parentId=' + v.Id;
+        var sid = (ApiClient.serverId && ApiClient.serverId()) || v.ServerId || '';
+        if (ct === 'tvshows') return '#/tv?topParentId=' + v.Id + '&collectionType=tvshows';
+        if (ct === 'movies') return '#/movies?topParentId=' + v.Id + '&collectionType=movies';
+        if (ct === 'music') return '#/music?topParentId=' + v.Id + '&collectionType=music';
+        if (ct === 'livetv') return '#/livetv?collectionType=livetv';
+        return '#/list?parentId=' + v.Id + (sid ? '&serverId=' + sid : '');
     }
 
     function navIsActive(href) {
         var hash = (location.hash || '').toLowerCase();
-        var base = href.replace('#', '').toLowerCase().split('?')[0];
-        if (base.indexOf('home') !== -1) return hash === '' || hash === '#/' || hash.indexOf('home') !== -1;
-        return base !== '' && hash.indexOf(base) !== -1;
+        var h = href.toLowerCase();
+        var base = h.replace('#', '').split('?')[0];
+        if (base.indexOf('home') !== -1) return isHomePage();
+        if (base === '' || hash.indexOf(base) === -1) return false;
+        // Two list-type libraries share the /list base — require the same id.
+        var idm = h.match(/(?:top)?parentid=([a-f0-9-]+)/i);
+        if (idm) return hash.indexOf(idm[1]) !== -1;
+        return true;
     }
 
     function renderNavTabs() {
@@ -302,7 +312,7 @@
             return;
         }
 
-        var tabs = [[nfL().home, '#/home.html']];
+        var tabs = [[nfL().home, '#/home']];
         navViews.forEach(function (v) { tabs.push([v.Name, navRouteFor(v)]); });
         var nav = document.createElement('div');
         nav.className = 'nf-nav-tabs';
@@ -339,8 +349,10 @@
     var HERO_MAX = 6;
 
     function isHomePage() {
-        var h = (location.hash || '').toLowerCase();
-        return h === '' || h === '#/' || h.indexOf('home.html') !== -1 || h.indexOf('/home') !== -1;
+        // Exact base match — a loose '/home' substring test used to treat
+        // '#/homevideos?...' (a Home Videos library) as the home page.
+        var h = (location.hash || '').toLowerCase().split('?')[0];
+        return h === '' || h === '#/' || h === '#/home' || h === '#/home.html';
     }
 
     function activeHomeContainer() {
@@ -663,8 +675,16 @@
             container.setAttribute('data-nf-rows', '1');
             var sid = ApiClient.serverId && ApiClient.serverId();
 
+            // Excluded genres are dropped at build time (so a cached list still
+            // honours the current setting).
+            var excluded = {};
+            String(cfg('GenreRowsExclude', 'Documentary, Dokumentarfilm, Dokumentation'))
+                .split(',').forEach(function (g) { g = g.trim().toLowerCase(); if (g) excluded[g] = true; });
+
             function buildRows(genres) {
-                genres.forEach(function (g) {
+                genres.filter(function (g) { return !excluded[String(g).trim().toLowerCase()]; })
+                    .slice(0, GENRE_MAX_ROWS)
+                    .forEach(function (g) {
                     ApiClient.getItems(userId, {
                         IncludeItemTypes: 'Movie,Series', Recursive: true, Genres: g,
                         SortBy: 'Random', Limit: 20, ImageTypeLimit: 1, EnableImageTypes: 'Backdrop,Thumb,Primary'
@@ -700,7 +720,9 @@
                 items.forEach(function (it) {
                     (it.Genres || []).forEach(function (g) { counts[g] = (counts[g] || 0) + 1; });
                 });
-                var genres = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, GENRE_MAX_ROWS);
+                // Keep more than GENRE_MAX_ROWS candidates so exclusions still
+                // leave a full set of rows; buildRows filters + slices.
+                var genres = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 24);
                 genreCache.uid = userId;
                 genreCache.genres = genres;
                 genreCache.ts = Date.now();
@@ -1264,7 +1286,7 @@
             logo.addEventListener('click', function (e) {
                 e.preventDefault();
                 var home = document.querySelector('.headerHomeButton');
-                if (home) { home.click(); } else { window.location.hash = '#/home.html'; }
+                if (home) { home.click(); } else { window.location.hash = '#/home'; }
             });
         } catch (e) {}
     }

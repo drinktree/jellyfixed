@@ -63,6 +63,7 @@
                 ['CleanHome', 'toggle', 'Clean Netflix home (hide native rows, plugin owns the home page)'],
                 ['HeroBillboard', 'toggle', 'Hero carousel on the home page'],
                 ['GenreRows', 'toggle', 'Genre rows on the home page'],
+                ['GenreRowsExclude', 'text', 'Genres never shown as home rows (comma-separated)'],
                 ['NavTabs', 'toggle', 'Top navigation tabs'],
                 ['HoverPreviewCard', 'toggle', 'Hover expand card (grows + info panel with buttons)'],
                 ['PreviewClips', 'toggle', 'Autoplay preview clip on hover (streams ~30s from the middle, nothing stored)'],
@@ -147,7 +148,7 @@
                     } else if (type === 'color') {
                         html += '<input type="color" id="ct' + key + '">';
                     } else if (type === 'text') {
-                        html += '<input type="text" id="ct' + key + '" placeholder="https://...">';
+                        html += '<input type="text" id="ct' + key + '"' + (key === 'CustomLogoUrl' ? ' placeholder="https://..."' : '') + '>';
                     } else {
                         html += '<select id="ct' + key + '">';
                         optionsFor(f).forEach(function (o) { html += '<option value="' + o[0] + '">' + o[1] + '</option>'; });

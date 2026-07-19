@@ -88,6 +88,9 @@ namespace Jellyfin.Plugin.CustomTheme
         /// <summary>Build curated genre rows on the home page (replaces the Home Screen Sections plugin).</summary>
         public bool GenreRows { get; set; } = true;
 
+        /// <summary>Genres never shown as home rows (comma-separated, case-insensitive).</summary>
+        public string GenreRowsExclude { get; set; } = "Documentary, Dokumentarfilm, Dokumentation";
+
         /// <summary>Show Netflix-style top navigation tabs (Home + libraries) in the header (replaces the Custom Tabs plugin).</summary>
         public bool NavTabs { get; set; } = true;
 
