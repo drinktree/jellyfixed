@@ -1720,6 +1720,85 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
 .nf-row-arrow .material-icons { font-size: 34px; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
 @media (max-width: 768px), (hover: none) { .nf-row-arrow { display: none; } }
 
+/* Netflix page-indicator segments in the row header, revealed on row hover. */
+.nf-row-pages {
+    display: inline-flex; gap: 2px; margin-inline-start: 12px;
+    vertical-align: middle; opacity: 0; transition: opacity 0.2s ease;
+}
+.verticalSection:hover .nf-row-pages { opacity: 1; }
+.nf-row-page { width: 12px; height: 2px; background: #4d4d4d; }
+.nf-row-page.active { background: #aaa; }
+@media (max-width: 768px), (hover: none) { .nf-row-pages { display: none; } }
+
+/* Netflix's red NEW flag on freshly added artwork. */
+.nf-new-flag {
+    position: absolute; top: 0; inset-inline-start: 0; z-index: 2;
+    background: var(--accent-red); color: #fff;
+    font-family: var(--font-netflix); font-size: 0.62rem; font-weight: 700;
+    letter-spacing: 0.08em; padding: 2px 7px; border-radius: 0 0 3px 0;
+    pointer-events: none;
+}
+
+/* Continue Watching: episode/time line and the Netflix remove control. */
+.nf-cw-sub {
+    margin-top: 2px; font-size: 0.78rem; color: #8c8c8c;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nf-cw-remove {
+    position: absolute; top: 6px; inset-inline-end: 6px; z-index: 3;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.5);
+    color: #fff; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s ease, background 0.2s ease;
+}
+.nf-cw-remove .material-icons { font-size: 18px; }
+.nf-cw-card:hover .nf-cw-remove, .nf-cw-remove:focus-visible { opacity: 1; }
+.nf-cw-remove:hover { background: rgba(0,0,0,0.9); border-color: #fff; }
+/* Touch devices have no hover — keep it reachable. */
+@media (hover: none) { .nf-cw-remove { opacity: 1; } }
+
+/* Maturity-rating plate at playback start (Netflix's white-barred card). */
+.ct-rating-plate {
+    position: fixed; top: 14vh; inset-inline-start: 6%; z-index: 10005;
+    border-inline-start: 4px solid #fff; padding: 0.35em 0 0.35em 0.9em;
+    font-family: var(--font-netflix); color: #fff;
+    opacity: 0; transform: translateY(6px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+    pointer-events: none; text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+}
+.ct-rating-plate.show { opacity: 1; transform: none; }
+.ct-rating-value { font-size: 2.1rem; font-weight: 700; line-height: 1.1; }
+@media (prefers-reduced-motion: reduce) { .ct-rating-plate { transition: none; } }
+
+/* Audio / subtitle pickers DURING PLAYBACK only — html.transparentDocument is
+   set by the client while the player is up, so app-wide menus keep their look. */
+html.transparentDocument .actionSheet {
+    background: rgba(20,20,20,0.96) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 6px !important;
+}
+html.transparentDocument .actionSheetTitle {
+    font-family: var(--font-netflix) !important;
+    font-size: 1.3rem !important; font-weight: 700 !important;
+    text-transform: none !important; color: #fff !important;
+}
+html.transparentDocument .actionSheetMenuItem {
+    border-radius: 0 !important; padding: 0.65em 1.2em !important;
+    border-inline-start: 3px solid transparent !important;
+}
+html.transparentDocument .actionSheetMenuItem:hover { background: rgba(255,255,255,0.08) !important; }
+/* Selected track: Netflix marks it with a red bar rather than a tick.
+   NOTE: jellyfin gives EVERY item a .listItemIcon.check span for alignment and
+   hides the unselected ones with an inline visibility:hidden — so the selected
+   one is the only check that is not inline-hidden. */
+html.transparentDocument .actionSheetMenuItem .listItemIcon.check { color: transparent !important; width: 0 !important; margin: 0 !important; }
+html.transparentDocument .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden"])) {
+    border-inline-start-color: var(--accent-red) !important;
+    background: rgba(255,255,255,0.05) !important;
+    font-weight: 600 !important;
+}
+
 /* =============================================
    LEGACY ENGINE FALLBACKS — TVs / old WebViews without aspect-ratio keep
    working layouts (cast circles and 16:9 thumbs used to collapse to 0 height).

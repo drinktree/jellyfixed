@@ -91,6 +91,21 @@ namespace Jellyfin.Plugin.CustomTheme
         /// <summary>Genres never shown as home rows (comma-separated, case-insensitive).</summary>
         public string GenreRowsExclude { get; set; } = "Documentary, Dokumentarfilm, Dokumentation";
 
+        /// <summary>"My List" home row built from favourites — the destination for every + button.</summary>
+        public bool MyListRow { get; set; } = true;
+
+        /// <summary>"New Releases" home row (recently added), with a red NEW flag on fresh artwork.</summary>
+        public bool NewReleasesRow { get; set; } = true;
+
+        /// <summary>"Watch It Again" home row of finished titles.</summary>
+        public bool WatchAgainRow { get; set; } = true;
+
+        /// <summary>"Because you watched X" rows, seeded from the titles finished most recently.</summary>
+        public bool BecauseYouWatched { get; set; } = true;
+
+        /// <summary>Netflix-style maturity-rating plate for the first seconds of playback.</summary>
+        public bool RatingPlate { get; set; } = true;
+
         /// <summary>Show Netflix-style top navigation tabs (Home + libraries) in the header (replaces the Custom Tabs plugin).</summary>
         public bool NavTabs { get; set; } = true;
 

@@ -8,8 +8,10 @@
     // <html lang>); everything else falls back to English. CSS-generated labels
     // (detail play button, tooltips) are driven via custom properties below.
     var LOCALES = {
-        en: { home: 'Home', play: 'Play', moreInfo: 'More Info', myList: 'My List', like: 'Like', cw: 'Continue Watching', season: 'Season', seasons: 'Seasons', sound: 'Toggle sound', pause: 'Pause', slide: 'Slide', themeSettings: 'Theme settings', scrollBack: 'Scroll left', scrollFwd: 'Scroll right', labelPlay: 'Play', labelResume: 'Resume', labelReplay: 'Replay', tipWatched: 'Watched', tipFavorite: 'Favorite', tipMore: 'More' },
-        de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr' }
+        en: { home: 'Home', play: 'Play', moreInfo: 'More Info', myList: 'My List', like: 'Like', cw: 'Continue Watching', season: 'Season', seasons: 'Seasons', sound: 'Toggle sound', pause: 'Pause', slide: 'Slide', themeSettings: 'Theme settings', scrollBack: 'Scroll left', scrollFwd: 'Scroll right', labelPlay: 'Play', labelResume: 'Resume', labelReplay: 'Replay', tipWatched: 'Watched', tipFavorite: 'Favorite', tipMore: 'More',
+             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'NEW', minLeft: '{0} min left', removeRow: 'Remove from row', page: 'Page' },
+        de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr',
+             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'NEU', minLeft: 'Noch {0} Min.', removeRow: 'Aus Zeile entfernen', page: 'Seite' }
     };
     function nfL() {
         var l = (document.documentElement.getAttribute('lang') || navigator.language || 'en').toLowerCase();
@@ -42,7 +44,12 @@
         // resolving it at write time could file a slow response arriving after a
         // user switch under the NEW account's key.
         uid = uid || (typeof ApiClient !== 'undefined' && ApiClient.getCurrentUserId && ApiClient.getCurrentUserId()) || 'anon';
-        var fp = [cfg('CardStyle', 'mixed'), String(cfg('GenreRowsExclude', ''))].join('|');
+        // Every setting that changes WHAT a cached row contains must be in the
+        // fingerprint, or turning a rail off would leave it on screen until the
+        // TTL expired.
+        var fp = [cfg('CardStyle', 'mixed'), String(cfg('GenreRowsExclude', '')),
+            cfg('MyListRow', true), cfg('BecauseYouWatched', true),
+            cfg('NewReleasesRow', true), cfg('WatchAgainRow', true)].join('|');
         return 'nfct1:' + uid + ':' + fp + ':' + part;
     }
     function nfCacheGet(part, maxAgeMs) {
@@ -54,6 +61,12 @@
             return obj.v;
         } catch (e) { return null; }
     }
+    // The My List rail is served from cache; adding/removing a favourite must
+    // invalidate it or the + button appears to do nothing until the TTL expires.
+    function nfInvalidateRails(uid) {
+        try { sessionStorage.removeItem(nfCacheKey('rails', uid)); } catch (e) {}
+    }
+
     function nfCacheSet(part, v, uid) {
         try { sessionStorage.setItem(nfCacheKey(part, uid), JSON.stringify({ ts: Date.now(), v: v })); } catch (e) {}
     }
@@ -155,6 +168,11 @@
             ['HeroBillboard', 'toggle', 'Hero carousel (replaces Media Bar)'],
             ['GenreRows', 'toggle', 'Genre rows (replaces Home Sections)'],
             ['GenreRowsExclude', 'text', 'Hidden genre rows (comma-separated)'],
+            ['MyListRow', 'toggle', '"My List" row'],
+            ['BecauseYouWatched', 'toggle', '"Because you watched" rows'],
+            ['NewReleasesRow', 'toggle', '"New Releases" row'],
+            ['WatchAgainRow', 'toggle', '"Watch It Again" row'],
+            ['RatingPlate', 'toggle', 'Rating plate at playback start'],
             ['NavTabs', 'toggle', 'Top nav tabs (replaces Custom Tabs)'],
             ['HoverPreviewCard', 'toggle', 'Hover expand card'],
             ['PreviewClips', 'toggle', 'Autoplay preview on hover'],
@@ -579,6 +597,7 @@
     function renderHero(container, items) {
         var hero = document.createElement('div');
         hero.className = 'nf-hero';
+        hero.setAttribute('data-nf-order', String(NF_ORDER.hero));
         var slides = items.map(function (it, i) { return heroSlideHtml(it, i === 0); }).join('');
         var dots = items.map(function (_, i) { return '<button type="button" class="nf-hero-dot' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '" aria-label="' + nfL().slide + ' ' + (i + 1) + '"></button>'; }).join('');
         hero.innerHTML = slides +
@@ -698,6 +717,7 @@
                             it.UserData.IsFavorite = nowFav;
                         }
                     });
+                    nfInvalidateRails(uid);
                 }).catch(function () {});
             });
         });
@@ -724,10 +744,61 @@
         wrap.className = 'nf-row-wrap nf-at-start';
         scroller.parentNode.insertBefore(wrap, scroller);
         wrap.appendChild(scroller);
+
+        var track = scroller.firstElementChild;
+
+        // Netflix paginates by whole screens and always lands on a card boundary —
+        // never a sliced card. Step = card width + gap, page = as many whole cards
+        // as fit; both are re-measured on resize.
+        function cardStep() {
+            var card = track && track.firstElementChild;
+            if (!card) return 0;
+            var w = card.getBoundingClientRect().width;
+            if (!w) return 0;
+            var gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap || '0') || 0;
+            return w + gap;
+        }
+        function perPage() {
+            var step = cardStep();
+            if (!step) return 1;
+            // clientWidth includes the row's own horizontal padding — subtract it
+            // so the page count matches the cards actually visible.
+            var cs = getComputedStyle(scroller);
+            var pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+            return Math.max(1, Math.floor((scroller.clientWidth - pad + 1) / step));
+        }
+        function pageCount() {
+            var n = track ? track.children.length : 0;
+            return Math.max(1, Math.ceil(n / perPage()));
+        }
+
+        var dots = document.createElement('div');
+        dots.className = 'nf-row-pages';
+        var header = sec.querySelector('.sectionTitle');
+        if (header) { header.appendChild(dots); }
+
+        function renderDots() {
+            var total = pageCount();
+            if (total < 2) { dots.innerHTML = ''; return; }
+            if (dots.children.length !== total) {
+                var html = '';
+                for (var i = 0; i < total; i++) { html += '<span class="nf-row-page"></span>'; }
+                dots.innerHTML = html;
+            }
+            var step = cardStep() * perPage();
+            // abs(): RTL scrollLeft runs negative.
+            var cur = step ? Math.round(Math.abs(scroller.scrollLeft) / step) : 0;
+            for (var j = 0; j < dots.children.length; j++) {
+                dots.children[j].classList.toggle('active', j === Math.min(cur, dots.children.length - 1));
+            }
+        }
+
         function upd() {
             wrap.classList.toggle('nf-at-start', scroller.scrollLeft <= 4);
             wrap.classList.toggle('nf-at-end', scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 4);
+            renderDots();
         }
+
         [['back', 'chevron_left', -1], ['fwd', 'chevron_right', 1]].forEach(function (a) {
             var b = document.createElement('button');
             b.type = 'button';
@@ -735,12 +806,55 @@
             b.setAttribute('aria-label', a[2] < 0 ? nfL().scrollBack : nfL().scrollFwd);
             b.innerHTML = '<span class="material-icons" aria-hidden="true">' + a[1] + '</span>';
             b.addEventListener('click', function () {
-                scroller.scrollBy({ left: a[2] * Math.round(scroller.clientWidth * 0.8), behavior: nfReducedMotion() ? 'auto' : 'smooth' });
+                var step = cardStep() * perPage();
+                var target;
+                if (!step) {
+                    target = scroller.scrollLeft + a[2] * Math.round(scroller.clientWidth * 0.8);
+                } else {
+                    // Quantize the CURRENT offset to a page first, so a stray manual
+                    // scroll can't leave every later jump off-grid. RTL scrollLeft is
+                    // negative, so work in absolute pages and re-apply the sign.
+                    var sign = getComputedStyle(scroller).direction === 'rtl' ? -1 : 1;
+                    var page = Math.round(sign * scroller.scrollLeft / step) + a[2];
+                    target = sign * Math.max(0, Math.min(page, pageCount() - 1)) * step;
+                }
+                scroller.scrollTo({ left: target, behavior: nfReducedMotion() ? 'auto' : 'smooth' });
             });
             wrap.appendChild(b);
         });
+
         scroller.addEventListener('scroll', function () { requestAnimationFrame(upd); }, { passive: true });
+        if (window.ResizeObserver) {
+            var ro = new ResizeObserver(function () { requestAnimationFrame(upd); });
+            ro.observe(scroller);
+        }
+        // Exposed so code that mutates a row's cards (Continue Watching removal /
+        // diff-refresh) can refresh the page dots — neither scroll nor resize fires.
+        sec._nfUpd = upd;
         upd();
+    }
+
+    // Home rows arrive asynchronously; insert each at its Netflix slot instead of
+    // whatever order the fetches happen to finish in.
+    var NF_ORDER = { hero: 0, cw: 10, mylist: 20, because: 30, newly: 45, again: 50, genre: 60 };
+    function nfInsertOrdered(container, sec, order) {
+        sec.setAttribute('data-nf-order', String(order));
+        var kids = container.children;
+        for (var i = 0; i < kids.length; i++) {
+            var o = parseInt(kids[i].getAttribute('data-nf-order') || '', 10);
+            if (!isNaN(o) && o > order) { container.insertBefore(sec, kids[i]); return; }
+        }
+        container.appendChild(sec);
+    }
+
+    function nfRowSection(title, items, sid, extraClass) {
+        var sec = document.createElement('div');
+        sec.className = 'verticalSection nf-genre-section' + (extraClass ? ' ' + extraClass : '');
+        sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + esc(title) + '</h2>' +
+            '<div class="nf-row-scroll"><div class="nf-row-track">' +
+            items.map(function (it) { return buildCardHtml(it, sid); }).join('') +
+            '</div></div>';
+        return sec;
     }
 
     // Row-card artwork must MATCH the configured card shape: portrait mode uses the
@@ -761,6 +875,9 @@
         var img = nfCardImage(item) || '';
         var href = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
         var year = item.ProductionYear || '';
+        // Netflix's red NEW flag for anything added in the last two weeks.
+        var isNew = item.DateCreated && (Date.now() - Date.parse(item.DateCreated)) < 14 * 864e5;
+        var newFlag = isNew ? '<div class="nf-new-flag">' + nfL().newBadge + '</div>' : '';
         // Mirror Jellyfin's native overflow backdrop-card markup for native styling + delegation.
         return '<div data-id="' + item.Id + '" data-serverid="' + (sid || '') + '" data-type="' + item.Type + '" data-mediatype="Video" data-isfolder="false" class="card overflowBackdropCard card-hoverable card-withuserdata nf-card nf-card-landscape">' +
             '<div class="cardBox cardBox-bottompadded">' +
@@ -772,12 +889,161 @@
                   '<div class="cardOverlayButtonContainer cardOverlayButtonContainer-centered">' +
                     '<button type="button" is="paper-icon-button-light" class="cardOverlayButton cardOverlayButton-hover itemAction paper-icon-button-light" data-action="resume" title="' + nfL().play + '" aria-label="' + nfL().play + '"><span class="material-icons cardOverlayButtonIcon" aria-hidden="true">play_arrow</span></button>' +
                   '</div>' +
-                '</div>' +
+                '</div>' + newFlag +
               '</div>' +
               '<div class="cardText cardTextCentered cardText-first"><bdi>' + esc(item.Name) + '</bdi></div>' +
               (year ? '<div class="cardText cardTextCentered cardText-secondary"><bdi>' + esc(year) + '</bdi></div>' : '') +
             '</div>' +
           '</div>';
+    }
+
+    // ============ Netflix personal rails ============
+    // My List (favorites), Because you watched X (server-side similarity),
+    // New Releases (recently added) and Watch It Again (finished titles).
+    // Each is cached, self-hides when thin, and shares the genre-row plumbing
+    // (chevrons, page dots, lazy artwork, hover preview).
+    var railsBusy = false;
+    var RAILS_CACHE_MS = 10 * 60 * 1000;
+    var RAIL_MIN_ITEMS = 3;
+    // No MediaSources here: only the hero streams straight from its list payload
+    // (the hover popup re-fetches the full item), and MediaSources would bloat
+    // both the responses and the session cache several-fold.
+    var RAIL_FIELDS = 'Genres,ProductionYear,CommunityRating,RunTimeTicks,DateCreated';
+
+    function nfHasArt(x) {
+        return (x.BackdropImageTags && x.BackdropImageTags.length) || (x.ImageTags && (x.ImageTags.Thumb || x.ImageTags.Primary));
+    }
+
+    function setupExtraRows() {
+        try {
+            if (!isHomePage() || railsBusy) { return; }
+            if (typeof ApiClient === 'undefined' || !ApiClient.getItems || !ApiClient.getCurrentUserId) { return; }
+            var container = activeHomeContainer();
+            if (!container || container.getAttribute('data-nf-rails') === '1') { return; }
+            var userId = ApiClient.getCurrentUserId();
+            if (!userId) { return; }
+
+            var wantList = cfg('MyListRow', true) === true;
+            var wantNew = cfg('NewReleasesRow', true) === true;
+            var wantAgain = cfg('WatchAgainRow', true) === true;
+            var wantBecause = cfg('BecauseYouWatched', true) === true;
+            if (!wantList && !wantNew && !wantAgain && !wantBecause) { return; }
+
+            container.setAttribute('data-nf-rails', '1');
+            railsBusy = true;
+            var sid = ApiClient.serverId && ApiClient.serverId();
+            var seen = {};   // dedupe across rails so rows don't echo each other
+
+            // Returns true when a rail was actually rendered. Items are only
+            // committed to `seen` on success — a discarded (too-thin) rail used to
+            // burn its titles and starve the rails that came after it.
+            function place(title, items, order, extraClass) {
+                if (!isHomePage()) { return false; }
+                var c = activeHomeContainer();
+                if (!c || c.getAttribute('data-nf-rails') !== '1') { return false; }
+                var local = {};
+                var fresh = (items || []).filter(function (x) {
+                    if (!x || !x.Id || seen[x.Id] || local[x.Id] || !nfHasArt(x)) { return false; }
+                    local[x.Id] = true;
+                    return true;
+                });
+                if (fresh.length < RAIL_MIN_ITEMS) { return false; }  // Netflix hides thin rails
+                Object.keys(local).forEach(function (k) { seen[k] = true; });
+                var sec = nfRowSection(title, fresh, sid, extraClass);
+                nfInsertOrdered(c, sec, order);
+                nfRowNav(sec);
+                nfLazyImages(sec);
+                return true;
+            }
+
+            // Serve instantly from cache, then refresh in the background.
+            var cached = nfCacheGet('rails', RAILS_CACHE_MS);
+            if (cached && cached.length) {
+                railsBusy = false;
+                cached.forEach(function (r) { place(r.title, r.items, r.order, r.cls); });
+                return;
+            }
+
+            var built = [];
+            function collect(title, items, order, cls) {
+                if (place(title, items, order, cls)) { built.push({ title: title, items: items, order: order, cls: cls }); }
+            }
+            var pending = 0;
+            var failed = 0;
+            function retryLater() {
+                // Clear the marker so the next pass can try again — but only after a
+                // real failure, so a legitimately empty library doesn't refetch on
+                // every mutation frame.
+                var c = activeHomeContainer();
+                if (c) { c.removeAttribute('data-nf-rails'); }
+            }
+            function done() {
+                pending--;
+                if (pending <= 0) {
+                    railsBusy = false;
+                    if (built.length) { nfCacheSet('rails', built, userId); }
+                    else if (failed) { retryLater(); }
+                }
+            }
+
+            // 1) My List — the destination for every + button in the theme.
+            if (wantList) {
+                pending++;
+                ApiClient.getItems(userId, {
+                    Filters: 'IsFavorite', IncludeItemTypes: 'Movie,Series', Recursive: true,
+                    SortBy: 'DateCreated', SortOrder: 'Descending', Limit: 30,
+                    Fields: RAIL_FIELDS, ImageTypeLimit: 1, EnableImageTypes: 'Thumb,Backdrop,Primary'
+                }).then(function (r) {
+                    collect(nfL().myList, (r && r.Items) || [], NF_ORDER.mylist, 'nf-mylist-section');
+                }).catch(function () { failed++; }).then(done);
+            }
+
+            // 2) Because you watched X — seeded from the last titles finished.
+            if (wantBecause && ApiClient.getSimilarItems) {
+                pending++;
+                ApiClient.getItems(userId, {
+                    Filters: 'IsPlayed', IncludeItemTypes: 'Movie,Series', Recursive: true,
+                    SortBy: 'DatePlayed', SortOrder: 'Descending', Limit: 2
+                }).then(function (r) {
+                    var seeds = (r && r.Items) || [];
+                    if (!seeds.length) { return; }
+                    return Promise.all(seeds.map(function (seed, i) {
+                        return ApiClient.getSimilarItems(seed.Id, {
+                            UserId: userId, Limit: 20, Fields: RAIL_FIELDS
+                        }).then(function (sim) {
+                            collect(nfL().becauseYouWatched.replace('{0}', seed.Name),
+                                (sim && sim.Items) || [], NF_ORDER.because + i, 'nf-because-section');
+                        }).catch(function () {});
+                    }));
+                }).catch(function () { failed++; }).then(done);
+            }
+
+            // 3) New Releases — recently added to the server.
+            if (wantNew) {
+                pending++;
+                ApiClient.getItems(userId, {
+                    IncludeItemTypes: 'Movie,Series', Recursive: true,
+                    SortBy: 'DateCreated', SortOrder: 'Descending', Limit: 20,
+                    Fields: RAIL_FIELDS, ImageTypeLimit: 1, EnableImageTypes: 'Thumb,Backdrop,Primary'
+                }).then(function (r) {
+                    collect(nfL().newReleases, (r && r.Items) || [], NF_ORDER.newly, 'nf-new-section');
+                }).catch(function () { failed++; }).then(done);
+            }
+
+            // 4) Watch It Again — finished titles, most recently completed first.
+            if (wantAgain) {
+                pending++;
+                ApiClient.getItems(userId, {
+                    Filters: 'IsPlayed', IncludeItemTypes: 'Movie,Series', Recursive: true,
+                    SortBy: 'DatePlayed', SortOrder: 'Descending', Limit: 20,
+                    Fields: RAIL_FIELDS, ImageTypeLimit: 1, EnableImageTypes: 'Thumb,Backdrop,Primary'
+                }).then(function (r) {
+                    collect(nfL().watchAgain, (r && r.Items) || [], NF_ORDER.again, 'nf-again-section');
+                }).catch(function () { failed++; }).then(done);
+            }
+
+            if (!pending) { railsBusy = false; retryLater(); }
+        } catch (e) { railsBusy = false; }
     }
 
     function setupGenreRows() {
@@ -802,17 +1068,13 @@
             String(cfg('GenreRowsExclude', 'Documentary, Dokumentarfilm, Dokumentation'))
                 .split(',').forEach(function (g) { g = g.trim().toLowerCase(); if (g) excluded[g] = true; });
 
+            var genreIdx = 0;
             function addGenreSection(g, its) {
                 if (!its.length || !isHomePage()) { return; }
                 var c = activeHomeContainer();
                 if (!c || c.getAttribute('data-nf-rows') !== '1') { return; }
-                var sec = document.createElement('div');
-                sec.className = 'verticalSection nf-genre-section';
-                sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + esc(g) + '</h2>' +
-                    '<div class="nf-row-scroll"><div class="nf-row-track">' +
-                    its.map(function (it) { return buildCardHtml(it, sid); }).join('') +
-                    '</div></div>';
-                c.appendChild(sec);
+                var sec = nfRowSection(g, its, sid);
+                nfInsertOrdered(c, sec, NF_ORDER.genre + (genreIdx++));
                 nfRowNav(sec);
                 nfLazyImages(sec);
             }
@@ -834,7 +1096,8 @@
                 picked.forEach(function (g) {
                     ApiClient.getItems(userId, {
                         IncludeItemTypes: 'Movie,Series', Recursive: true, Genres: g,
-                        SortBy: 'Random', Limit: 20, ImageTypeLimit: 1, EnableImageTypes: 'Backdrop,Thumb,Primary'
+                        SortBy: 'Random', Limit: 20, ImageTypeLimit: 1, EnableImageTypes: 'Backdrop,Thumb,Primary',
+                        Fields: 'DateCreated'
                     }).then(function (r) {
                         var its = ((r && r.Items) || []).filter(function (x) { return (x.BackdropImageTags && x.BackdropImageTags.length) || (x.ImageTags && (x.ImageTags.Thumb || x.ImageTags.Primary)); });
                         if (its.length) { collected.push({ g: g, items: its }); }
@@ -912,18 +1175,61 @@
                 return items.map(function (i) { return i.Id + ':' + Math.round((i.UserData && i.UserData.PlayedPercentage) || 0); }).join(',');
             }
 
+            // Netflix's second line: "S2:E4 · 23 min left".
+            function cwSubtitle(item) {
+                var bits = [];
+                if (item.Type === 'Episode' && item.ParentIndexNumber != null && item.IndexNumber != null) {
+                    bits.push('S' + item.ParentIndexNumber + ':E' + item.IndexNumber);
+                }
+                var total = item.RunTimeTicks || 0;
+                var pos = (item.UserData && item.UserData.PlaybackPositionTicks) || 0;
+                if (total > pos) {
+                    var mins = Math.round((total - pos) / 600000000);
+                    if (mins > 0) { bits.push(nfL().minLeft.replace('{0}', mins)); }
+                }
+                return bits.join(' · ');
+            }
+
             function cwCardsHtml(items) {
                 return items.map(function (item) {
                     var pct = (item.UserData && item.UserData.PlayedPercentage) || 0;
                     var name = item.Type === 'Episode' ? (item.SeriesName || item.Name) : item.Name;
                     var href = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
-                    return '<a class="nf-cw-card" href="' + href + '">' +
+                    var sub = cwSubtitle(item);
+                    return '<a class="nf-cw-card" href="' + href + '" data-id="' + item.Id + '">' +
                         '<div class="nf-cw-thumb" data-nf-bg="' + esc(cwImage(item)) + '">' +
                             '<div class="nf-cw-play"><span class="material-icons" aria-hidden="true">play_arrow</span></div>' +
+                            '<button type="button" class="nf-cw-remove" title="' + nfL().removeRow + '" aria-label="' + nfL().removeRow + '"><span class="material-icons" aria-hidden="true">close</span></button>' +
                             '<div class="nf-cw-prog"><i style="width:' + Math.max(2, Math.min(100, pct)) + '%"></i></div>' +
                         '</div>' +
-                        '<div class="nf-cw-title">' + esc(name || '') + '</div></a>';
+                        '<div class="nf-cw-title">' + esc(name || '') + '</div>' +
+                        (sub ? '<div class="nf-cw-sub">' + esc(sub) + '</div>' : '') +
+                        '</a>';
                 }).join('');
+            }
+
+            // "Remove from row" — clearing the resume position is exactly what
+            // Netflix's remove does: the title stops being "in progress".
+            function wireCwRemove(sec) {
+                sec.querySelectorAll('.nf-cw-remove').forEach(function (btn) {
+                    btn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var card = btn.closest('.nf-cw-card');
+                        var id = card && card.getAttribute('data-id');
+                        if (!id || !ApiClient.markUnplayed) { return; }
+                        ApiClient.markUnplayed(userId, id, new Date()).then(function () {
+                            if (card.parentNode) { card.parentNode.removeChild(card); }
+                            // Evict just this title so the rest of the row still paints
+                            // instantly from cache on the next visit.
+                            var keep = (nfCacheGet('cw', 30 * 60 * 1000) || []).filter(function (i) { return i.Id !== id; });
+                            nfCacheSet('cw', keep, userId);
+                            var track = sec.querySelector('.nf-cw-track');
+                            if (track && !track.children.length) { sec.remove(); }
+                            else if (sec._nfUpd) { sec._nfUpd(); }
+                        }).catch(function () {});
+                    });
+                });
             }
 
             function insertCwSection(items) {
@@ -934,11 +1240,10 @@
                 sec.setAttribute('data-nf-fp', cwFingerprint(items));
                 sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + nfL().cw + '</h2>' +
                     '<div class="nf-cw-scroll"><div class="nf-cw-track">' + cwCardsHtml(items) + '</div></div>';
-                var hero = c.querySelector('.nf-hero');
-                if (hero && hero.nextSibling) { c.insertBefore(sec, hero.nextSibling); }
-                else { c.insertBefore(sec, c.firstChild); }
+                nfInsertOrdered(c, sec, NF_ORDER.cw);
                 nfRowNav(sec);
                 nfLazyImages(sec);
+                wireCwRemove(sec);
                 return sec;
             }
 
@@ -951,7 +1256,9 @@
             ApiClient.getItems(userId, {
                 Filters: 'IsResumable', SortBy: 'DatePlayed', SortOrder: 'Descending',
                 Recursive: true, MediaTypes: 'Video', Limit: 12,
-                ImageTypeLimit: 1, EnableImageTypes: 'Thumb,Backdrop,Primary'
+                ImageTypeLimit: 1, EnableImageTypes: 'Thumb,Backdrop,Primary',
+                // RunTimeTicks + UserData drive the "23 min left" line.
+                Fields: 'RunTimeTicks,UserData,DateCreated'
             }).then(function (res) {
                 cwBusy = false;
                 var items = (res && res.Items) || [];
@@ -968,7 +1275,11 @@
                 if (sec.getAttribute('data-nf-fp') === cwFingerprint(items)) { return; }
                 sec.setAttribute('data-nf-fp', cwFingerprint(items));
                 var track = sec.querySelector('.nf-cw-track');
-                if (track) { track.innerHTML = cwCardsHtml(items); nfLazyImages(sec); }
+                if (track) {
+                    track.innerHTML = cwCardsHtml(items);
+                    nfLazyImages(sec); wireCwRemove(sec);
+                    if (sec._nfUpd) { sec._nfUpd(); }   // card count changed -> page dots
+                }
             }).catch(function () {
                 cwBusy = false;
                 var c = activeHomeContainer();
@@ -1323,6 +1634,8 @@
                     ApiClient.updateFavoriteStatus(uid, item.Id, nowFav).then(function () {
                         listBtn.classList.toggle('active', nowFav);
                         listBtn.querySelector('.material-icons').textContent = nowFav ? 'check' : 'add';
+                        if (item.UserData) { item.UserData.IsFavorite = nowFav; }
+                        nfInvalidateRails(uid);
                     }).catch(function () {});
                 });
             }
@@ -1579,6 +1892,54 @@
         } catch (e) {}
     }
 
+    // ============ Maturity-rating plate at playback start ============
+    // Netflix shows the certification on a white-barred plate for the first
+    // seconds of playback. OfficialRating already rides on the now-playing item.
+    var ratingPlateFor = null;
+    var ratingPlateEl = null;
+    function setupRatingPlate() {
+        try {
+            if (cfg('RatingPlate', true) !== true) return;
+            var osd = document.querySelector('#videoOsdPage');
+            // The OSD page element is CACHED by the view manager — it stays in the
+            // DOM (hidden) after playback ends, so "playing" means present AND not
+            // .hide. Re-arm for the next playback and drop any leftover plate.
+            if (!osd || osd.classList.contains('hide')) {
+                ratingPlateFor = null;
+                if (osd) { osd.removeAttribute('data-nf-plate'); }
+                if (ratingPlateEl) { ratingPlateEl.remove(); ratingPlateEl = null; }
+                return;
+            }
+            if (typeof ApiClient === 'undefined' || !ApiClient.getSessions || !ApiClient.deviceId) return;
+            if (osd.getAttribute('data-nf-plate') === '1') return;
+            osd.setAttribute('data-nf-plate', '1');
+
+            // The session is reported a beat after playback starts.
+            setTimeout(function () {
+                ApiClient.getSessions({ deviceId: ApiClient.deviceId() }).then(function (sessions) {
+                    var item = sessions && sessions[0] && sessions[0].NowPlayingItem;
+                    if (!item || !item.OfficialRating) return;
+                    if (ratingPlateFor === item.Id) return;      // once per title
+                    ratingPlateFor = item.Id;
+                    if (!document.querySelector('#videoOsdPage')) return;
+                    var plate = document.createElement('div');
+                    plate.className = 'ct-rating-plate';
+                    plate.innerHTML = '<div class="ct-rating-value">' + esc(item.OfficialRating) + '</div>';
+                    document.body.appendChild(plate);
+                    ratingPlateEl = plate;
+                    requestAnimationFrame(function () { plate.classList.add('show'); });
+                    setTimeout(function () {
+                        plate.classList.remove('show');
+                        setTimeout(function () {
+                            if (plate.parentNode) { plate.remove(); }
+                            if (ratingPlateEl === plate) { ratingPlateEl = null; }
+                        }, 900);
+                    }, 7000);
+                }).catch(function () {});
+            }, 600);
+        } catch (e) {}
+    }
+
     // Netflix header behaviour: transparent (top scrim) over a billboard at the
     // very top, solid #141414 once you scroll. Jellyfin's .skinHeader-withBackground
     // only marks "this view has a backdrop" — it is NOT scroll-driven — so we drive
@@ -1616,8 +1977,10 @@
         setupNavTabs();
         setupHero();
         setupContinueWatching();
+        setupExtraRows();
         setupGenreRows();
         markHomeOwned();
+        setupRatingPlate();
         setupTopTen();
         setupMatchScore();
         setupDetailClip();
