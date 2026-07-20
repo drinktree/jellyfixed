@@ -2,7 +2,7 @@
   {
     "guid": "78b7b285-8d9e-4e4c-8e4d-7a71f76d4e2a",
     "name": "Custom Theme",
-    "description": "Netflix-style skin for Jellyfin: rotating hero carousel, genre rows, top nav tabs, native hover previews, settings panel and 15 fonts. Fully self-contained — the built-in middleware serves index.html with the script injected, so it works on read-only / Docker installs too; the File Transformation plugin is used automatically when installed.",
+    "description": "Netflix-style skin for Jellyfin: rotating hero carousel, genre rows, top nav tabs, native hover previews, settings panel and 15 fonts. Fully self-contained \u2014 the built-in middleware serves index.html with the script injected, so it works on read-only / Docker installs too; the File Transformation plugin is used automatically when installed.",
     "overview": "Netflix-inspired skin for Jellyfin with hero, genre rows, nav tabs and a built-in settings panel",
     "owner": "Kuschel-code",
     "category": "General",
@@ -10,15 +10,15 @@
     "versions": [
       {
         "version": "2.5.52.0",
-        "changelog": "Cinematic “stunning pass”: an ambient colour glow sampled from the hero/detail artwork bleeds into the page background and cross-fades as the billboard rotates; a near-invisible film-grain texture adds depth and kills residual gradient banding (desktop); rows now dissolve into the gutter with edge fades instead of hard-cutting; the hover preview card’s metadata unfolds top-to-bottom; when a hero trailer starts the title logo shrinks and the synopsis fades — Netflix’s exact choreography; the Inter variable font brings true optical sizing; plus gentle scroll snap, a TV remote focus glow-ring, and an instant physical button-press. Two new settings toggles: Ambient colour, Film grain. Hardened after a multi-dimension adversarial review: the ambient colour rules carry explicit fallbacks so the opaque detail backdrop never drops on browsers without @property (older iOS/WebViews); the film grain and the glow cross-fade are gated off on mobile WebViews, where a full-viewport blend/gradient repaint janks scrolling on low-end devices; the hero choreography is now torn down on every clip-kill path so the title logo can no longer stick shrunk; ambient sampling works on cross-origin image hosts and re-samples correctly across detail pages; and optimizeLegibility is scoped to display titles rather than taxing the whole document.",
+        "changelog": "Cinematic \u201cstunning pass\u201d: an ambient colour glow sampled from the hero/detail artwork bleeds into the page background and cross-fades as the billboard rotates; a near-invisible film-grain texture adds depth and kills residual gradient banding (desktop); rows now dissolve into the gutter with edge fades instead of hard-cutting; the hover preview card\u2019s metadata unfolds top-to-bottom; when a hero trailer starts the title logo shrinks and the synopsis fades \u2014 Netflix\u2019s exact choreography; the Inter variable font brings true optical sizing; plus gentle scroll snap, a TV remote focus glow-ring, and an instant physical button-press. Two new settings toggles: Ambient colour, Film grain. Hardened after a multi-dimension adversarial review: the ambient colour rules carry explicit fallbacks so the opaque detail backdrop never drops on browsers without @property (older iOS/WebViews); the film grain and the glow cross-fade are gated off on mobile WebViews, where a full-viewport blend/gradient repaint janks scrolling on low-end devices; the hero choreography is now torn down on every clip-kill path so the title logo can no longer stick shrunk; ambient sampling works on cross-origin image hosts and re-samples correctly across detail pages; and optimizeLegibility is scoped to display titles rather than taxing the whole document.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.52/custom-theme-v2.5.52.zip",
-        "checksum": "",
+        "checksum": "b51b5ae7960ae03ca76342aa3732f36f",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
         "version": "2.5.51.0",
-        "changelog": "Visual overhaul, measured against Netflix's own shipped stylesheet. ONE LEFT RAIL: the theme's home rows were double-indented (4% inherited + 4% of their own = 8%), so row titles and tiles never lined up with the header logo or the billboard copy — the single most visible amateur tell. Everything now hangs off one 4% gutter, verified pixel-exact in a headless browser. BILLBOARD: the scrim was running the wrong way (copy sat in the lightest part, propped up by text-shadow halos); it is now Netflix's construction — an angled directional layer darkest at the bottom-left plus an eased multi-stop bottom vignette, so the gradient carries the contrast and the halos are gone, with no visible banding. SHARPNESS: all artwork is now requested at the device's pixel density (2x-capped, snapped to a ladder) instead of fixed CSS widths — on Retina/4K every tile, backdrop and preview was previously upscaled and soft. Tiles also decode before they appear and cross-fade in, and the billboard reserves its height with a shimmer placeholder so rows no longer get shoved down when it arrives. SYSTEM: design tokens replace the ad-hoc values — four text tiers, four radii (boxart no longer re-rounds mid-zoom), a four-step elevation scale (the old 40px/0.85 halo bled onto neighbouring tiles), and Netflix's two easing curves at 250ms. Red now DARKENS on hover (#C11119) as Netflix does rather than brightening. Frosted glass is gone (Netflix has none), row headers rest grey and go white on hover, the focus ring is white, the logo no longer glows, and the loading spinner no longer stutters a half-turn.",
+        "changelog": "Visual overhaul, measured against Netflix's own shipped stylesheet. ONE LEFT RAIL: the theme's home rows were double-indented (4% inherited + 4% of their own = 8%), so row titles and tiles never lined up with the header logo or the billboard copy \u2014 the single most visible amateur tell. Everything now hangs off one 4% gutter, verified pixel-exact in a headless browser. BILLBOARD: the scrim was running the wrong way (copy sat in the lightest part, propped up by text-shadow halos); it is now Netflix's construction \u2014 an angled directional layer darkest at the bottom-left plus an eased multi-stop bottom vignette, so the gradient carries the contrast and the halos are gone, with no visible banding. SHARPNESS: all artwork is now requested at the device's pixel density (2x-capped, snapped to a ladder) instead of fixed CSS widths \u2014 on Retina/4K every tile, backdrop and preview was previously upscaled and soft. Tiles also decode before they appear and cross-fade in, and the billboard reserves its height with a shimmer placeholder so rows no longer get shoved down when it arrives. SYSTEM: design tokens replace the ad-hoc values \u2014 four text tiers, four radii (boxart no longer re-rounds mid-zoom), a four-step elevation scale (the old 40px/0.85 halo bled onto neighbouring tiles), and Netflix's two easing curves at 250ms. Red now DARKENS on hover (#C11119) as Netflix does rather than brightening. Frosted glass is gone (Netflix has none), row headers rest grey and go white on hover, the focus ring is white, the logo no longer glows, and the loading spinner no longer stutters a half-turn.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.51/custom-theme-v2.5.51.zip",
         "checksum": "f34bb7c223c8f9b89f2e1ae79893b3ad",
@@ -26,7 +26,7 @@
       },
       {
         "version": "2.5.50.0",
-        "changelog": "Netflix rails and row mechanics. NEW HOME ROWS, each cached, self-hiding when thin, and ordered the way Netflix orders them (Continue Watching, My List, Because you watched X, New Releases, Watch It Again, then genres): 'My List' from your favourites — the destination the + buttons have always written to; 'Because you watched X' seeded from the titles you finished most recently; 'New Releases' (recently added) with Netflix's red NEW flag on anything added in the last two weeks; and 'Watch It Again' from your play history. Each row has its own toggle. ROW MECHANICS: the hover chevrons now paginate by a full screen and always land on a clean card boundary — never a sliced card — with Netflix's little page-indicator segments in the row header. CONTINUE WATCHING now shows 'S2:E4 · 23 min left' and an X to remove a title from the row (clearing its resume position, exactly like Netflix). PLAYBACK: a maturity-rating plate appears for the first seconds of playback, and the audio/subtitle pickers are restyled Netflix-dark with the selected track marked by a red bar (scoped to playback so app menus are untouched).",
+        "changelog": "Netflix rails and row mechanics. NEW HOME ROWS, each cached, self-hiding when thin, and ordered the way Netflix orders them (Continue Watching, My List, Because you watched X, New Releases, Watch It Again, then genres): 'My List' from your favourites \u2014 the destination the + buttons have always written to; 'Because you watched X' seeded from the titles you finished most recently; 'New Releases' (recently added) with Netflix's red NEW flag on anything added in the last two weeks; and 'Watch It Again' from your play history. Each row has its own toggle. ROW MECHANICS: the hover chevrons now paginate by a full screen and always land on a clean card boundary \u2014 never a sliced card \u2014 with Netflix's little page-indicator segments in the row header. CONTINUE WATCHING now shows 'S2:E4 \u00b7 23 min left' and an X to remove a title from the row (clearing its resume position, exactly like Netflix). PLAYBACK: a maturity-rating plate appears for the first seconds of playback, and the audio/subtitle pickers are restyled Netflix-dark with the selected track marked by a red bar (scoped to playback so app menus are untouched).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.50/custom-theme-v2.5.50.zip",
         "checksum": "97d4ae791750813e4d416ad220ad7b90",
@@ -34,7 +34,7 @@
       },
       {
         "version": "2.5.49.0",
-        "changelog": "Cast & crew artwork resilience. Jellyfin's image loader sets every artwork element to opacity 0 and only restores it when the image LOADS — it has no error path at all, so any request that fails or times out leaves a permanently invisible circle (the 'faces don't load' symptom). The theme now retries stuck artwork twice and, if it still can't be fetched, shows the person's initial on a neutral disc instead of an empty dark circle; people who genuinely have no photo get the same treatment, so both read as intentional. Detail-page preview clips also wait ~2.5s before starting, so they stop competing with the page's own backdrop/poster/cast image requests on smaller servers — a common reason those images failed in the first place.",
+        "changelog": "Cast & crew artwork resilience. Jellyfin's image loader sets every artwork element to opacity 0 and only restores it when the image LOADS \u2014 it has no error path at all, so any request that fails or times out leaves a permanently invisible circle (the 'faces don't load' symptom). The theme now retries stuck artwork twice and, if it still can't be fetched, shows the person's initial on a neutral disc instead of an empty dark circle; people who genuinely have no photo get the same treatment, so both read as intentional. Detail-page preview clips also wait ~2.5s before starting, so they stop competing with the page's own backdrop/poster/cast image requests on smaller servers \u2014 a common reason those images failed in the first place.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.49/custom-theme-v2.5.49.zip",
         "checksum": "32b0f8cdb51b05b66bd647c5aca48a3c",
@@ -42,7 +42,7 @@
       },
       {
         "version": "2.5.48.0",
-        "changelog": "The dark overlay that covered most of the zoomed card until the preview tile arrived is gone: with the hover popup enabled, the on-card hover overlay (a near-opaque bottom gradient with mini buttons) is now fully suppressed — the zoomed card shows clean artwork and all actions live in the popup, like Netflix. Installs with the popup feature disabled keep the classic on-card overlay.",
+        "changelog": "The dark overlay that covered most of the zoomed card until the preview tile arrived is gone: with the hover popup enabled, the on-card hover overlay (a near-opaque bottom gradient with mini buttons) is now fully suppressed \u2014 the zoomed card shows clean artwork and all actions live in the popup, like Netflix. Installs with the popup feature disabled keep the classic on-card overlay.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.48/custom-theme-v2.5.48.zip",
         "checksum": "b4144e6025043b53f77b5349a1654c2b",
@@ -50,7 +50,7 @@
       },
       {
         "version": "2.5.47.0",
-        "changelog": "Hover fix, take two: the in-place card zoom is back exactly as before (it was removed in 2.5.46 — that was the wrong call). The actual 'black screen' was the preview clip's <video> element painting solid black over the artwork before its first frame decoded; popup clips now stay invisible and fade in only once frames are actually rendering (same treatment the hero and detail clips already had). The popup tile also still preloads its artwork before appearing.",
+        "changelog": "Hover fix, take two: the in-place card zoom is back exactly as before (it was removed in 2.5.46 \u2014 that was the wrong call). The actual 'black screen' was the preview clip's <video> element painting solid black over the artwork before its first frame decoded; popup clips now stay invisible and fade in only once frames are actually rendering (same treatment the hero and detail clips already had). The popup tile also still preloads its artwork before appearing.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.47/custom-theme-v2.5.47.zip",
         "checksum": "c4aff6858b221eb44ae41cf9ee099116",
@@ -58,7 +58,7 @@
       },
       {
         "version": "2.5.46.0",
-        "changelog": "Hover polish: hovering a card no longer triple-animates (in-place zoom, then a black tile, then the preview). With the hover popup enabled the card itself now stays still — the popup IS the expansion, like Netflix — and the preview tile only appears once its artwork has actually loaded (with a 400ms fail-open so slow networks still get the tile). The plain card zoom still works as before when the popup feature is turned off.",
+        "changelog": "Hover polish: hovering a card no longer triple-animates (in-place zoom, then a black tile, then the preview). With the hover popup enabled the card itself now stays still \u2014 the popup IS the expansion, like Netflix \u2014 and the preview tile only appears once its artwork has actually loaded (with a 400ms fail-open so slow networks still get the tile). The plain card zoom still works as before when the popup feature is turned off.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.46/custom-theme-v2.5.46.zip",
         "checksum": "d53ef8639017403d38d15cb19202b3c2",
@@ -66,7 +66,7 @@
       },
       {
         "version": "2.5.45.0",
-        "changelog": "Performance & native-feel release. Home now has a session cache (per user, settings-aware): the hero, Continue Watching and all genre rows rebuild in a single frame from cached data when you navigate back — no more row-by-row pop-in — refreshing in the background (Continue Watching diff-updates only when your progress actually changed; rows rotate when the 10-minute cache expires). Native home rows are hidden instantly under Clean Home instead of flashing before the theme's rows replace them (with a fail-open reveal if the theme's rows can't build, and no pre-hide when genre rows are disabled). Row artwork lazy-loads near the viewport instead of firing ~120 thumbnail requests per home build. Ratings no longer flash '7.8' before becoming '78% Match'. Navigation re-apply delay cut from 250ms to 50ms. Caches are keyed per user (an account switch never shows another profile's rows).",
+        "changelog": "Performance & native-feel release. Home now has a session cache (per user, settings-aware): the hero, Continue Watching and all genre rows rebuild in a single frame from cached data when you navigate back \u2014 no more row-by-row pop-in \u2014 refreshing in the background (Continue Watching diff-updates only when your progress actually changed; rows rotate when the 10-minute cache expires). Native home rows are hidden instantly under Clean Home instead of flashing before the theme's rows replace them (with a fail-open reveal if the theme's rows can't build, and no pre-hide when genre rows are disabled). Row artwork lazy-loads near the viewport instead of firing ~120 thumbnail requests per home build. Ratings no longer flash '7.8' before becoming '78% Match'. Navigation re-apply delay cut from 250ms to 50ms. Caches are keyed per user (an account switch never shows another profile's rows).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.45/custom-theme-v2.5.45.zip",
         "checksum": "94855b93a3a77bd29c2390f4e868b169",
@@ -74,7 +74,7 @@
       },
       {
         "version": "2.5.44.0",
-        "changelog": "Cast & Crew photos are back: the person-card frame's only real height source (the padding spacer) was zeroed in favor of aspect-ratio, which some clients (e.g. Jellyfin Media Player's older Chromium) don't honor — the whole image circle collapsed to 0px, leaving names without faces. Restored the universal percentage-padding mechanism (square, round-cropped as before; empirically verified in modern and legacy engines). The detail-page title logo now sits directly above the match/year/duration line instead of floating near the top (the layout math missed the in-flow 40vh backdrop spacer and the stock ribbon pull-up). The critic-rating tomato is restored to the metadata line (user preference).",
+        "changelog": "Cast & Crew photos are back: the person-card frame's only real height source (the padding spacer) was zeroed in favor of aspect-ratio, which some clients (e.g. Jellyfin Media Player's older Chromium) don't honor \u2014 the whole image circle collapsed to 0px, leaving names without faces. Restored the universal percentage-padding mechanism (square, round-cropped as before; empirically verified in modern and legacy engines). The detail-page title logo now sits directly above the match/year/duration line instead of floating near the top (the layout math missed the in-flow 40vh backdrop spacer and the stock ribbon pull-up). The critic-rating tomato is restored to the metadata line (user preference).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.44/custom-theme-v2.5.44.zip",
         "checksum": "146c4876492d2cbc7657c9ee0b0bf554",
@@ -90,7 +90,7 @@
       },
       {
         "version": "2.5.42.0",
-        "changelog": "Card shape 'Portrait' now uses the right artwork: the theme's home genre rows re-render with the poster (Primary) art in a proper 2:3 frame instead of force-cropping the landscape titled boxart (which sliced title art in half). Portrait card widths scale with the Card size setting; landscape/mixed modes keep the titled Thumb boxart as before. Native Jellyfin cards (visible with Clean Home off) are still only reshaped — their image is baked into the markup — and no longer double-apply to the theme's own cards.",
+        "changelog": "Card shape 'Portrait' now uses the right artwork: the theme's home genre rows re-render with the poster (Primary) art in a proper 2:3 frame instead of force-cropping the landscape titled boxart (which sliced title art in half). Portrait card widths scale with the Card size setting; landscape/mixed modes keep the titled Thumb boxart as before. Native Jellyfin cards (visible with Clean Home off) are still only reshaped \u2014 their image is baked into the markup \u2014 and no longer double-apply to the theme's own cards.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.42/custom-theme-v2.5.42.zip",
         "checksum": "26c1312aa5c8da4cb9c0d119dbafe944",
@@ -98,7 +98,7 @@
       },
       {
         "version": "2.5.41.0",
-        "changelog": "Glitch fixes from live use. (1) The home hero billboard now truly starts at the top of the page — the stock home page carries 7.5em of top padding that left a dark band above the hero (scoped to the active home tab so the Favorites tab keeps its normal spacing). (2) Detail-page preview clips now fill the whole backdrop instead of only the top 40vh band (they attach to the full-viewport backdrop container, sit above the rotating backdrop images, and are guarded per item id — in-app navigation between detail pages previously left the old clip running and blocked new ones). (3) With logo art visible, shows no longer display the redundant text title: the original-title line (anime romaji) and the series-name heading on episode/season pages are hidden along with the main title; the episode name stays.",
+        "changelog": "Glitch fixes from live use. (1) The home hero billboard now truly starts at the top of the page \u2014 the stock home page carries 7.5em of top padding that left a dark band above the hero (scoped to the active home tab so the Favorites tab keeps its normal spacing). (2) Detail-page preview clips now fill the whole backdrop instead of only the top 40vh band (they attach to the full-viewport backdrop container, sit above the rotating backdrop images, and are guarded per item id \u2014 in-app navigation between detail pages previously left the old clip running and blocked new ones). (3) With logo art visible, shows no longer display the redundant text title: the original-title line (anime romaji) and the series-name heading on episode/season pages are hidden along with the main title; the episode name stays.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.41/custom-theme-v2.5.41.zip",
         "checksum": "8580d2eb3c24ed7157012b2d2743ce1e",
@@ -106,7 +106,7 @@
       },
       {
         "version": "2.5.40.0",
-        "changelog": "Netflix-fidelity polish. Detail page now shows the title LOGO ART above the metadata line (left-aligned, like Netflix), falling back to the text title when no logo exists or it fails to load (phones/TV keep the text title). Player: red seekbar with red thumb (Live-TV untimed streams keep a clear bar), Netflix-style controls that grow on hover without the circular puddle. 'More Like This' is a static boxart grid instead of a side-scroller (correct 10.11 #similarCollapsible selectors — the old ones were dead, so the 'Similar titles' toggle now actually works too). Episode lists: white titles, clamped synopsis, quiet #404040 separators. Genres restyled as quiet links; maturity badge sharp-cornered; year/duration near-white; synopsis pure white 16px; one consistent weight-500 header voice; header tabs are bare Netflix text instead of pills; theme font now reaches every control (set at html level); action sheets and dialog buttons de-cyaned. MatchScore off now restores the stock star rating instead of a green-number hybrid.",
+        "changelog": "Netflix-fidelity polish. Detail page now shows the title LOGO ART above the metadata line (left-aligned, like Netflix), falling back to the text title when no logo exists or it fails to load (phones/TV keep the text title). Player: red seekbar with red thumb (Live-TV untimed streams keep a clear bar), Netflix-style controls that grow on hover without the circular puddle. 'More Like This' is a static boxart grid instead of a side-scroller (correct 10.11 #similarCollapsible selectors \u2014 the old ones were dead, so the 'Similar titles' toggle now actually works too). Episode lists: white titles, clamped synopsis, quiet #404040 separators. Genres restyled as quiet links; maturity badge sharp-cornered; year/duration near-white; synopsis pure white 16px; one consistent weight-500 header voice; header tabs are bare Netflix text instead of pills; theme font now reaches every control (set at html level); action sheets and dialog buttons de-cyaned. MatchScore off now restores the stock star rating instead of a green-number hybrid.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.40/custom-theme-v2.5.40.zip",
         "checksum": "0de47bcf107b598a972e2164e7c7f636",
@@ -114,7 +114,7 @@
       },
       {
         "version": "2.5.39.0",
-        "changelog": "Fixes from live use: (1) Top navigation tabs now use Jellyfin 10.11's actual routes (#/movies, #/tv, #/music, #/list?parentId&serverId) — the removed legacy .html paths made the Collections/list-type tabs spin forever. Active-tab highlighting now distinguishes multiple list-type libraries. (2) New 'Genres never shown as home rows' setting (comma-separated, case-insensitive), excluded before picking the top rows so a full set still renders; defaults to Documentary/Dokumentarfilm/Dokumentation. (3) Home-page detection no longer mistakes a Home Videos library (#/homevideos) for the home page.",
+        "changelog": "Fixes from live use: (1) Top navigation tabs now use Jellyfin 10.11's actual routes (#/movies, #/tv, #/music, #/list?parentId&serverId) \u2014 the removed legacy .html paths made the Collections/list-type tabs spin forever. Active-tab highlighting now distinguishes multiple list-type libraries. (2) New 'Genres never shown as home rows' setting (comma-separated, case-insensitive), excluded before picking the top rows so a full set still renders; defaults to Documentary/Dokumentarfilm/Dokumentation. (3) Home-page detection no longer mistakes a Home Videos library (#/homevideos) for the home page.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.39/custom-theme-v2.5.39.zip",
         "checksum": "01cbba8cf419cf410d28fae33d9777c1",
@@ -154,7 +154,7 @@
       },
       {
         "version": "2.5.33.0",
-        "changelog": "CRITICAL injection fixes, found by running a real Jellyfin 10.11.11 + headless browser: (1) browsers send Accept-Encoding gzip/br, so the middleware buffered COMPRESSED bytes and never injected — curl tests passed while every real browser was missing the script (no settings button, no hero, no rows). The index request is now forced to identity encoding. (2) WebPath reflection on the app host finds nothing in 10.11 — now resolved via IApplicationPaths.WebPath, re-enabling direct-serve and on-disk injection. Plus: Housekeeping release: fixed all compiler warnings (nullable annotations in the injection middleware); dashboard settings page now has every setting (CleanHome, GenreRows, NavTabs, TrendingRow were missing); header panel gained Logo letter + Logo image URL fields; removed three dead manifest entries (2.5.12/2.5.15/2.5.16 pointed at releases that never existed, breaking installs of those versions); descriptions and code comments aligned with the current injection strategy (self-contained direct-serve, File Transformation used automatically when present).",
+        "changelog": "CRITICAL injection fixes, found by running a real Jellyfin 10.11.11 + headless browser: (1) browsers send Accept-Encoding gzip/br, so the middleware buffered COMPRESSED bytes and never injected \u2014 curl tests passed while every real browser was missing the script (no settings button, no hero, no rows). The index request is now forced to identity encoding. (2) WebPath reflection on the app host finds nothing in 10.11 \u2014 now resolved via IApplicationPaths.WebPath, re-enabling direct-serve and on-disk injection. Plus: Housekeeping release: fixed all compiler warnings (nullable annotations in the injection middleware); dashboard settings page now has every setting (CleanHome, GenreRows, NavTabs, TrendingRow were missing); header panel gained Logo letter + Logo image URL fields; removed three dead manifest entries (2.5.12/2.5.15/2.5.16 pointed at releases that never existed, breaking installs of those versions); descriptions and code comments aligned with the current injection strategy (self-contained direct-serve, File Transformation used automatically when present).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.33/custom-theme-v2.5.33.zip",
         "checksum": "c2c5314fdeab71eeb0996c842acd1bd7",
@@ -170,7 +170,7 @@
       },
       {
         "version": "2.5.31.0",
-        "changelog": "Two fixes from live testing. (1) Preview clips that 'skipped like a record': the hero and detail clips used the native video loop, which on remuxed MPEG-TS sources restarts at the buffered start before the clip's duration is known — so it strobed the first half-second forever. Clips now play straight through and only re-loop once finished. (2) Navigation drawer: its top entries no longer collide with the logo/tabs (the drawer now clears the fixed header), and while it is open the header goes solid and the page behind dims, Netflix-style.",
+        "changelog": "Two fixes from live testing. (1) Preview clips that 'skipped like a record': the hero and detail clips used the native video loop, which on remuxed MPEG-TS sources restarts at the buffered start before the clip's duration is known \u2014 so it strobed the first half-second forever. Clips now play straight through and only re-loop once finished. (2) Navigation drawer: its top entries no longer collide with the logo/tabs (the drawer now clears the fixed header), and while it is open the header goes solid and the page behind dims, Netflix-style.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.31/custom-theme-v2.5.31.zip",
         "checksum": "043a23fab50a3befe09fbbe5ee456371",
@@ -186,7 +186,7 @@
       },
       {
         "version": "2.5.29.0",
-        "changelog": "Closer to Netflix (from a live UI analysis): genre rows now use LANDSCAPE 16:9 boxart cards (Backdrop/Thumb, like Netflix) instead of portrait posters; hover preview gains a Like (👍) button next to Play/+; the hero gets a mute/unmute toggle for its clip; row titles use Netflix's lighter weight; header is more transparent at the top and goes solid (#141414) on scroll.",
+        "changelog": "Closer to Netflix (from a live UI analysis): genre rows now use LANDSCAPE 16:9 boxart cards (Backdrop/Thumb, like Netflix) instead of portrait posters; hover preview gains a Like (\ud83d\udc4d) button next to Play/+; the hero gets a mute/unmute toggle for its clip; row titles use Netflix's lighter weight; header is more transparent at the top and goes solid (#141414) on scroll.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.29/custom-theme-v2.5.29.zip",
         "checksum": "6cc48a181082182240889fce511347c1",
@@ -194,7 +194,7 @@
       },
       {
         "version": "2.5.28.0",
-        "changelog": "Fewer clip errors: preview/hero/detail clips now start at the beginning instead of seeking ~2 min in — the mid-file seek failed (HTTP 500) on MPEG-TS files without a clean keyframe there. The hero also rotates a bit slower (20s) to ease the server transcoder. Result: far fewer 500 errors and clips that actually play.",
+        "changelog": "Fewer clip errors: preview/hero/detail clips now start at the beginning instead of seeking ~2 min in \u2014 the mid-file seek failed (HTTP 500) on MPEG-TS files without a clean keyframe there. The hero also rotates a bit slower (20s) to ease the server transcoder. Result: far fewer 500 errors and clips that actually play.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.28/custom-theme-v2.5.28.zip",
         "checksum": "b2834fda37782d42cd16662ac7c2d276",
@@ -202,7 +202,7 @@
       },
       {
         "version": "2.5.27.0",
-        "changelog": "iPad / touch support: on touch devices the hover preview now works by TAP — tap a card once to show the Netflix-style preview popup (it no longer opens the title immediately), tap it again or its Play/More buttons to open. Desktop hover behaviour is unchanged.",
+        "changelog": "iPad / touch support: on touch devices the hover preview now works by TAP \u2014 tap a card once to show the Netflix-style preview popup (it no longer opens the title immediately), tap it again or its Play/More buttons to open. Desktop hover behaviour is unchanged.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.27/custom-theme-v2.5.27.zip",
         "checksum": "410b3b033cd4fc74a603644b7c8c6103",
@@ -210,7 +210,7 @@
       },
       {
         "version": "2.5.26.0",
-        "changelog": "Design polish (incorporating ideas from popular Jellyfin themes): frosted-glass settings panel and hover-preview popup (backdrop blur), softer/deeper card-hover shadow, and smoother micro-interactions on the hero/popup action buttons. Visual only — no behaviour change.",
+        "changelog": "Design polish (incorporating ideas from popular Jellyfin themes): frosted-glass settings panel and hover-preview popup (backdrop blur), softer/deeper card-hover shadow, and smoother micro-interactions on the hero/popup action buttons. Visual only \u2014 no behaviour change.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.26/custom-theme-v2.5.26.zip",
         "checksum": "936693b3cb777d405a620f0531a1e043",
@@ -226,7 +226,7 @@
       },
       {
         "version": "2.5.24.0",
-        "changelog": "Clip stall watchdog: if a hover/hero/detail clip can't actually start playing within ~10s (a slow or failing on-the-fly remux), it is dropped so the static backdrop/poster image stays — no frozen or endlessly-loading video box. Completes the clip robustness work.",
+        "changelog": "Clip stall watchdog: if a hover/hero/detail clip can't actually start playing within ~10s (a slow or failing on-the-fly remux), it is dropped so the static backdrop/poster image stays \u2014 no frozen or endlessly-loading video box. Completes the clip robustness work.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.24/custom-theme-v2.5.24.zip",
         "checksum": "c7ca2d0fc713e379fc9942c679fa86fd",
@@ -234,7 +234,7 @@
       },
       {
         "version": "2.5.23.0",
-        "changelog": "Clip robustness: clips now fade in only once they actually start playing (a stalled/loading clip no longer shows a black box over the backdrop — the image stays). Intro skip is now a small fixed ~2-minute jump (only on longer titles) instead of a deep percentage seek, so the clip starts faster and more reliably.",
+        "changelog": "Clip robustness: clips now fade in only once they actually start playing (a stalled/loading clip no longer shows a black box over the backdrop \u2014 the image stays). Intro skip is now a small fixed ~2-minute jump (only on longer titles) instead of a deep percentage seek, so the clip starts faster and more reliably.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.23/custom-theme-v2.5.23.zip",
         "checksum": "1397f8fc8cd9c675b93a5795c5aea0e6",
@@ -242,7 +242,7 @@
       },
       {
         "version": "2.5.22.0",
-        "changelog": "Preview clips now skip the intro — they start about a quarter into the title instead of at the very beginning (hover, hero and detail). New: opening a title ('Mehr Infos' / detail page) now plays a muted, looping clip of the title over the top backdrop. Top 10 entries you own still open their detail page (playable); the rest open on AniList.",
+        "changelog": "Preview clips now skip the intro \u2014 they start about a quarter into the title instead of at the very beginning (hover, hero and detail). New: opening a title ('Mehr Infos' / detail page) now plays a muted, looping clip of the title over the top backdrop. Top 10 entries you own still open their detail page (playable); the rest open on AniList.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.22/custom-theme-v2.5.22.zip",
         "checksum": "fce74ad4cad93e853783325c705b8f80",
@@ -250,7 +250,7 @@
       },
       {
         "version": "2.5.21.0",
-        "changelog": "Hero now plays a self-contained autoplay clip of the actual title — a copy-remux of the file itself (not an external YouTube trailer like the Media Bar) — fading in over the backdrop on the active slide; series resolve to a representative episode. Top 10 trending now shows the real global AniList anime hype list (no longer filtered to your library, so it is never empty), ranked 1-10: titles you own link to their detail page, the rest open on AniList.",
+        "changelog": "Hero now plays a self-contained autoplay clip of the actual title \u2014 a copy-remux of the file itself (not an external YouTube trailer like the Media Bar) \u2014 fading in over the backdrop on the active slide; series resolve to a representative episode. Top 10 trending now shows the real global AniList anime hype list (no longer filtered to your library, so it is never empty), ranked 1-10: titles you own link to their detail page, the rest open on AniList.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.21/custom-theme-v2.5.21.zip",
         "checksum": "d038538f5c88e7f77daa0e6f331d636a",
@@ -258,7 +258,7 @@
       },
       {
         "version": "2.5.20.0",
-        "changelog": "Loading animation cleanup: removed the black square that showed next to the spinner (the native Material spinner box/background) — now only the centered rotating red ring shows on the loading screen.",
+        "changelog": "Loading animation cleanup: removed the black square that showed next to the spinner (the native Material spinner box/background) \u2014 now only the centered rotating red ring shows on the loading screen.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.20/custom-theme-v2.5.20.zip",
         "checksum": "a5f0c5f2965d628799335f995ce9f7ed",
@@ -266,7 +266,7 @@
       },
       {
         "version": "2.5.19.0",
-        "changelog": "Hover preview now actually plays a video (it was showing only the image): the clip is a fast copy-remux to MP4 (h264/aac) instead of a forced downscale transcode — the old params triggered the server's hardware encoder, which failed (ffmpeg 187), and MPEG-TS sources can't direct-play. Series/seasons now stream a representative episode. New loading animation: a centered rotating red ring.",
+        "changelog": "Hover preview now actually plays a video (it was showing only the image): the clip is a fast copy-remux to MP4 (h264/aac) instead of a forced downscale transcode \u2014 the old params triggered the server's hardware encoder, which failed (ffmpeg 187), and MPEG-TS sources can't direct-play. Series/seasons now stream a representative episode. New loading animation: a centered rotating red ring.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.19/custom-theme-v2.5.19.zip",
         "checksum": "496f48270a79682ba45bb966fed32487",
@@ -274,7 +274,7 @@
       },
       {
         "version": "2.5.18.0",
-        "changelog": "Self-contained injection now works on read-only / Docker web roots too — no File Transformation plugin needed anywhere. The built-in middleware serves index.html itself (reads it and injects in memory) instead of relying on response capture (bypassed by SendFileAsync) or on-disk writes (blocked by a read-only web dir). Enable via the 'Self-contained inject' setting.",
+        "changelog": "Self-contained injection now works on read-only / Docker web roots too \u2014 no File Transformation plugin needed anywhere. The built-in middleware serves index.html itself (reads it and injects in memory) instead of relying on response capture (bypassed by SendFileAsync) or on-disk writes (blocked by a read-only web dir). Enable via the 'Self-contained inject' setting.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.18/custom-theme-v2.5.18.zip",
         "checksum": "913ac471e4040eaca68dbab09d6c9512",
@@ -282,7 +282,7 @@
       },
       {
         "version": "2.5.17.0",
-        "changelog": "Home rows now use Jellyfin's native card markup (title + year text, hover play overlay, data-action delegation) so cards look native and click/play work natively — without fragile minified-bundle patching.",
+        "changelog": "Home rows now use Jellyfin's native card markup (title + year text, hover play overlay, data-action delegation) so cards look native and click/play work natively \u2014 without fragile minified-bundle patching.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.17/custom-theme-v2.5.17.zip",
         "checksum": "45ed79e402017445d46f14fa9bf1715e",
@@ -290,7 +290,7 @@
       },
       {
         "version": "2.5.14.0",
-        "changelog": "Version consistency fix: meta.json, csproj and manifest are all 2.5.14.0 (the 2.5.13 build shipped meta.json 2.5.12.0, causing a perpetual 'update available'). Same features as 2.5.13 — bundled File Transformation provider (Media Bar works without the separate plugin), self-contained injection, centered loading animation.",
+        "changelog": "Version consistency fix: meta.json, csproj and manifest are all 2.5.14.0 (the 2.5.13 build shipped meta.json 2.5.12.0, causing a perpetual 'update available'). Same features as 2.5.13 \u2014 bundled File Transformation provider (Media Bar works without the separate plugin), self-contained injection, centered loading animation.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.14/custom-theme-v2.5.14.zip",
         "checksum": "c75ab88cc325c03991b009917b2dc7ea",
@@ -314,7 +314,7 @@
       },
       {
         "version": "2.5.10.0",
-        "changelog": "Self-contained injection: the plugin now injects its header/hero script into index.html itself via built-in ASP.NET middleware — the File Transformation plugin is no longer required (it stays as an automatic fallback). Defensive (only touches index.html, dedupes, fails open) and can be turned off via the 'Self-contained inject' setting.",
+        "changelog": "Self-contained injection: the plugin now injects its header/hero script into index.html itself via built-in ASP.NET middleware \u2014 the File Transformation plugin is no longer required (it stays as an automatic fallback). Defensive (only touches index.html, dedupes, fails open) and can be turned off via the 'Self-contained inject' setting.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.10/custom-theme-v2.5.10.zip",
         "checksum": "84685c8a51ab6da69524488ced0bf6ab",
@@ -322,7 +322,7 @@
       },
       {
         "version": "2.5.9.0",
-        "changelog": "Real fix for the wide detail/search/episode pages: Jellyfin's .emby-scroller defaults to overflow:visible (it scrolls via JS) and nothing restored clipping, so card rows expanded to 9000px+. Now forces .emby-scroller to overflow-x:auto globally — rows scroll, pages lay out correctly. Verified live. Home is unaffected (own row containers).",
+        "changelog": "Real fix for the wide detail/search/episode pages: Jellyfin's .emby-scroller defaults to overflow:visible (it scrolls via JS) and nothing restored clipping, so card rows expanded to 9000px+. Now forces .emby-scroller to overflow-x:auto globally \u2014 rows scroll, pages lay out correctly. Verified live. Home is unaffected (own row containers).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.9/custom-theme-v2.5.9.zip",
         "checksum": "ac7d3af70a56825abea2a7930b51493a",
@@ -330,7 +330,7 @@
       },
       {
         "version": "2.5.8.0",
-        "changelog": "Completes the overflow fix from 2.5.7: the global .verticalSection overflow:visible rule (which the detail/search horizontal scroll containers also carry) was still blowing those pages out to extreme width. Removed it so native scrolling stands — detail, episode and search pages now lay out correctly.",
+        "changelog": "Completes the overflow fix from 2.5.7: the global .verticalSection overflow:visible rule (which the detail/search horizontal scroll containers also carry) was still blowing those pages out to extreme width. Removed it so native scrolling stands \u2014 detail, episode and search pages now lay out correctly.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.8/custom-theme-v2.5.8.zip",
         "checksum": "f6dc29de8c8d50d4b3478bf11260be6b",
@@ -338,7 +338,7 @@
       },
       {
         "version": "2.5.7.0",
-        "changelog": "Live-test bug fixes + new features. Fixes: detail/search/episode pages no longer blow out to extreme width (horizontal scrollers were globally forced to overflow:visible) — rows scroll again; the card hover popup poster is now clickable (opens the title); the Netflix 'N' logo navigates home; removed a stray /Users/null/Views 400 before login. New: Netflix-style red loading animation (recolors Jellyfin's spinner, self-contained); a 'Top 10 Anime heute' row built from live AniList trending data, limited to titles you actually have. Both toggleable.",
+        "changelog": "Live-test bug fixes + new features. Fixes: detail/search/episode pages no longer blow out to extreme width (horizontal scrollers were globally forced to overflow:visible) \u2014 rows scroll again; the card hover popup poster is now clickable (opens the title); the Netflix 'N' logo navigates home; removed a stray /Users/null/Views 400 before login. New: Netflix-style red loading animation (recolors Jellyfin's spinner, self-contained); a 'Top 10 Anime heute' row built from live AniList trending data, limited to titles you actually have. Both toggleable.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.7/custom-theme-v2.5.7.zip",
         "checksum": "559e267c9383b7983d0a5c2910412419",
@@ -346,7 +346,7 @@
       },
       {
         "version": "2.5.6.0",
-        "changelog": "Fix: the Continue Watching ('Weiterschauen') row now shows on the clean home — an older 'hide empty sections' rule was hiding it because its cards use a different class. Home is now hero + Continue Watching + genre rows, all sharp.",
+        "changelog": "Fix: the Continue Watching ('Weiterschauen') row now shows on the clean home \u2014 an older 'hide empty sections' rule was hiding it because its cards use a different class. Home is now hero + Continue Watching + genre rows, all sharp.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.6/custom-theme-v2.5.6.zip",
         "checksum": "242d3090a1a1322e5d0a3b9ae138d984",
@@ -354,7 +354,7 @@
       },
       {
         "version": "2.5.5.0",
-        "changelog": "Clean Netflix home takeover: the plugin now owns the home page — native/other-plugin rows, empty sections and the page tab bar are hidden, replaced by our hero, a sharp Continue Watching row (no more blurry placeholders) and the genre rows. Fixes the duplicated/overlapping/blurry rows. Toggle off via 'Clean Netflix home' in settings.",
+        "changelog": "Clean Netflix home takeover: the plugin now owns the home page \u2014 native/other-plugin rows, empty sections and the page tab bar are hidden, replaced by our hero, a sharp Continue Watching row (no more blurry placeholders) and the genre rows. Fixes the duplicated/overlapping/blurry rows. Toggle off via 'Clean Netflix home' in settings.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.5/custom-theme-v2.5.5.zip",
         "checksum": "3db142a9da1fbf4f3f2efe232ebc7a1f",
@@ -362,7 +362,7 @@
       },
       {
         "version": "2.5.4.0",
-        "changelog": "Netflix hover-expand popup: hovering a card now floats a larger preview card over the row with a muted autoplay clip, action buttons (Play / + My List / More), title, green % match, maturity rating and genre tags — the signature Netflix card hover.",
+        "changelog": "Netflix hover-expand popup: hovering a card now floats a larger preview card over the row with a muted autoplay clip, action buttons (Play / + My List / More), title, green % match, maturity rating and genre tags \u2014 the signature Netflix card hover.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.4/custom-theme-v2.5.4.zip",
         "checksum": "ab2327edf05db888f5bd7b4580b55d92",
@@ -378,7 +378,7 @@
       },
       {
         "version": "2.5.2.0",
-        "changelog": "Fix: the home page now reliably shows the built-in genre rows and top nav tabs (they were only attempted once on load before the home had rendered). The hero carousel also actively hides a detected Media Bar so there is never a double hero — the built-in Netflix look is now fully self-contained.",
+        "changelog": "Fix: the home page now reliably shows the built-in genre rows and top nav tabs (they were only attempted once on load before the home had rendered). The hero carousel also actively hides a detected Media Bar so there is never a double hero \u2014 the built-in Netflix look is now fully self-contained.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.2/custom-theme-v2.5.2.zip",
         "checksum": "1b0a8f4461414ae4cca570589a3fed54",
@@ -386,7 +386,7 @@
       },
       {
         "version": "2.5.1.0",
-        "changelog": "Self-contained Netflix experience — no companion plugins needed. New rotating auto-play hero carousel (replaces Media Bar), curated genre rows (replaces Home Screen Sections) and top navigation tabs (replaces Custom Tabs). Fixed blurry/unclickable cards (card image container collapsed to 0px). All features toggleable in the settings panel.",
+        "changelog": "Self-contained Netflix experience \u2014 no companion plugins needed. New rotating auto-play hero carousel (replaces Media Bar), curated genre rows (replaces Home Screen Sections) and top navigation tabs (replaces Custom Tabs). Fixed blurry/unclickable cards (card image container collapsed to 0px). All features toggleable in the settings panel.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/Kuschel-code/Jellyfin-Custom-Theme/releases/download/v2.5.1/custom-theme-v2.5.1.zip",
         "checksum": "f37f19464dc69a520b1866432ae10e96",
