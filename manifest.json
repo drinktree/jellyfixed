@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.53.0",
+        "changelog": "Home-screen polish. The top billboard now bleeds up into the header \u2014 a transparent Netflix top-scrim over the hero instead of a hard solid-header edge (reverts to solid once you scroll). Row edge-fades are wider and softer, so cards dissolve more gradually into the margins rather than hard-cutting. The hover preview card opens quicker (300ms). And hovering a tile no longer double-scales its artwork past the frame: the image used to take an extra inner zoom on top of the tile\u2019s scale and clip at the edges \u2014 it now enlarges fully and uncut, the way Netflix scales a tile as one piece.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.53/custom-theme-v2.5.53.zip",
+        "checksum": "",
+        "timestamp": "2026-07-21T00:00:00"
+      },
+      {
         "version": "2.5.52.0",
         "changelog": "Cinematic \u201cstunning pass\u201d: an ambient colour glow sampled from the hero/detail artwork bleeds into the page background and cross-fades as the billboard rotates; a near-invisible film-grain texture adds depth and kills residual gradient banding (desktop); rows now dissolve into the gutter with edge fades instead of hard-cutting; the hover preview card\u2019s metadata unfolds top-to-bottom; when a hero trailer starts the title logo shrinks and the synopsis fades \u2014 Netflix\u2019s exact choreography; the Inter variable font brings true optical sizing; plus gentle scroll snap, a TV remote focus glow-ring, and an instant physical button-press. Two new settings toggles: Ambient colour, Film grain. Hardened after a multi-dimension adversarial review: the ambient colour rules carry explicit fallbacks so the opaque detail backdrop never drops on browsers without @property (older iOS/WebViews); the film grain and the glow cross-fade are gated off on mobile WebViews, where a full-viewport blend/gradient repaint janks scrolling on low-end devices; the hero choreography is now torn down on every clip-kill path so the title logo can no longer stick shrunk; ambient sampling works on cross-origin image hosts and re-samples correctly across detail pages; and optimizeLegibility is scoped to display titles rather than taxing the whole document.",
         "targetAbi": "10.11.0.0",

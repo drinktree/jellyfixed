@@ -1467,7 +1467,7 @@
     var popTimer = null;
     var popEl = null;
     var popHideTimer = null;
-    var POP_DELAY = 500;
+    var POP_DELAY = 300;   // snappier hover-to-preview (was 500ms) — still deliberate enough to ignore pass-throughs
     var PREVIEW_SECONDS = 30;
 
     function destroyPopEl() {
@@ -2132,10 +2132,16 @@
         setupDetailClip();
         setupDetailAmbient();
         nfRescueStuckImages();
+        var heroOnHome = isHomePage() && !!document.querySelector('.nf-hero');
+        // Netflix header: transparent top-scrim over the home billboard so the hero
+        // bleeds up into the top bar instead of butting a solid header edge; reverts
+        // to solid once scrolled (.nf-scrolled) or on any view without a hero.
+        var hdr = document.querySelector('.skinHeader');
+        if (hdr) hdr.classList.toggle('nf-hero-header', heroOnHome);
         // Fade the ambient glow out on any page that won't drive it: a detail page
         // samples the backdrop, home samples the hero — but home with the hero
         // billboard OFF has nothing to re-sample, so clear the previous page's glow.
-        if (!(/#\/details/i.test(location.hash) || (isHomePage() && document.querySelector('.nf-hero')))) { nfClearAmbient(); }
+        if (!(/#\/details/i.test(location.hash) || heroOnHome)) { nfClearAmbient(); }
     }
 
     function init() {

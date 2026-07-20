@@ -103,7 +103,8 @@ body, .mainDrawer, .dialog {
    very top, and goes solid #141414 once scrolled. headerButton.js toggles
    .nf-scrolled on window scroll; .skinHeader-withBackground marks billboard views.
    Non-billboard views keep the solid default above. */
-.skinHeader-withBackground:not(.nf-scrolled) {
+.skinHeader-withBackground:not(.nf-scrolled),
+.skinHeader.nf-hero-header:not(.nf-scrolled) {
     background: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 40%, transparent 100%) !important;
 }
 
@@ -325,6 +326,11 @@ body, .mainDrawer, .dialog {
 .cardScalable { border-radius: var(--card-radius) !important; box-shadow: none !important; overflow: hidden !important; }
 .cardImageContainer { border-radius: var(--card-radius) !important; transition: filter 0.3s ease !important; }
 .card:hover .cardImageContainer { filter: brightness(1.1) !important; }
+/* The tile scales as one piece (.card → 1.09). The artwork must NOT take an extra
+   inner zoom on top of that — stacked, it overflows the overflow:hidden frame and
+   crops at the edges. Pin the image to the frame so it enlarges fully, uncut. */
+.card:hover .cardImageContainer,
+.card:hover .cardImageContainer > img { transform: none !important; }
 .cardContent { border-radius: var(--card-radius) !important; }
 .cardText { font-family: var(--font-netflix) !important; font-size: 0.8rem !important; color: var(--text-muted) !important; transition: color 0.2s ease !important; }
 .card:hover .cardText { color: var(--text-main) !important; }
@@ -2113,14 +2119,14 @@ html.transparentDocument::after { display: none !important; }
     content: '';
     position: absolute;
     top: 0; bottom: 0;
-    width: var(--nf-gutter);
+    width: 6%;   /* a touch wider than the 4% gutter so cards dissolve a bit more */
     z-index: 5;
     pointer-events: none;
 }
-.nf-row-wrap::before { inset-inline-start: 0; background: linear-gradient(to right, var(--bg-dark), transparent); }
-.nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark), transparent); }
-[dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark), transparent); }
-[dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark), transparent); }
+.nf-row-wrap::before { inset-inline-start: 0; background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+.nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
 
 /* --- 4. Staggered hover reveal: the preview card's metadata unfolds top-to-bottom
    instead of appearing all at once. --- */
