@@ -45,7 +45,9 @@ namespace Jellyfin.Plugin.CustomTheme
         // importing all 15 families on every page load cost several hundred KB.
         private static readonly Dictionary<string, string> FontImports = new()
         {
-            ["inter"] = "Inter:wght@400;500;600;700;900",
+            // Variable axis: unlocks every weight (for smoother rendering + optical
+            // sizing) in one file instead of five static cuts.
+            ["inter"] = "Inter:opsz,wght@14..32,100..900",
             ["poppins"] = "Poppins:wght@400;500;600;700;900",
             ["montserrat"] = "Montserrat:wght@400;500;600;700;900",
             ["roboto"] = "Roboto:wght@400;500;700;900",
@@ -409,6 +411,19 @@ namespace Jellyfin.Plugin.CustomTheme
         /// <summary>Netflix-style extras: hover preview cards, Top 10 numbers, glass, OLED, detail polish.</summary>
         private static void AppendNetflixExtras(StringBuilder sb, PluginConfiguration config)
         {
+            // The film grain and ambient glow live in the base sheet (always parsed);
+            // suppress them here when the user turns them off.
+            if (!config.FilmGrain)
+            {
+                sb.AppendLine("html::after { display: none !important; }");
+            }
+
+            if (!config.AmbientColor)
+            {
+                sb.AppendLine(".backgroundContainer:not(.withBackdrop) { background-image: none !important; }");
+                sb.AppendLine(".detailPageSecondaryContainer { background-image: linear-gradient(to bottom, var(--bg-dark) 0%, #181818 100%) !important; }");
+            }
+
             if (config.CleanHome && config.GenreRows)
             {
                 // Hide native/foreign home rows IMMEDIATELY — they used to render

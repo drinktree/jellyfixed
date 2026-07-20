@@ -35,6 +35,75 @@
         try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
     }
 
+    // ---- Ambient color: sample the dominant hue of the hero backdrop / detail
+    // poster and bleed it as a soft glow into the page background (Apple-TV style).
+    // The colour is driven into --nf-ambient-glow, a registered <color> property
+    // that cross-fades, so the page subtly shifts hue as the hero rotates.
+    var nfAmbientCanvas = null;
+    var nfLastAmbientUrl = null;   // dedupe sampling by image URL, not by DOM element
+    function nfApplyAmbient(r, g, b) {
+        var s = document.documentElement.style;
+        s.setProperty('--nf-ambient', 'rgb(' + r + ',' + g + ',' + b + ')');
+        s.setProperty('--nf-ambient-glow', 'rgba(' + r + ',' + g + ',' + b + ',0.30)');
+    }
+    function nfClearAmbient() {
+        document.documentElement.style.setProperty('--nf-ambient-glow', 'rgba(0,0,0,0)');
+        nfLastAmbientUrl = null;   // so returning to the same page re-samples
+    }
+    function nfSampleAmbient(url) {
+        if (!url || cfg('AmbientColor', true) === false) return;
+        if (url === nfLastAmbientUrl) return;   // same image (incl. a reused backdrop element) — skip
+        nfLastAmbientUrl = url;
+        try {
+            var img = new Image();
+            img.decoding = 'async';
+            // Only CORS-tag cross-origin hosts (Jellyfin behind a CDN/proxy): a same-origin
+            // tag would force a second, non-cache-shared fetch of the already-painted backdrop.
+            try { if (new URL(url, location.href).origin !== location.origin) img.crossOrigin = 'anonymous'; } catch (e) {}
+            img.onload = function () {
+                try {
+                    if (!nfAmbientCanvas) { nfAmbientCanvas = document.createElement('canvas'); nfAmbientCanvas.width = 16; nfAmbientCanvas.height = 16; }
+                    var ctx = nfAmbientCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, 16, 16);
+                    var d = ctx.getImageData(0, 0, 16, 16).data;   // throws if cross-origin tainted
+                    var r = 0, g = 0, b = 0, w = 0;
+                    for (var i = 0; i < d.length; i += 4) {
+                        var rr = d[i], gg = d[i + 1], bb = d[i + 2];
+                        var mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb);
+                        var sat = mx ? (mx - mn) / mx : 0;
+                        var lum = (rr + gg + bb) / 3;
+                        if (lum < 26 || lum > 232) continue;   // skip near-black / near-white
+                        var wt = sat * sat + 0.12;             // favour the saturated pixels
+                        r += rr * wt; g += gg * wt; b += bb * wt; w += wt;
+                    }
+                    if (!w) return;
+                    nfApplyAmbient(Math.round(r / w), Math.round(g / w), Math.round(b / w));
+                } catch (e) {}
+            };
+            img.src = url;
+        } catch (e) {}
+    }
+    function nfBackdropAmbientUrl(item) {
+        if (typeof ApiClient === 'undefined' || !ApiClient.getScaledImageUrl) return '';
+        if (item.BackdropImageTags && item.BackdropImageTags.length) {
+            return ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', maxWidth: 64, tag: item.BackdropImageTags[0] });
+        }
+        return '';
+    }
+    // Detail pages: sample the backdrop image the client already painted (cached),
+    // so a detail page glows in the film's palette. Runs even when clips are off.
+    function setupDetailAmbient() {
+        try {
+            if (!/#\/details/i.test(location.hash)) return;
+            var bd = document.querySelector('.backdropImage') || document.querySelector('#itemBackdrop');
+            if (!bd) return;
+            var bg = getComputedStyle(bd).backgroundImage;
+            var m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
+            if (!m || !m[1] || m[1] === 'none') return;
+            nfSampleAmbient(m[1]);   // dedupes by URL, so a reused #itemBackdrop with a new film re-samples
+        } catch (e) {}
+    }
+
     // ---- Session cache (stale-while-revalidate): home rows/hero/CW build in ONE
     // frame from cached data on every revisit instead of popping in row by row.
     // Keys carry the user id (never cross accounts) and a fingerprint of the
@@ -204,6 +273,8 @@
             ['NewReleasesRow', 'toggle', '"New Releases" row'],
             ['WatchAgainRow', 'toggle', '"Watch It Again" row'],
             ['RatingPlate', 'toggle', 'Rating plate at playback start'],
+            ['AmbientColor', 'toggle', 'Ambient colour glow from artwork'],
+            ['FilmGrain', 'toggle', 'Film-grain texture'],
             ['NavTabs', 'toggle', 'Top nav tabs (replaces Custom Tabs)'],
             ['HoverPreviewCard', 'toggle', 'Hover expand card'],
             ['PreviewClips', 'toggle', 'Autoplay preview on hover'],
@@ -664,6 +735,9 @@
         if (skel) { container.insertBefore(hero, skel); skel.remove(); }
         else { container.insertBefore(hero, container.firstChild); }
 
+        // Initial ambient bleed from the first slide (go() handles later slides).
+        if (items[0]) nfSampleAmbient(nfBackdropAmbientUrl(items[0]));
+
         var cur = 0, paused = false;
         var slideEls = hero.querySelectorAll('.nf-hero-slide');
         var dotEls = hero.querySelectorAll('.nf-hero-dot');
@@ -674,11 +748,15 @@
         function stopClip() {
             if (clipTimer) { clearTimeout(clipTimer); clipTimer = null; }
             hero.querySelectorAll('.nf-hero-video').forEach(nfKillVideo);
+            // Restore the hero copy when no clip is playing (choreography off).
+            hero.querySelectorAll('.nf-hero-slide.nf-clip-on').forEach(function (s) { s.classList.remove('nf-clip-on'); });
         }
         function attachClip(slideEl, playId, ms, ticks) {
             if (!slideEl || !slideEl.classList.contains('active') || !document.body.contains(slideEl)) return;
             var v = nfNewClipVideo('nf-hero-video');
-            v.addEventListener('playing', function () { v.classList.add('show'); });
+            // Netflix choreography: once the trailer actually renders, shrink the
+            // title logo and fade the synopsis; stopClip/go() restore it.
+            v.addEventListener('playing', function () { v.classList.add('show'); if (slideEl) slideEl.classList.add('nf-clip-on'); });
             nfClaim(v);
             nfClipSrc(v, playId, ms, ticks);
             var bg = slideEl.querySelector('.nf-hero-bg');
@@ -686,7 +764,10 @@
             nfPlay(v);
             // Preview window cap: without it a paused or single-slide hero streams
             // (and on the fallback path transcodes) the whole title in a loop.
-            v._stopTimer = setTimeout(function () { nfKillVideo(v); }, PREVIEW_SECONDS * 1000);
+            v._stopTimer = setTimeout(function () {
+                nfKillVideo(v);
+                if (slideEl) slideEl.classList.remove('nf-clip-on');   // restore the copy even if paused
+            }, PREVIEW_SECONDS * 1000);
             nfClipWatch(v);
             nfClipLoop(v);
         }
@@ -719,6 +800,8 @@
             // A fresh slide's clip always starts muted — resync the mute icon.
             var mi = hero.querySelector('.nf-hero-mute .material-icons');
             if (mi) mi.textContent = 'volume_off';
+            // Bleed the new slide's palette into the page background.
+            if (items[cur]) nfSampleAmbient(nfBackdropAmbientUrl(items[cur]));
             scheduleClip();
         }
 
@@ -1458,6 +1541,11 @@
         if (v._nfVwTimer) { clearTimeout(v._nfVwTimer); v._nfVwTimer = null; }
         if (v._nfWatchTimer) { clearTimeout(v._nfWatchTimer); v._nfWatchTimer = null; }
         if (v._stopTimer) { clearTimeout(v._stopTimer); v._stopTimer = null; }
+        // Hero choreography (.nf-clip-on: shrunk logo, hidden synopsis) is bound to a
+        // LIVE clip. Every teardown funnels through here — nfClaim eviction, the stall
+        // watchdog, errors — so restore the copy here or it stays stuck when a kill
+        // path bypasses stopClip()/_stopTimer.
+        try { var s = v.closest && v.closest('.nf-hero-slide'); if (s) s.classList.remove('nf-clip-on'); } catch (e) {}
         try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
         try { v.remove(); } catch (e) {}
     }
@@ -2042,7 +2130,12 @@
         setupTopTen();
         setupMatchScore();
         setupDetailClip();
+        setupDetailAmbient();
         nfRescueStuckImages();
+        // Fade the ambient glow out on any page that won't drive it: a detail page
+        // samples the backdrop, home samples the hero — but home with the hero
+        // billboard OFF has nothing to re-sample, so clear the previous page's glow.
+        if (!(/#\/details/i.test(location.hash) || (isHomePage() && document.querySelector('.nf-hero')))) { nfClearAmbient(); }
     }
 
     function init() {
