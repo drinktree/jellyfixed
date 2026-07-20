@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.49.0",
+        "changelog": "Cast & crew artwork resilience. Jellyfin's image loader sets every artwork element to opacity 0 and only restores it when the image LOADS — it has no error path at all, so any request that fails or times out leaves a permanently invisible circle (the 'faces don't load' symptom). The theme now retries stuck artwork twice and, if it still can't be fetched, shows the person's initial on a neutral disc instead of an empty dark circle; people who genuinely have no photo get the same treatment, so both read as intentional. Detail-page preview clips also wait ~2.5s before starting, so they stop competing with the page's own backdrop/poster/cast image requests on smaller servers — a common reason those images failed in the first place.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.49/custom-theme-v2.5.49.zip",
+        "checksum": "32b0f8cdb51b05b66bd647c5aca48a3c",
+        "timestamp": "2026-07-20T00:00:00"
+      },
+      {
         "version": "2.5.48.0",
         "changelog": "The dark overlay that covered most of the zoomed card until the preview tile arrived is gone: with the hover popup enabled, the on-card hover overlay (a near-opaque bottom gradient with mini buttons) is now fully suppressed — the zoomed card shows clean artwork and all actions live in the popup, like Netflix. Installs with the popup feature disabled keep the classic on-card overlay.",
         "targetAbi": "10.11.0.0",

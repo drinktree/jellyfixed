@@ -69,6 +69,53 @@
             if (u) { el.style.backgroundImage = "url('" + u + "')"; el.removeAttribute('data-nf-bg'); }
         });
     }, { rootMargin: '50%' }) : null;
+    // ---- Stuck/failed artwork rescue -------------------------------------
+    // Jellyfin's own image loader sets the element to opacity:0 and only
+    // restores it when the image LOADS — it has NO error path (verified in
+    // 10.11 imageLoader.js). So any request that fails or times out (busy
+    // server, transcode hogging it, transient network) leaves a permanently
+    // invisible circle: the "cast faces don't load" symptom. We retry those,
+    // then fall back to a readable initial instead of an empty dark disc.
+    function nfInitialFallback(el) {
+        var card = el.closest && el.closest('.card');
+        var nameEl = card && card.querySelector('.cardText-first, .cardText');
+        var name = ((nameEl && nameEl.textContent) || '').trim();
+        el.removeAttribute('data-src');
+        el.classList.remove('lazy-hidden');
+        el.classList.add('nf-noimg');
+        el.setAttribute('data-nf-initial', (name.charAt(0) || '?').toUpperCase());
+    }
+
+    function nfRescueStuckImages() {
+        try {
+            document.querySelectorAll('.cardImageContainer.lazy-hidden[data-src]').forEach(function (el) {
+                if (el._nfImgTimer) return;
+                el._nfImgTimer = setTimeout(function () {
+                    el._nfImgTimer = null;
+                    if (!document.body.contains(el)) return;
+                    // Loaded in the meantime? Jellyfin drops both on success.
+                    if (!el.classList.contains('lazy-hidden')) return;
+                    var src = el.getAttribute('data-src');
+                    if (!src) return;
+                    var tries = (el._nfTries || 0) + 1;
+                    el._nfTries = tries;
+                    var probe = new Image();
+                    probe.onload = function () {
+                        el.style.backgroundImage = "url('" + src + "')";
+                        el.removeAttribute('data-src');
+                        el.classList.remove('lazy-hidden');
+                        el.classList.add('lazy-image-fadein');
+                    };
+                    probe.onerror = function () {
+                        if (tries < 2) { nfRescueStuckImages(); return; }
+                        nfInitialFallback(el);
+                    };
+                    probe.src = src;
+                }, 5000 * (el._nfTries ? 2 : 1));
+            });
+        } catch (e) {}
+    }
+
     var nfObserved = [];
     function nfLazyImages(root) {
         if (nfImgIO) {
@@ -1461,7 +1508,9 @@
     // Runs on EVERY hashchange — including details -> details (cast member, similar
     // title). Killing unconditionally prevents a detached, still-streaming video from
     // the previous page surviving; setupDetailClip rebuilds for the new item.
+    var detailClipTimer = null;
     function cleanupDetailClip() {
+        if (detailClipTimer) { clearTimeout(detailClipTimer); detailClipTimer = null; }
         document.querySelectorAll('.nf-detail-video').forEach(nfKillVideo);
         document.querySelectorAll('[data-nf-clip]').forEach(function (el) { el.removeAttribute('data-nf-clip'); });
     }
@@ -1490,7 +1539,18 @@
             if (!uid) return;
             backdrop.setAttribute('data-nf-clip', id);
             var stillHere = function () { return location.hash.indexOf(id) !== -1; };
+            // Hold the clip back for a moment: starting a stream (and possibly a
+            // server-side transcode) the instant the page opens competes with the
+            // page's own image requests — backdrop, poster and the whole cast row —
+            // on small servers, and those images have no retry of their own.
             function attach(playId, ms, ticks) {
+                if (detailClipTimer) { clearTimeout(detailClipTimer); }
+                detailClipTimer = setTimeout(function () {
+                    detailClipTimer = null;
+                    attachNow(playId, ms, ticks);
+                }, 2500);
+            }
+            function attachNow(playId, ms, ticks) {
                 if (!stillHere() || backdrop.querySelector('.nf-detail-video')) return;
                 var v = nfNewClipVideo('nf-detail-video');
                 v.addEventListener('playing', function () { v.classList.add('show'); });
@@ -1561,6 +1621,7 @@
         setupTopTen();
         setupMatchScore();
         setupDetailClip();
+        nfRescueStuckImages();
     }
 
     function init() {
