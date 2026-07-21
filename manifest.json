@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.60.0",
+        "changelog": "Fixes video playback in the desktop app (Jellyfin Media Player), and the missing scene-preview thumbnail on the seek bar. The app plays video with native mpv and shows the OSD WITHOUT setting html.transparentDocument \u2014 the class the theme keyed its playback handling off. So in the app the film grain overlay (full-viewport, top z-index) was never removed during playback: it sat on top of the seek-bar scene-preview thumbnail (making it disappear) and re-composited every frame (lag), and the per-frame DOM-scan fast-path never engaged. The theme now also detects playback via the visible #videoOsdPage and sets html.nf-playing, which suppresses the grain + ambient over the app's player and engages the scrub fast-path there too. Browser playback is unchanged.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.60/custom-theme-v2.5.60.zip",
+        "checksum": "",
+        "timestamp": "2026-07-21T00:00:00"
+      },
+      {
         "version": "2.5.59.0",
         "changelog": "Brings back the full v2.5.54 visual design ON TOP of the reliability/performance work \u2014 the best of both. Restores the v2.5.51 visual overhaul (design-token system: elevation + radii + easing, reworked billboard scrim, red-darkens-on-hover, sharper device-density artwork) and the cinematic 'stunning pass': ambient colour glow sampled from the artwork, film grain (desktop only), row edge-fades, staggered hover reveal, hero trailer choreography (title logo shrinks / synopsis fades as the trailer plays), variable-font typography, scroll-snap, TV focus glow-ring and physical button-press depth, plus the Ambient colour + Film grain toggles. Every reliability/perf fix is kept: preview clips still skip on mobile/cellular/save-data, the video-player fast-path keeps seek-bar scrubbing smooth, home builders don't force layout off-screen, row scrolling is cached, backdrop-filter blur is off on touch, and the hero loads one device-sized backdrop instead of six. Merge verified by two adversarial review passes.",
         "targetAbi": "10.11.0.0",

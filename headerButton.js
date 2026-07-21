@@ -2153,7 +2153,15 @@
         // scrubbing stutter on desktop. Only the maturity-rating plate matters during
         // playback; when it ends, the OSD teardown is itself a body mutation that re-fires
         // this and resumes the full path.
-        if (document.documentElement.classList.contains('transparentDocument')) {
+        // transparentDocument covers jellyfin-web's inline player; #videoOsdPage:not(.hide)
+        // ALSO catches the desktop app (Jellyfin Media Player / native mpv), which shows the
+        // video OSD WITHOUT setting transparentDocument. html.nf-playing (driven off this)
+        // suppresses the film grain + ambient over the app's player too — there they were
+        // sitting on top of the seek-preview thumbnail and costing GPU every frame.
+        var playing = document.documentElement.classList.contains('transparentDocument')
+            || !!document.querySelector('#videoOsdPage:not(.hide)');
+        document.documentElement.classList.toggle('nf-playing', playing);
+        if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();
             return;
         }

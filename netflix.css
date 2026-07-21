@@ -2123,6 +2123,12 @@ html:not(.layout-tv):not(.layout-mobile)::after {
     background-size: 140px 140px;
 }
 html.transparentDocument::after { display: none !important; }
+/* The desktop app (Jellyfin Media Player / native mpv) shows the video OSD WITHOUT
+   .transparentDocument; headerButton.js sets html.nf-playing whenever the OSD is up, so the
+   grain (and the ambient paint) never cover the seek-preview thumbnail or cost GPU over the
+   app's player. */
+html.nf-playing::after { display: none !important; }
+html.nf-playing .backgroundContainer:not(.withBackdrop) { background-image: none !important; }
 
 /* --- 3. Row edge fades: cards dissolve into the gutter instead of hard-cutting,
    so a row reads as continuing into the margins. Overlay gradients (not a mask,
