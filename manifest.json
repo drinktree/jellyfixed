@@ -13,7 +13,7 @@
         "changelog": "Fixes seek-bar scrubbing stutter during video playback (desktop). The theme re-runs its home/detail DOM scanners on every document.body mutation; while a video is playing the OSD \u2014 the seek bar, the scene-preview thumbnail that follows the scrubber, and the position timers \u2014 mutates every frame, so those scanners (full-document querySelectorAll, forced layout reads) were firing ~60x/sec and saturating the main thread, making scrubbing stutter. Playback now takes a fast-path that runs only the maturity-rating plate and skips everything else until the video is closed. Also throttled the stuck-image rescue scan (a full-document scan that was running on every mutation frame) to once a second, for smoother scrolling everywhere. No visual change.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.58/custom-theme-v2.5.58.zip",
-        "checksum": "",
+        "checksum": "2e0af8238078fb9db08e579652fed7b7",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
