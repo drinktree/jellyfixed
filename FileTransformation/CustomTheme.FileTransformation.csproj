@@ -9,7 +9,7 @@
          discover this provider. -->
     <AssemblyName>CustomTheme.FileTransformation</AssemblyName>
     <RootNamespace>Jellyfin.Plugin.FileTransformation</RootNamespace>
-    <Version>2.5.54.0</Version>
+    <Version>2.5.55.0</Version>
   </PropertyGroup>
 
 </Project>
