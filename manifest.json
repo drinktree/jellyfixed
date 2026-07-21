@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.61.0",
+        "changelog": "Better fix for the desktop-app (Jellyfin Media Player) playback lag + missing seek-preview. v2.5.60 detected app playback via #videoOsdPage, which didn't reliably match in JMP. It now keys off .skinHeader.osdHeader \u2014 the class jellyfin-web adds to the header for the WHOLE duration of playback (and which JMP sets too, since it embeds jellyfin-web). So html.nf-playing is set reliably in the app, which removes the film-grain overlay from on top of the seek-bar scene preview (restoring it) and stops the per-frame recomposite/DOM-scan that was making scrubbing lag brutally. Browser + mobile unchanged.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.61/custom-theme-v2.5.61.zip",
+        "checksum": "",
+        "timestamp": "2026-07-21T00:00:00"
+      },
+      {
         "version": "2.5.60.0",
         "changelog": "Fixes video playback in the desktop app (Jellyfin Media Player), and the missing scene-preview thumbnail on the seek bar. The app plays video with native mpv and shows the OSD WITHOUT setting html.transparentDocument \u2014 the class the theme keyed its playback handling off. So in the app the film grain overlay (full-viewport, top z-index) was never removed during playback: it sat on top of the seek-bar scene-preview thumbnail (making it disappear) and re-composited every frame (lag), and the per-frame DOM-scan fast-path never engaged. The theme now also detects playback via the visible #videoOsdPage and sets html.nf-playing, which suppresses the grain + ambient over the app's player and engages the scrub fast-path there too. Browser playback is unchanged.",
         "targetAbi": "10.11.0.0",

@@ -2158,8 +2158,12 @@
         // video OSD WITHOUT setting transparentDocument. html.nf-playing (driven off this)
         // suppresses the film grain + ambient over the app's player too — there they were
         // sitting on top of the seek-preview thumbnail and costing GPU every frame.
+        // .skinHeader.osdHeader is the most reliable signal: jellyfin-web adds .osdHeader to
+        // the header for the WHOLE duration of playback (kept, just opacity-faded, when the OSD
+        // controls hide) — and it's present in Jellyfin Media Player too, which does NOT set
+        // transparentDocument (native mpv). #videoOsdPage is a fallback.
         var playing = document.documentElement.classList.contains('transparentDocument')
-            || !!document.querySelector('#videoOsdPage:not(.hide)');
+            || !!document.querySelector('.skinHeader.osdHeader, #videoOsdPage:not(.hide)');
         document.documentElement.classList.toggle('nf-playing', playing);
         if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();
