@@ -106,6 +106,12 @@ namespace Jellyfin.Plugin.CustomTheme
         /// <summary>Netflix-style maturity-rating plate for the first seconds of playback.</summary>
         public bool RatingPlate { get; set; } = true;
 
+        /// <summary>Ambient colour glow sampled from the hero / detail artwork (cinematic).</summary>
+        public bool AmbientColor { get; set; } = true;
+
+        /// <summary>Subtle film-grain texture over the UI (adds depth, kills banding). Off on TV.</summary>
+        public bool FilmGrain { get; set; } = true;
+
         /// <summary>Show Netflix-style top navigation tabs (Home + libraries) in the header (replaces the Custom Tabs plugin).</summary>
         public bool NavTabs { get; set; } = true;
 

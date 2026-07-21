@@ -6,14 +6,56 @@
 
 :root {
     --accent-red: #E50914;
-    --accent-red-hover: #ff0a16;
+    --accent-red-hover: #C11119;   /* Netflix's real hover token — red DARKENS */
     --bg-dark: #141414;
     --bg-darker: #000000;
     --text-main: #FFFFFF;
     --text-muted: #B3B3B3;
     --card-radius: 4px;
-    --font-netflix: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    /* Netflix's own fallback chain (from their @font-face), not Arial. */
+    --font-netflix: 'Inter', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif;
     --nav-height: 68px;
+
+    /* ---- Design tokens, taken from Netflix's shipped stylesheet ---- */
+    --nf-gutter: 4%;              /* the single left rail everything hangs off */
+
+    /* Text is a four-tier ramp; alpha-white is reserved for STATE, not hierarchy. */
+    --nf-text-2: #e5e5e5;         /* body copy / synopsis */
+    --nf-text-3: #b3b3b3;         /* metadata, row headers at rest */
+    --nf-text-4: #808080;         /* disabled only */
+
+    /* Surfaces + edges */
+    --nf-surface: #181818;        /* modals, preview card, menus */
+    --nf-surface-hi: #2f2f2f;     /* hovered menu row, ghost button */
+    --nf-hairline: rgba(255,255,255,0.15);
+    --nf-divider: #404040;
+
+    /* Shape: Netflix runs four radii, and boxart NEVER re-rounds mid-zoom. */
+    --r-art: 4px;
+    --r-surface: 6px;
+    --r-badge: 2px;
+
+    /* Elevation: tight, hugging shadows — not wide halos. */
+    --e-1: 0 2px 6px rgba(0,0,0,0.45);
+    --e-2: 0 0 2px rgba(0,0,0,0.4), 0 8px 16px rgba(0,0,0,0.6);
+    --e-3: 0 0 2px rgba(0,0,0,0.4), 0 12px 28px rgba(0,0,0,0.7);
+    --e-4: 0 16px 48px rgba(0,0,0,0.75);
+    --logo-shadow: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+
+    /* Motion: Netflix ships two asymmetric curves and a 250ms base. */
+    --nf-ease-out: cubic-bezier(.32,.94,.6,1);   /* entering hover — soft */
+    --nf-ease-in: cubic-bezier(.4,0,.68,.06);    /* leaving — hard */
+    --nf-ease-fade: cubic-bezier(.33,0,0,1);
+    --nf-dur: 250ms;
+
+    /* The signature eased scrim: 13 stops approximating a cubic, ending at 0.6
+       — this is what kills the Mach banding a 2-stop gradient shows. */
+    --nf-scrim-up: linear-gradient(180deg,
+        rgba(0,0,0,0) 40%, rgba(0,0,0,.008333) 45%, rgba(0,0,0,.03333) 50%,
+        rgba(0,0,0,.075) 55%, rgba(0,0,0,.1333) 60%, rgba(0,0,0,.2083) 65%,
+        rgba(0,0,0,.3) 70%, rgba(0,0,0,.3917) 75%, rgba(0,0,0,.4667) 80%,
+        rgba(0,0,0,.525) 85%, rgba(0,0,0,.5667) 90%, rgba(0,0,0,.5917) 95%,
+        rgba(0,0,0,.6) 100%);
 }
 
 /* =============================================
@@ -94,7 +136,6 @@ body, .mainDrawer, .dialog {
     font-size: 2.6rem;
     letter-spacing: -2px;
     cursor: pointer;
-    text-shadow: 0 0 15px rgba(229, 9, 20, 0.4);
     display: flex;
     align-items: center;
     margin-right: 10px;
@@ -266,7 +307,7 @@ body, .mainDrawer, .dialog {
    ============================================= */
 
 .card {
-    transition: transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.35s ease !important;
+    transition: transform var(--nf-dur) var(--nf-ease-in), box-shadow var(--nf-dur) var(--nf-ease-in) !important;
     overflow: visible !important;
     border-radius: var(--card-radius) !important;
 }
@@ -276,7 +317,7 @@ body, .mainDrawer, .dialog {
 .card:hover {
     transform: scale(1.09) translateY(-6px) !important;
     z-index: 60 !important;
-    box-shadow: 0 14px 30px rgba(0,0,0,0.8) !important;
+    box-shadow: none !important;   /* the lift lives on .cardScalable */
 }
 
 .scrollSlider > .card:first-child:hover { transform-origin: left center !important; }
@@ -285,6 +326,11 @@ body, .mainDrawer, .dialog {
 .cardScalable { border-radius: var(--card-radius) !important; box-shadow: none !important; overflow: hidden !important; }
 .cardImageContainer { border-radius: var(--card-radius) !important; transition: filter 0.3s ease !important; }
 .card:hover .cardImageContainer { filter: brightness(1.1) !important; }
+/* The tile scales as one piece (.card → 1.09). The artwork must NOT take an extra
+   inner zoom on top of that — stacked, it overflows the overflow:hidden frame and
+   crops at the edges. Pin the image to the frame so it enlarges fully, uncut. */
+.card:hover .cardImageContainer,
+.card:hover .cardImageContainer > img { transform: none !important; }
 .cardContent { border-radius: var(--card-radius) !important; }
 .cardText { font-family: var(--font-netflix) !important; font-size: 0.8rem !important; color: var(--text-muted) !important; transition: color 0.2s ease !important; }
 .card:hover .cardText { color: var(--text-main) !important; }
@@ -1094,7 +1140,7 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
     border-radius: 8px !important;
     background-color: #181818 !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.7) !important;
+    box-shadow: var(--e-4) !important;
 }
 .formDialogHeader {
     background-color: #181818 !important;
@@ -1116,8 +1162,8 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
     background-color: #333333 !important;   /* opaque — was 0.95 + blur(10px), which was ~95% occluded */
     color: var(--text-main) !important;
     font-family: var(--font-netflix) !important;
-    border-radius: 4px !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+    border-radius: var(--r-art) !important;
+    box-shadow: var(--e-3) !important;
 }
 
 .adminDrawerLogo { display: none !important; }
@@ -1222,8 +1268,9 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
    SELECTION / FOCUS STATES
    ============================================= */
 
-*:focus-visible {
-    outline: 2px solid var(--accent-red) !important;
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid #fff !important;   /* Netflix's focus ring is white */
     outline-offset: 2px !important;
 }
 
@@ -1273,8 +1320,15 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
    EVERY card to its own GPU layer — 100+ on a library grid; :hover never fires on touch). */
 .card:hover { will-change: transform; }
 .cardImageContainer { transition: filter 0.3s ease, transform 0.35s cubic-bezier(0.33,1,0.68,1) !important; }
-.card:hover .cardScalable { box-shadow: 0 16px 38px rgba(0,0,0,0.85) !important; }
-.cardOverlayContainer { background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.25) 45%, transparent 65%) !important; }
+.card:hover .cardScalable { box-shadow: var(--e-2) !important; }
+/* Card overlays sit behind small text, so they need a deeper ramp than the
+   hero scrim — same eased shape, higher ceiling. */
+.cardOverlayContainer {
+    background: linear-gradient(180deg,
+        rgba(0,0,0,0) 30%, rgba(0,0,0,.04) 40%, rgba(0,0,0,.12) 50%,
+        rgba(0,0,0,.26) 60%, rgba(0,0,0,.45) 70%, rgba(0,0,0,.66) 80%,
+        rgba(0,0,0,.84) 90%, rgba(0,0,0,.92) 100%) !important;
+}
 .cardOverlayButtonContainer .cardOverlayButton-br,
 .cardOverlayContainer .paper-icon-button-light {
     transition: transform 0.2s ease, background 0.2s ease !important;
@@ -1404,32 +1458,39 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     /* Solid bg-dark band at the very bottom so the hero dissolves into the page
        instead of leaving a hard colored edge when scrolling. */
     background:
-        linear-gradient(to top, var(--bg-dark) 0%, var(--bg-dark) 5%, rgba(20,20,20,0.6) 24%, transparent 52%),
-        linear-gradient(130deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 38%, transparent 62%);
+        /* bottom vignette, eased over 13 stops so there is no Mach banding */
+        linear-gradient(180deg,
+            rgba(20,20,20,0) 42%, rgba(20,20,20,.06) 52%, rgba(20,20,20,.16) 60%,
+            rgba(20,20,20,.30) 68%, rgba(20,20,20,.48) 76%, rgba(20,20,20,.68) 84%,
+            rgba(20,20,20,.86) 92%, var(--bg-dark) 100%),
+        /* angled directional scrim — darkest at the bottom-left corner where the
+           copy lives, fully clear by ~55%, exactly as Netflix builds it */
+        /* clears at 72%, not 55%: at 16:9 the top of the copy block projects to
+           ~43% of the gradient axis, where a 55% stop is already too weak to
+           carry white text without a shadow halo. */
+        linear-gradient(55deg, #000 6.28%, rgba(0,0,0,.60) 31.1%, rgba(0,0,0,0) 72%);
 }
 .nf-hero-content {
     position: absolute; left: 0; bottom: 0; z-index: 3;
     padding: 0 4% 9vh;
     max-width: 680px;
 }
-.nf-hero-logo { max-width: 80%; max-height: 170px; margin-bottom: 18px; filter: drop-shadow(0 3px 12px rgba(0,0,0,0.75)); }
+.nf-hero-logo { max-width: 80%; max-height: 170px; margin-bottom: 18px; filter: var(--logo-shadow); }
 .nf-hero-title {
     font-family: var(--font-netflix);
     font-weight: 900; font-size: clamp(2rem, 4.4vw, 4rem); line-height: 1.02;
-    color: var(--text-main); text-shadow: 0 3px 16px rgba(0,0,0,0.85);
+    color: var(--text-main);
     margin-bottom: 14px;
 }
 .nf-hero-meta {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin-bottom: 14px; font-size: 0.95rem; color: #e5e5e5; font-weight: 600;
-    text-shadow: 0 1px 6px rgba(0,0,0,0.9);
+    margin-bottom: 14px; font-size: 0.95rem; color: var(--nf-text-2); font-weight: 600;
 }
 .nf-hero-match { color: #46d369; font-weight: 700; }
 .nf-hero-rating { border: 1px solid rgba(255,255,255,0.45); border-radius: 3px; padding: 0 6px; font-size: 0.8rem; }
 .nf-hero-overview {
     font-family: var(--font-netflix);
-    font-size: 1.05rem; line-height: 1.45; color: #dcdcdc;
-    text-shadow: 0 1px 8px rgba(0,0,0,0.9);
+    font-size: 1.05rem; line-height: 1.45; color: var(--nf-text-2);
     margin-bottom: 20px;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
@@ -1489,21 +1550,28 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 /* =============================================
    CURATED GENRE ROWS (built by headerButton.js) — replaces Home Screen Sections
    ============================================= */
-.nf-genre-section { margin: 0 0 1.4vw; }
+.nf-genre-section { margin: 0 0 3vw; }
+/* Our rows carry the gutter on their own title/scroller — without this they
+   ALSO inherit .verticalSection's 4% and sit at 8%, so row titles and first
+   tiles stop lining up with the header logo and the hero copy. */
+.verticalSection.nf-genre-section,
+.verticalSection.nf-cw-section { padding-left: 0 !important; padding-right: 0 !important; }
 /* Netflix rows show no text under the artwork — title/match live in the hover popup. */
 .nf-genre-section .nf-card .cardText { display: none !important; }
 .nf-genre-section .nf-card .cardBox { padding-bottom: 0 !important; }
 .nf-genre-section .sectionTitle {
-    padding-left: 4%;
+    padding-left: var(--nf-gutter);
     font-size: clamp(1.1rem, 1.4vw, 1.45rem);
-    font-weight: 500; color: #e5e5e5; letter-spacing: normal;
+    font-weight: 500; color: var(--nf-text-3) !important; letter-spacing: normal;
     margin: 0 0 0.5em;
+    transition: color var(--nf-dur) var(--nf-ease-in);
 }
+.nf-genre-section:hover .sectionTitle, .nf-cw-section:hover .sectionTitle { color: var(--text-main) !important; }
 .nf-row-scroll {
     overflow-x: auto; overflow-y: visible;
     scrollbar-width: none; -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
-    padding: 6px 4% 22px;
+    padding: 6px var(--nf-gutter) 22px;
 }
 .nf-row-scroll::-webkit-scrollbar { display: none; }
 .nf-row-track { display: flex; gap: 0.5vw; align-items: flex-start; }
@@ -1604,8 +1672,8 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 
 /* Continue Watching row — own sharp landscape cards with progress (no blurhash) */
 .nf-cw-section { margin: 0 0 2.4vw; }
-.nf-cw-section .sectionTitle { padding-left: 4%; font-size: clamp(1.05rem, 1.35vw, 1.45rem); font-weight: 700; color: #e5e5e5; letter-spacing: 0.2px; margin: 0 0 0.5em; }
-.nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 6px 4% 22px; }
+.nf-cw-section .sectionTitle { padding-left: var(--nf-gutter); font-size: clamp(1.1rem, 1.4vw, 1.45rem); font-weight: 500; color: var(--nf-text-3) !important; letter-spacing: normal; margin: 0 0 0.5em; transition: color var(--nf-dur) var(--nf-ease-in); }
+.nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 6px var(--nf-gutter) 22px; }
 .nf-cw-scroll::-webkit-scrollbar { display: none; }
 .nf-cw-track { display: flex; gap: 0.5vw; align-items: flex-start; }
 .nf-cw-card { flex: 0 0 auto; width: clamp(220px, 19vw, 340px); text-decoration: none; }
@@ -1613,7 +1681,7 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
     position: relative; width: 100%; aspect-ratio: 16 / 9;
     border-radius: 5px; overflow: hidden;
     background: #222 center / cover no-repeat;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    box-shadow: var(--e-1);
     transition: outline 0.15s ease;
 }
 .nf-cw-card:hover .nf-cw-thumb { outline: 2px solid #fff; }
@@ -1671,7 +1739,7 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
     animation: nf-loadspin 1s infinite;
     z-index: 100000;
 }
-@keyframes nf-loadspin { to { transform: rotate(.5turn); } }
+@keyframes nf-loadspin { to { transform: rotate(1turn); } }
 
 /* =============================================
    DESIGN POLISH — frosted-glass surfaces, softer depth, smoother hovers.
@@ -1679,26 +1747,30 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
    ============================================= */
 /* Frosted-glass slide-in settings panel */
 .ct-overlay {
-    background: rgba(18, 18, 20, 0.72) !important;
-    -webkit-backdrop-filter: blur(22px) saturate(150%);
-    backdrop-filter: blur(22px) saturate(150%);
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: -12px 0 48px rgba(0, 0, 0, 0.6);
+    background: var(--nf-surface) !important;
+    border-inline-start: 1px solid var(--nf-hairline);
+    box-shadow: var(--e-4) !important;
 }
 /* Frosted hover-preview popup with deeper, softer shadow */
 .nf-pop {
-    background: #18181a !important;   /* opaque — was rgba(.82) + blur(16px); the blur was ~82% occluded, invisible payoff / full GPU cost */
-    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
+    /* Netflix's preview card is an opaque #181818 slab — no glass anywhere in
+       their product, and blur on a scaling element also shimmers. */
+    background: var(--nf-surface) !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: var(--e-3), 0 0 0 1px rgba(255,255,255,0.06);
+    border-radius: var(--r-surface);
 }
-.nf-pop-media { border-radius: 8px 8px 0 0; }
+.nf-pop-media { border-radius: var(--r-surface) var(--r-surface) 0 0; }
 /* Softer, lifted card hover (depth in addition to the existing scale) */
 .card .cardScalable {
-    transition: transform .28s cubic-bezier(.2, .7, .2, 1), box-shadow .28s ease !important;
+    transition: transform var(--nf-dur) var(--nf-ease-in), box-shadow var(--nf-dur) var(--nf-ease-in) !important;
 }
+.card:hover, .card:hover .cardScalable { transition-timing-function: var(--nf-ease-out) !important; }
 .card:hover .cardScalable {
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
-    border-radius: 6px;
+    box-shadow: var(--e-2);
+    /* Netflix scales the tile — it never re-rounds it mid-zoom. */
+    border-radius: var(--card-radius) !important;
 }
 /* Micro-interactions on the round action buttons */
 .nf-hero-btn, .nf-pop-btn {
@@ -1875,6 +1947,29 @@ html.transparentDocument .view-transition { animation: none !important; }
 .skinHeader.osdHeader .headerLeft::before { display: none !important; }
 
 /* =============================================
+   LOADING & IMAGE REVEAL — Netflix never shows a hard image swap or a blank
+   slot: art cross-fades in once decoded, and the billboard's height is
+   reserved by a shimmer shell so nothing below it jumps.
+   ============================================= */
+@keyframes nf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.nf-img-in { animation: nf-fade-in 0.4s var(--nf-ease-fade) both; }
+
+@keyframes nf-shimmer { from { background-position: 200% 0, 0 0; } to { background-position: -200% 0, 0 0; } }
+.nf-hero-skel {
+    background-color: #101010;
+    background-image:
+        linear-gradient(100deg, #101010 20%, #1a1a1a 32%, #101010 44%),
+        linear-gradient(to top, var(--bg-dark) 0%, transparent 42%);
+    background-size: 200% 100%, 100% 100%;
+    background-repeat: no-repeat;
+    animation: nf-shimmer 2.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .nf-img-in { animation: none; }
+    .nf-hero-skel { animation: none; }
+}
+
+/* =============================================
    REDUCED MOTION — no autoplay-adjacent animation for users who opted out.
    (headerButton.js additionally skips the autoplay clips entirely.)
    ============================================= */
@@ -1981,5 +2076,130 @@ html.transparentDocument .view-transition { animation: none !important; }
 .dialog .button-flat:not(.button-submit):not(.button-accent),
 .dialog a[is=emby-linkbutton]:not(.button-accent) { color: #fff !important; }
 .dialog .button-flat:not(.button-submit):not(.button-accent):hover { color: var(--text-muted) !important; }
+
+
+/* =============================================================================
+   STUNNING PASS (v2.5.52) — cinematic depth that stays in-world.
+   ============================================================================= */
+
+/* --- 1. Ambient colour: the film's palette, sampled by headerButton.js, bleeds
+   into the page background. A registered <color> property so the hue CROSS-FADES
+   as the hero rotates. --- */
+@property --nf-ambient-glow {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: transparent;
+}
+:root { transition: --nf-ambient-glow 1.2s ease; }
+/* Snap (don't cross-fade) the glow on mobile: transitioning a <color> inside a
+   gradient repaints a viewport-sized background each frame — too costly for the
+   app WebViews. The fallbacks below keep the opaque #181818 layer alive where
+   @property is unsupported (iOS < 16.4, frozen WebViews) or before JS samples. */
+html.layout-mobile { transition: none; }
+.backgroundContainer:not(.withBackdrop) {
+    background-image: radial-gradient(120% 90% at 50% 22%, var(--nf-ambient-glow, transparent) 0%, transparent 60%) !important;
+}
+.detailPageSecondaryContainer {
+    background-image:
+        radial-gradient(90% 60% at 22% 0%, var(--nf-ambient-glow, transparent) 0%, transparent 58%),
+        linear-gradient(to bottom, var(--bg-dark) 0%, #181818 100%) !important;
+}
+
+/* --- 2. Film grain: a near-invisible cinema-print texture over everything. It
+   both kills residual gradient banding and reads as "expensive". Overlay blend
+   means it only shows where there's tonal range (images/gradients), not on flat
+   UI. Hidden during playback so it never touches the picture. Desktop only: a
+   full-viewport fixed mix-blend layer forces a per-frame recomposite that janks
+   scrolling/preview playback on the low-end mobile WebViews the apps run in. --- */
+html:not(.layout-tv):not(.layout-mobile)::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;   /* above chrome, below nothing that matters */
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNDAnIGhlaWdodD0nMTQwJz48ZmlsdGVyIGlkPSduJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC44NScgbnVtT2N0YXZlcz0nMicgc3RpdGNoVGlsZXM9J3N0aXRjaCcvPjxmZUNvbG9yTWF0cml4IHR5cGU9J3NhdHVyYXRlJyB2YWx1ZXM9JzAnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBmaWx0ZXI9J3VybCgjbiknLz48L3N2Zz4=");
+    background-size: 140px 140px;
+}
+html.transparentDocument::after { display: none !important; }
+
+/* --- 3. Row edge fades: cards dissolve into the gutter instead of hard-cutting,
+   so a row reads as continuing into the margins. Overlay gradients (not a mask,
+   which would clip the hover zoom); a hovered card at z-index 60 pops above. --- */
+.nf-row-wrap::before, .nf-row-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 6%;   /* a touch wider than the 4% gutter so cards dissolve a bit more */
+    z-index: 5;
+    pointer-events: none;
+}
+.nf-row-wrap::before { inset-inline-start: 0; background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+.nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+
+/* --- 4. Staggered hover reveal: the preview card's metadata unfolds top-to-bottom
+   instead of appearing all at once. --- */
+@keyframes nf-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+    .nf-pop.show .nf-pop-info > * { animation: nf-rise 0.32s var(--nf-ease-out) both; }
+    .nf-pop.show .nf-pop-info > *:nth-child(2) { animation-delay: 0.05s; }
+    .nf-pop.show .nf-pop-info > *:nth-child(3) { animation-delay: 0.10s; }
+    .nf-pop.show .nf-pop-info > *:nth-child(4) { animation-delay: 0.15s; }
+}
+
+/* --- 5. Hero choreography: when the trailer starts, the title logo shrinks toward
+   the corner and the synopsis fades — Netflix's exact move. Restored on the next
+   slide (headerButton.js toggles .nf-clip-on). --- */
+.nf-hero-logo, .nf-hero-title { transition: transform 1s var(--nf-ease-out); transform-origin: left bottom; }
+.nf-hero-overview { transition: opacity 0.8s ease; }
+.nf-hero-slide.nf-clip-on .nf-hero-logo { transform: scale(0.82); }
+.nf-hero-slide.nf-clip-on .nf-hero-title { transform: scale(0.88); }
+.nf-hero-slide.nf-clip-on .nf-hero-overview { opacity: 0; }
+
+/* --- 6. Typography: crisper rendering; the Inter variable font (loaded by
+   CssGenerator) gets optical sizing so big titles and small captions are each
+   drawn correctly rather than one weight scaled. --- */
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body { font-optical-sizing: auto; }
+/* optimizeLegibility is a documented page-wide shaping tax on large text bodies —
+   scope it to the few big display strings that actually benefit from the ligatures. */
+.nf-hero-title, .itemName, .sectionTitle { text-wrap: balance; text-rendering: optimizeLegibility; }
+
+/* --- 7. Momentum + gentle snap on the theme's rows (proximity, so it reinforces
+   the page-quantized arrows rather than fighting them). --- */
+.nf-row-scroll, .nf-cw-scroll {
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: var(--nf-gutter);
+    -webkit-overflow-scrolling: touch;
+}
+.nf-row-track > .card, .nf-cw-track > .nf-cw-card { scroll-snap-align: start; }
+
+/* --- 8. TV / remote focus: a glow ring instead of a flat outline, so the focused
+   tile reads from across the room. --- */
+.layout-tv a:focus-visible, .layout-tv button:focus-visible,
+.layout-tv .card:focus-visible, .layout-tv [tabindex]:focus-visible {
+    outline: 2px solid #fff !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 5px rgba(255,255,255,0.18), 0 6px 24px rgba(0,0,0,0.7) !important;
+}
+
+/* --- 9. Depth on press: buttons dip and darken instantly (Netflix's press is a
+   zero-duration transition — it feels physical). --- */
+.nf-hero-btn:active, .nf-pop-btn:active, .nf-row-arrow:active, .nf-cw-remove:active,
+.ct-save-btn:active, .btnPlay:active, .btnResume:active, .btnReplay:active,
+.mainDetailButtons .btnPlaystate:active, .mainDetailButtons .btnUserRating:active,
+.mainDetailButtons .btnMoreCommands:active {
+    transform: translateY(1px) scale(0.98) !important;
+    filter: brightness(0.9) !important;
+    transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root { transition: none; }
+    .nf-hero-logo, .nf-hero-title, .nf-hero-overview { transition: none; }
+}
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */

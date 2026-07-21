@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.59.0",
+        "changelog": "Brings back the full v2.5.54 visual design ON TOP of the reliability/performance work \u2014 the best of both. Restores the v2.5.51 visual overhaul (design-token system: elevation + radii + easing, reworked billboard scrim, red-darkens-on-hover, sharper device-density artwork) and the cinematic 'stunning pass': ambient colour glow sampled from the artwork, film grain (desktop only), row edge-fades, staggered hover reveal, hero trailer choreography (title logo shrinks / synopsis fades as the trailer plays), variable-font typography, scroll-snap, TV focus glow-ring and physical button-press depth, plus the Ambient colour + Film grain toggles. Every reliability/perf fix is kept: preview clips still skip on mobile/cellular/save-data, the video-player fast-path keeps seek-bar scrubbing smooth, home builders don't force layout off-screen, row scrolling is cached, backdrop-filter blur is off on touch, and the hero loads one device-sized backdrop instead of six. Merge verified by two adversarial review passes.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.59/custom-theme-v2.5.59.zip",
+        "checksum": "",
+        "timestamp": "2026-07-21T00:00:00"
+      },
+      {
         "version": "2.5.58.0",
         "changelog": "Fixes seek-bar scrubbing stutter during video playback (desktop). The theme re-runs its home/detail DOM scanners on every document.body mutation; while a video is playing the OSD \u2014 the seek bar, the scene-preview thumbnail that follows the scrubber, and the position timers \u2014 mutates every frame, so those scanners (full-document querySelectorAll, forced layout reads) were firing ~60x/sec and saturating the main thread, making scrubbing stutter. Playback now takes a fast-path that runs only the maturity-rating plate and skips everything else until the video is closed. Also throttled the stuck-image rescue scan (a full-document scan that was running on every mutation frame) to once a second, for smoother scrolling everywhere. No visual change.",
         "targetAbi": "10.11.0.0",

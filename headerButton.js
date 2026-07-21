@@ -35,6 +35,75 @@
         try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
     }
 
+    // ---- Ambient color: sample the dominant hue of the hero backdrop / detail
+    // poster and bleed it as a soft glow into the page background (Apple-TV style).
+    // The colour is driven into --nf-ambient-glow, a registered <color> property
+    // that cross-fades, so the page subtly shifts hue as the hero rotates.
+    var nfAmbientCanvas = null;
+    var nfLastAmbientUrl = null;   // dedupe sampling by image URL, not by DOM element
+    function nfApplyAmbient(r, g, b) {
+        var s = document.documentElement.style;
+        s.setProperty('--nf-ambient', 'rgb(' + r + ',' + g + ',' + b + ')');
+        s.setProperty('--nf-ambient-glow', 'rgba(' + r + ',' + g + ',' + b + ',0.30)');
+    }
+    function nfClearAmbient() {
+        document.documentElement.style.setProperty('--nf-ambient-glow', 'rgba(0,0,0,0)');
+        nfLastAmbientUrl = null;   // so returning to the same page re-samples
+    }
+    function nfSampleAmbient(url) {
+        if (!url || cfg('AmbientColor', true) === false) return;
+        if (url === nfLastAmbientUrl) return;   // same image (incl. a reused backdrop element) — skip
+        nfLastAmbientUrl = url;
+        try {
+            var img = new Image();
+            img.decoding = 'async';
+            // Only CORS-tag cross-origin hosts (Jellyfin behind a CDN/proxy): a same-origin
+            // tag would force a second, non-cache-shared fetch of the already-painted backdrop.
+            try { if (new URL(url, location.href).origin !== location.origin) img.crossOrigin = 'anonymous'; } catch (e) {}
+            img.onload = function () {
+                try {
+                    if (!nfAmbientCanvas) { nfAmbientCanvas = document.createElement('canvas'); nfAmbientCanvas.width = 16; nfAmbientCanvas.height = 16; }
+                    var ctx = nfAmbientCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, 16, 16);
+                    var d = ctx.getImageData(0, 0, 16, 16).data;   // throws if cross-origin tainted
+                    var r = 0, g = 0, b = 0, w = 0;
+                    for (var i = 0; i < d.length; i += 4) {
+                        var rr = d[i], gg = d[i + 1], bb = d[i + 2];
+                        var mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb);
+                        var sat = mx ? (mx - mn) / mx : 0;
+                        var lum = (rr + gg + bb) / 3;
+                        if (lum < 26 || lum > 232) continue;   // skip near-black / near-white
+                        var wt = sat * sat + 0.12;             // favour the saturated pixels
+                        r += rr * wt; g += gg * wt; b += bb * wt; w += wt;
+                    }
+                    if (!w) return;
+                    nfApplyAmbient(Math.round(r / w), Math.round(g / w), Math.round(b / w));
+                } catch (e) {}
+            };
+            img.src = url;
+        } catch (e) {}
+    }
+    function nfBackdropAmbientUrl(item) {
+        if (typeof ApiClient === 'undefined' || !ApiClient.getScaledImageUrl) return '';
+        if (item.BackdropImageTags && item.BackdropImageTags.length) {
+            return ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', maxWidth: 64, tag: item.BackdropImageTags[0] });
+        }
+        return '';
+    }
+    // Detail pages: sample the backdrop image the client already painted (cached),
+    // so a detail page glows in the film's palette. Runs even when clips are off.
+    function setupDetailAmbient() {
+        try {
+            if (!/#\/details/i.test(location.hash)) return;
+            var bd = document.querySelector('.backdropImage') || document.querySelector('#itemBackdrop');
+            if (!bd) return;
+            var bg = getComputedStyle(bd).backgroundImage;
+            var m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
+            if (!m || !m[1] || m[1] === 'none') return;
+            nfSampleAmbient(m[1]);   // dedupes by URL, so a reused #itemBackdrop with a new film re-samples
+        } catch (e) {}
+    }
+
     // "Cheap mode" — touch/low-power WebViews (phone/tablet/TV layout) and metered /
     // save-data links. Gates the extras that dominate mobile data/CPU/battery: autoplay
     // preview clips are skipped entirely here (a single idle Home page otherwise streams
@@ -49,14 +118,6 @@
             var c = document.documentElement.classList;
             return c.contains('layout-tv') || c.contains('layout-mobile');
         } catch (e) { return false; }
-    }
-
-    // Cap a requested image width to the device's real pixels (Jellyfin never upscales
-    // past the source, so passing a big maxWidth on a phone just wastes ~4x the bytes and
-    // decode memory of what the screen can show).
-    function nfDeviceW(cap) {
-        var w = Math.round((window.innerWidth || 1280) * (window.devicePixelRatio || 1));
-        return Math.max(320, Math.min(cap || 1920, w));
     }
 
     // ---- Session cache (stale-while-revalidate): home rows/hero/CW build in ONE
@@ -95,15 +156,46 @@
         try { sessionStorage.setItem(nfCacheKey(part, uid), JSON.stringify({ ts: Date.now(), v: v })); } catch (e) {}
     }
 
+    // ---- Artwork sizing: request at the DEVICE's pixel density, snapped to a
+    // ladder so the server's resize cache stays bounded. Asking for CSS pixels
+    // on a Retina/4K screen means every tile is upscaled — the single biggest
+    // reason a themed UI looks soft next to the real thing. Capped at 2x:
+    // 3x phones cost 2.25x the bytes for no perceptible gain.
+    var NF_W = [240, 320, 400, 500, 640, 800, 1000, 1280, 1600, 1920, 2560, 3200];
+    function nfW(cssPx) {
+        var want = cssPx * Math.min(window.devicePixelRatio || 1, 2);
+        for (var i = 0; i < NF_W.length; i++) { if (NF_W[i] >= want) return NF_W[i]; }
+        return NF_W[NF_W.length - 1];
+    }
+    function nfImg(id, type, tag, cssPx) {
+        if (!id || !tag) return '';
+        return ApiClient.getScaledImageUrl(id, { type: type, tag: tag, maxWidth: nfW(cssPx) });
+    }
+
     // ---- Lazy row artwork: a home build used to fire ~120 thumbnail requests at
-    // once. Cards carry data-nf-bg; one shared observer fills them near-viewport.
+    // once. Cards carry data-nf-bg; one shared observer fills them near-viewport,
+    // decoding BEFORE the swap so tiles cross-fade in instead of popping.
     var nfImgIO = ('IntersectionObserver' in window) ? new IntersectionObserver(function (entries) {
         entries.forEach(function (en) {
             if (!en.isIntersecting) return;
             var el = en.target;
             nfImgIO.unobserve(el);
             var u = el.getAttribute('data-nf-bg');
-            if (u) { el.style.backgroundImage = "url('" + u + "')"; el.removeAttribute('data-nf-bg'); }
+            if (!u) return;
+            var pre = new Image();
+            var swapped = false;
+            var swap = function () {
+                if (swapped || !el.isConnected) return;
+                swapped = true;
+                el.style.backgroundImage = "url('" + u + "')";
+                el.removeAttribute('data-nf-bg');
+                el.classList.add('nf-img-in');
+            };
+            pre.onload = pre.onerror = swap;
+            // A request that neither loads nor errors (busy server) would otherwise
+            // leave the tile blank forever — hand it to the browser after 4s.
+            setTimeout(swap, 4000);
+            pre.src = u;
         });
     }, { rootMargin: '50%' }) : null;
     // ---- Stuck/failed artwork rescue -------------------------------------
@@ -197,6 +289,8 @@
             ['NewReleasesRow', 'toggle', '"New Releases" row'],
             ['WatchAgainRow', 'toggle', '"Watch It Again" row'],
             ['RatingPlate', 'toggle', 'Rating plate at playback start'],
+            ['AmbientColor', 'toggle', 'Ambient colour glow from artwork'],
+            ['FilmGrain', 'toggle', 'Film-grain texture'],
             ['NavTabs', 'toggle', 'Top nav tabs (replaces Custom Tabs)'],
             ['HoverPreviewCard', 'toggle', 'Hover expand card'],
             ['PreviewClips', 'toggle', 'Autoplay preview on hover'],
@@ -539,12 +633,24 @@
             if (heroBusy) return;
             if (typeof ApiClient === 'undefined' || !ApiClient.getItems || !ApiClient.getCurrentUserId) return;
             var container = activeHomeContainer();
-            if (!container || container.querySelector('.nf-hero')) return;
+            // :not(.nf-hero-skel) — the placeholder shell carries .nf-hero so it can
+            // reserve the height, but it must NOT satisfy the "already built" guard.
+            if (!container || container.querySelector('.nf-hero:not(.nf-hero-skel)')) return;
             // A library with no eligible items must not refetch on every DOM mutation.
             if (container.getAttribute('data-nf-hero-empty') === '1') return;
 
             var userId = ApiClient.getCurrentUserId();
             if (!userId) return;
+
+            // Reserve the billboard's height IMMEDIATELY with a shimmer shell, so
+            // the rows below don't paint first and then get shoved down 80vh when
+            // the hero arrives. renderHero swaps itself in over the shell.
+            if (!container.querySelector('.nf-hero-skel')) {
+                var shell = document.createElement('div');
+                shell.className = 'nf-hero nf-hero-skel';
+                shell.setAttribute('data-nf-order', String(NF_ORDER.hero));
+                container.insertBefore(shell, container.firstChild);
+            }
 
             if (heroCache.uid !== userId || !heroCache.items) {
                 // Survive full page reloads too (sessionStorage, same TTL).
@@ -573,27 +679,38 @@
                 var items = ((res && res.Items) || []).filter(function (i) {
                     return i.BackdropImageTags && i.BackdropImageTags.length;
                 }).slice(0, HERO_MAX);
-                if (!isHomePage()) return;
+                // Any exit from here on must sweep the placeholder, or it shimmers
+                // forever AND blocks the entry guard from ever retrying.
                 var c = activeHomeContainer();
-                if (!c) return;
-                if (!items.length) { c.setAttribute('data-nf-hero-empty', '1'); return; }
+                var skel = c && c.querySelector('.nf-hero-skel');
+                if (!isHomePage() || !c) { if (skel) { skel.remove(); } return; }
+                if (!items.length) {
+                    c.setAttribute('data-nf-hero-empty', '1');
+                    if (skel) { skel.remove(); }
+                    return;
+                }
                 heroCache.uid = userId;
                 heroCache.items = items;
                 heroCache.ts = Date.now();
                 nfCacheSet('hero', items, userId);
-                if (!c.querySelector('.nf-hero')) renderHero(c, items);
-            }).catch(function () { heroBusy = false; });
+                if (!c.querySelector('.nf-hero:not(.nf-hero-skel)')) renderHero(c, items);
+            }).catch(function () {
+                heroBusy = false;
+                var cErr = activeHomeContainer();
+                var sErr = cErr && cErr.querySelector('.nf-hero-skel');
+                if (sErr) { sErr.remove(); }
+            });
         } catch (e) { heroBusy = false; }
     }
 
     function heroSlideHtml(item, active) {
-        var bg = ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', maxWidth: nfDeviceW(1920), tag: item.BackdropImageTags[0] });
+        var bg = nfImg(item.Id, 'Backdrop', item.BackdropImageTags[0], Math.round(window.innerWidth * 1.12));
         var serverId = item.ServerId || (ApiClient.serverId && ApiClient.serverId());
         var detailUrl = '#/details?id=' + item.Id + (serverId ? '&serverId=' + serverId : '');
 
         var titleHtml;
         if (item.ImageTags && item.ImageTags.Logo) {
-            var logo = ApiClient.getScaledImageUrl(item.Id, { type: 'Logo', maxWidth: 480, tag: item.ImageTags.Logo });
+            var logo = nfImg(item.Id, 'Logo', item.ImageTags.Logo, 560);
             titleHtml = '<img class="nf-hero-logo" src="' + logo + '" alt="' + esc(item.Name) + '">';
         } else {
             titleHtml = '<div class="nf-hero-title">' + esc(item.Name || '') + '</div>';
@@ -633,7 +750,12 @@
                 '<button type="button" class="nf-hero-ctrl nf-hero-pause" title="' + nfL().pause + '" aria-label="' + nfL().pause + '"><span class="material-icons" aria-hidden="true">pause</span></button>' +
                 '<div class="nf-hero-dots">' + dots + '</div>' +
             '</div>';
-        container.insertBefore(hero, container.firstChild);
+        var skel = container.querySelector('.nf-hero-skel');
+        if (skel) { container.insertBefore(hero, skel); skel.remove(); }
+        else { container.insertBefore(hero, container.firstChild); }
+
+        // Initial ambient bleed from the first slide (go() handles later slides).
+        if (items[0]) nfSampleAmbient(nfBackdropAmbientUrl(items[0]));
 
         var cur = 0, paused = false;
         var slideEls = hero.querySelectorAll('.nf-hero-slide');
@@ -647,11 +769,15 @@
         function stopClip() {
             if (clipTimer) { clearTimeout(clipTimer); clipTimer = null; }
             hero.querySelectorAll('.nf-hero-video').forEach(nfKillVideo);
+            // Restore the hero copy when no clip is playing (choreography off).
+            hero.querySelectorAll('.nf-hero-slide.nf-clip-on').forEach(function (s) { s.classList.remove('nf-clip-on'); });
         }
         function attachClip(slideEl, playId, ms, ticks) {
             if (!slideEl || !slideEl.classList.contains('active') || !document.body.contains(slideEl)) return;
             var v = nfNewClipVideo('nf-hero-video');
-            v.addEventListener('playing', function () { v.classList.add('show'); });
+            // Netflix choreography: once the trailer actually renders, shrink the
+            // title logo and fade the synopsis; stopClip/go() restore it.
+            v.addEventListener('playing', function () { v.classList.add('show'); if (slideEl) slideEl.classList.add('nf-clip-on'); });
             nfClaim(v);
             nfClipSrc(v, playId, ms, ticks);
             var bg = slideEl.querySelector('.nf-hero-bg');
@@ -659,7 +785,10 @@
             nfPlay(v);
             // Preview window cap: without it a paused or single-slide hero streams
             // (and on the fallback path transcodes) the whole title in a loop.
-            v._stopTimer = setTimeout(function () { nfKillVideo(v); }, PREVIEW_SECONDS * 1000);
+            v._stopTimer = setTimeout(function () {
+                nfKillVideo(v);
+                if (slideEl) slideEl.classList.remove('nf-clip-on');   // restore the copy even if paused
+            }, PREVIEW_SECONDS * 1000);
             nfClipWatch(v);
             nfClipLoop(v);
         }
@@ -698,6 +827,8 @@
             // A fresh slide's clip always starts muted — resync the mute icon.
             var mi = hero.querySelector('.nf-hero-mute .material-icons');
             if (mi) mi.textContent = 'volume_off';
+            // Bleed the new slide's palette into the page background.
+            if (items[cur]) nfSampleAmbient(nfBackdropAmbientUrl(items[cur]));
             scheduleClip();
         }
 
@@ -904,7 +1035,7 @@
     function nfCardImage(item) {
         if (cfg('CardStyle', 'mixed') === 'portrait') {
             var t = item.ImageTags || {};
-            if (t.Primary) return ApiClient.getScaledImageUrl(item.Id, { type: 'Primary', maxWidth: 400, tag: t.Primary });
+            if (t.Primary) return nfImg(item.Id, 'Primary', t.Primary, 260);
         }
         return cwImage(item);
     }
@@ -1189,11 +1320,12 @@
         // Prefer the Thumb image: it's the landscape asset WITH title art (Netflix boxart
         // style). Backdrops are textless by design (TMDB/fanart guidelines), so they only
         // serve as fallback. For episodes, the series' Thumb (ParentThumb) comes next.
-        if (t.Thumb) return ApiClient.getScaledImageUrl(item.Id, { type: 'Thumb', maxWidth: 500, tag: t.Thumb });
-        if (item.ParentThumbItemId && item.ParentThumbImageTag) return ApiClient.getScaledImageUrl(item.ParentThumbItemId, { type: 'Thumb', maxWidth: 500, tag: item.ParentThumbImageTag });
-        if (item.BackdropImageTags && item.BackdropImageTags.length) return ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', maxWidth: 500, tag: item.BackdropImageTags[0] });
-        if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length) return ApiClient.getScaledImageUrl(item.ParentBackdropItemId, { type: 'Backdrop', maxWidth: 500, tag: item.ParentBackdropImageTags[0] });
-        if (t.Primary) return ApiClient.getScaledImageUrl(item.Id, { type: 'Primary', maxWidth: 500, tag: t.Primary });
+        var w = 340;   // widest CSS size a landscape row card reaches
+        if (t.Thumb) return nfImg(item.Id, 'Thumb', t.Thumb, w);
+        if (item.ParentThumbItemId && item.ParentThumbImageTag) return nfImg(item.ParentThumbItemId, 'Thumb', item.ParentThumbImageTag, w);
+        if (item.BackdropImageTags && item.BackdropImageTags.length) return nfImg(item.Id, 'Backdrop', item.BackdropImageTags[0], w);
+        if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length) return nfImg(item.ParentBackdropItemId, 'Backdrop', item.ParentBackdropImageTags[0], w);
+        if (t.Primary) return nfImg(item.Id, 'Primary', t.Primary, w);
         return '';
     }
 
@@ -1368,7 +1500,7 @@
     var popTimer = null;
     var popEl = null;
     var popHideTimer = null;
-    var POP_DELAY = 500;
+    var POP_DELAY = 300;   // snappier hover-to-preview (was 500ms) — still deliberate enough to ignore pass-throughs
     var PREVIEW_SECONDS = 30;
 
     function destroyPopEl() {
@@ -1442,6 +1574,11 @@
         if (v._nfVwTimer) { clearTimeout(v._nfVwTimer); v._nfVwTimer = null; }
         if (v._nfWatchTimer) { clearTimeout(v._nfWatchTimer); v._nfWatchTimer = null; }
         if (v._stopTimer) { clearTimeout(v._stopTimer); v._stopTimer = null; }
+        // Hero choreography (.nf-clip-on: shrunk logo, hidden synopsis) is bound to a
+        // LIVE clip. Every teardown funnels through here — nfClaim eviction, the stall
+        // watchdog, errors — so restore the copy here or it stays stuck when a kill
+        // path bypasses stopClip()/_stopTimer.
+        try { var s = v.closest && v.closest('.nf-hero-slide'); if (s) s.classList.remove('nf-clip-on'); } catch (e) {}
         try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
         try { v.remove(); } catch (e) {}
     }
@@ -1630,11 +1767,12 @@
             // Same preference as the row cards: titled Thumb first, textless Backdrop as fallback.
             var pt = item.ImageTags || {};
             var bd = item.BackdropImageTags && item.BackdropImageTags[0];
+            var popW = Math.round(Wp);
             var media = pt.Thumb
-                ? ApiClient.getScaledImageUrl(item.Id, { type: 'Thumb', maxWidth: 640, tag: pt.Thumb })
+                ? nfImg(item.Id, 'Thumb', pt.Thumb, popW)
                 : (bd
-                    ? ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', maxWidth: 640, tag: bd })
-                    : (pt.Primary ? ApiClient.getScaledImageUrl(item.Id, { type: 'Primary', maxWidth: 640, tag: pt.Primary }) : ''));
+                    ? nfImg(item.Id, 'Backdrop', bd, popW)
+                    : (pt.Primary ? nfImg(item.Id, 'Primary', pt.Primary, popW) : ''));
             var detailUrl = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
             var match = matchHtml(item.CommunityRating, 'nf-pop-match');
             var rating = item.OfficialRating ? '<span class="nf-pop-rating">' + esc(item.OfficialRating) + '</span>' : '';
@@ -2050,6 +2188,7 @@
         setupTopTen();
         setupMatchScore();
         setupDetailClip();
+        setupDetailAmbient();
         // nfRescueStuckImages does a full-document querySelectorAll; it's a slow-path rescue
         // for images the lazy-loader dropped, not a per-frame concern — throttle it to ~1s so
         // it doesn't scan the whole document on every single mutation frame during scrolling.
@@ -2077,6 +2216,10 @@
             document.documentElement.classList.toggle('nf-hero-top', heroVisible);
             if (hdr) hdr.classList.toggle('nf-hero-header', heroVisible);
         }
+        // Fade the ambient glow out on any page that won't drive it: a detail page samples
+        // the backdrop, home samples the hero — a home view without a visible hero has
+        // nothing to re-sample, so clear the previous page's glow.
+        if (!(/#\/details/i.test(location.hash) || heroVisible)) { nfClearAmbient(); }
     }
 
     function init() {
