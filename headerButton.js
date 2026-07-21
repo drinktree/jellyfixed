@@ -2132,16 +2132,25 @@
         setupDetailClip();
         setupDetailAmbient();
         nfRescueStuckImages();
-        var heroOnHome = isHomePage() && !!document.querySelector('.nf-hero');
-        // Netflix header: transparent top-scrim over the home billboard so the hero
-        // bleeds up into the top bar instead of butting a solid header edge; reverts
-        // to solid once scrolled (.nf-scrolled) or on any view without a hero.
+        // A hero is "live" only when actually VISIBLE on the active home tab — the
+        // element also sits hidden in #homeTab while the Favorites sub-tab is shown
+        // (offsetParent null there), which must keep the solid header + stock padding.
+        // This mirrors activeHomeContainer()'s own offsetParent test, so it can't fall
+        // out of sync with the markup the way a CSS :has(#homeTab.is-active) guard did.
+        var heroVisible = false;
+        if (isHomePage()) {
+            document.querySelectorAll('.nf-hero').forEach(function (h) { if (h.offsetParent !== null) heroVisible = true; });
+        }
+        // nf-hero-top zeroes the stock 7.5em page padding so the hero bleeds to the
+        // very top; nf-hero-header gives the header the transparent Netflix top-scrim
+        // over it (both revert to solid/stock on scroll or any view without a hero).
+        document.documentElement.classList.toggle('nf-hero-top', heroVisible);
         var hdr = document.querySelector('.skinHeader');
-        if (hdr) hdr.classList.toggle('nf-hero-header', heroOnHome);
+        if (hdr) hdr.classList.toggle('nf-hero-header', heroVisible);
         // Fade the ambient glow out on any page that won't drive it: a detail page
-        // samples the backdrop, home samples the hero — but home with the hero
-        // billboard OFF has nothing to re-sample, so clear the previous page's glow.
-        if (!(/#\/details/i.test(location.hash) || heroOnHome)) { nfClearAmbient(); }
+        // samples the backdrop, home samples the hero — a home view without a visible
+        // hero has nothing to re-sample, so clear the previous page's glow.
+        if (!(/#\/details/i.test(location.hash) || heroVisible)) { nfClearAmbient(); }
     }
 
     function init() {

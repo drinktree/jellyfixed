@@ -1388,11 +1388,15 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
    Rotating full-bleed backdrops with logo, meta, actions, dots + pause.
    ============================================= */
 /* The home page itself carries padding-top: 7.5em (stock .libraryPage rule) —
-   with the hero present that painted a ~40px band above the billboard. Zero it
+   with the hero present that painted a tall dark band above the billboard. Zero it
    so the hero truly starts at the viewport top under the transparent header.
-   Scoped to the ACTIVE home tab: the hero also sits (hidden) in #homeTab while
-   the Favorites tab is shown, which must keep the stock padding. */
-.page.homePage:has(#homeTab.is-active .nf-hero) { padding-top: 0 !important; }
+   Driven from headerButton.js via html.nf-hero-top, set only when a hero is
+   actually VISIBLE on the active home tab. The old CSS-only :has(#homeTab.is-active
+   .nf-hero) guard never matched this jellyfin build's markup, so the stock padding
+   survived and pushed the hero down into the banded strip. offsetParent is null for
+   the hero hidden in #homeTab while the Favorites sub-tab is shown, so that view
+   keeps the solid header + stock padding. */
+html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 
 .nf-hero {
     position: relative;
