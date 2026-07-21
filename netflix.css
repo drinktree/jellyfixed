@@ -584,10 +584,27 @@ body, .mainDrawer, .dialog {
    (The critic-rating tomato stays — user preference.) */
 .itemMiscInfo .endsAt { display: none !important; }
 
-/* Compact the technical selects (subtitle/audio/version pickers) — a
-   full-column dropdown reads as a form, not a title page. */
-.itemDetailPage .selectContainer { max-width: 420px !important; }
-.itemDetailPage .selectContainer .emby-select { font-size: 0.9rem !important; }
+/* Technical selects (subtitle / audio / version pickers). Netflix has no such thing on a
+   title page, and the raw release filename in each was the least cinematic thing on the
+   page — so recede them into quiet, compact, chip-like controls with a small uppercase
+   label, instead of a form of long filenames. */
+.itemDetailPage .selectContainer { max-width: 340px !important; margin: 6px 0 !important; }
+.itemDetailPage .selectContainer .selectLabel {
+    font-size: 0.7rem !important; text-transform: uppercase !important;
+    letter-spacing: 0.09em !important; color: var(--text-muted) !important;
+    font-weight: 700 !important; margin-bottom: 4px !important; opacity: 0.8 !important;
+}
+.itemDetailPage .selectContainer .emby-select {
+    font-size: 0.82rem !important; color: #cfcfcf !important;
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 6px !important; padding: 7px 30px 7px 11px !important;
+    text-overflow: ellipsis !important;
+    transition: background 0.2s ease, border-color 0.2s ease !important;
+}
+.itemDetailPage .selectContainer .emby-select:hover {
+    background: rgba(255,255,255,0.09) !important; border-color: rgba(255,255,255,0.22) !important;
+}
 
 /* =============================================
    DETAIL PAGE BUTTONS — Netflix style
