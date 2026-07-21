@@ -35,6 +35,30 @@
         try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
     }
 
+    // "Cheap mode" — touch/low-power WebViews (phone/tablet/TV layout) and metered /
+    // save-data links. Gates the extras that dominate mobile data/CPU/battery: autoplay
+    // preview clips are skipped entirely here (a single idle Home page otherwise streams
+    // full-bitrate video every ~20s). Re-checked per call so a late layout-tv/layout-mobile
+    // class is honoured; matchMedia/connection reads are cheap.
+    function nfCheapMode() {
+        try {
+            var mm = window.matchMedia;
+            if (mm && (mm('(hover: none)').matches || mm('(prefers-reduced-data: reduce)').matches)) return true;
+            var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (conn && (conn.saveData === true || /(^|[^0-9])(2g|slow-2g)/.test(conn.effectiveType || ''))) return true;
+            var c = document.documentElement.classList;
+            return c.contains('layout-tv') || c.contains('layout-mobile');
+        } catch (e) { return false; }
+    }
+
+    // Cap a requested image width to the device's real pixels (Jellyfin never upscales
+    // past the source, so passing a big maxWidth on a phone just wastes ~4x the bytes and
+    // decode memory of what the screen can show).
+    function nfDeviceW(cap) {
+        var w = Math.round((window.innerWidth || 1280) * (window.devicePixelRatio || 1));
+        return Math.max(320, Math.min(cap || 1920, w));
+    }
+
     // ---- Session cache (stale-while-revalidate): home rows/hero/CW build in ONE
     // frame from cached data on every revisit instead of popping in row by row.
     // Keys carry the user id (never cross accounts) and a fingerprint of the
@@ -563,7 +587,7 @@
     }
 
     function heroSlideHtml(item, active) {
-        var bg = ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', maxWidth: 1920, tag: item.BackdropImageTags[0] });
+        var bg = ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', maxWidth: nfDeviceW(1920), tag: item.BackdropImageTags[0] });
         var serverId = item.ServerId || (ApiClient.serverId && ApiClient.serverId());
         var detailUrl = '#/details?id=' + item.Id + (serverId ? '&serverId=' + serverId : '');
 
@@ -584,7 +608,10 @@
 
         var fav = !!(item.UserData && item.UserData.IsFavorite);
         return '<div class="nf-hero-slide' + (active ? ' active' : '') + '">' +
-            '<div class="nf-hero-bg" style="background-image:url(\'' + bg + '\')"></div>' +
+            // Only slide 0 (active) loads its backdrop eagerly; the rest carry the URL in
+            // data-nf-hero-bg and are filled in go() as they rotate in — a Home visit fetches
+            // one right-sized backdrop up front instead of six.
+            '<div class="nf-hero-bg"' + (active ? ' style="background-image:url(\'' + bg + '\')"' : ' data-nf-hero-bg="' + bg + '"') + '></div>' +
             '<div class="nf-hero-content">' + titleHtml + meta + overview +
                 '<div class="nf-hero-actions">' +
                     '<a class="nf-hero-btn nf-hero-play" href="' + detailUrl + '"><span class="material-icons" aria-hidden="true">play_arrow</span> ' + nfL().play + '</a>' +
@@ -612,6 +639,8 @@
         var slideEls = hero.querySelectorAll('.nf-hero-slide');
         var dotEls = hero.querySelectorAll('.nf-hero-dot');
         var clipTimer = null;
+        // Preload slide 1's backdrop (loadSlideBg is hoisted) so the first rotation is ready.
+        if (slideEls.length > 1) loadSlideBg(1);
 
         // Self-contained hero clip: a muted, looping REMUX of the actual title (the file
         // itself, not a YouTube trailer) fades in over the backdrop of the active slide.
@@ -636,7 +665,7 @@
         }
         function playClip(idx) {
             if (cfg('PreviewClips', true) === false) return;
-            if (document.hidden || nfReducedMotion()) return;
+            if (document.hidden || nfReducedMotion() || nfCheapMode()) return;
             var item = items[idx], slideEl = slideEls[idx];
             if (!item || !slideEl) return;
             var type = item.Type || '';
@@ -656,8 +685,14 @@
             stopClip();
             clipTimer = setTimeout(function () { playClip(cur); }, 1800);
         }
+        function loadSlideBg(k) {
+            var b = slideEls[k] && slideEls[k].querySelector('.nf-hero-bg[data-nf-hero-bg]');
+            if (b) { b.style.backgroundImage = "url('" + b.getAttribute('data-nf-hero-bg') + "')"; b.removeAttribute('data-nf-hero-bg'); }
+        }
         function go(n) {
             cur = (n + slideEls.length) % slideEls.length;
+            // Fill this slide's backdrop (and prefetch the next) so the crossfade is ready.
+            loadSlideBg(cur); loadSlideBg((cur + 1) % slideEls.length);
             for (var i = 0; i < slideEls.length; i++) { slideEls[i].classList.toggle('active', i === cur); }
             for (var j = 0; j < dotEls.length; j++) { dotEls[j].classList.toggle('active', j === cur); }
             // A fresh slide's clip always starts muted — resync the mute icon.
@@ -767,9 +802,14 @@
             var pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
             return Math.max(1, Math.floor((scroller.clientWidth - pad + 1) / step));
         }
+        // cardStep()/perPage() each force layout (getBoundingClientRect + getComputedStyle).
+        // They only change on resize, so measure once there and reuse the cached product on
+        // every scroll frame instead of doing ~4 forced reads per frame during a touch fling.
+        var mStep = 0, mPerPage = 0;
+        function measure() { mStep = cardStep(); mPerPage = perPage(); }
         function pageCount() {
             var n = track ? track.children.length : 0;
-            return Math.max(1, Math.ceil(n / perPage()));
+            return Math.max(1, Math.ceil(n / (mPerPage || perPage())));
         }
 
         var dots = document.createElement('div');
@@ -785,7 +825,7 @@
                 for (var i = 0; i < total; i++) { html += '<span class="nf-row-page"></span>'; }
                 dots.innerHTML = html;
             }
-            var step = cardStep() * perPage();
+            var step = (mStep || cardStep()) * (mPerPage || perPage());
             // abs(): RTL scrollLeft runs negative.
             var cur = step ? Math.round(Math.abs(scroller.scrollLeft) / step) : 0;
             for (var j = 0; j < dots.children.length; j++) {
@@ -806,7 +846,7 @@
             b.setAttribute('aria-label', a[2] < 0 ? nfL().scrollBack : nfL().scrollFwd);
             b.innerHTML = '<span class="material-icons" aria-hidden="true">' + a[1] + '</span>';
             b.addEventListener('click', function () {
-                var step = cardStep() * perPage();
+                var step = (mStep || cardStep()) * (mPerPage || perPage());
                 var target;
                 if (!step) {
                     target = scroller.scrollLeft + a[2] * Math.round(scroller.clientWidth * 0.8);
@@ -825,13 +865,14 @@
 
         scroller.addEventListener('scroll', function () { requestAnimationFrame(upd); }, { passive: true });
         if (window.ResizeObserver) {
-            var ro = new ResizeObserver(function () { requestAnimationFrame(upd); });
+            // Re-measure card-step/per-page only on resize (RO also fires once immediately).
+            var ro = new ResizeObserver(function () { requestAnimationFrame(function () { measure(); upd(); }); });
             ro.observe(scroller);
-        }
+        } else { measure(); }
         // Exposed so code that mutates a row's cards (Continue Watching removal /
         // diff-refresh) can refresh the page dots — neither scroll nor resize fires.
         sec._nfUpd = upd;
-        upd();
+        measure(); upd();
     }
 
     // Home rows arrive asynchronously; insert each at its Netflix slot instead of
@@ -1549,7 +1590,7 @@
     // Series/Season has no own runtime, so we fetch one representative episode and stream that.
     function streamClipInto(pop, item) {
         if (cfg('PreviewClips', true) === false) return;
-        if (nfReducedMotion()) return;
+        if (nfReducedMotion() || nfCheapMode()) return;
         var type = item.Type || '';
         if (type !== 'Series' && type !== 'Season' && (item.RunTimeTicks || 0) >= 120 * NF_TPS) {
             makeClip(pop, item.Id, item.MediaSources && item.MediaSources[0], item.RunTimeTicks || 0);
@@ -1830,7 +1871,7 @@
     function setupDetailClip() {
         try {
             if (cfg('PreviewClips', true) === false) return;
-            if (nfReducedMotion()) return;
+            if (nfReducedMotion() || nfCheapMode()) return;
             if (!/#\/details/i.test(location.hash)) return;
             if (typeof ApiClient === 'undefined' || !ApiClient.getItem || !ApiClient.getCurrentUserId) return;
             // Attach into the FULL-VIEWPORT fixed backdrop container (the element the
@@ -1962,6 +2003,7 @@
         syncHeaderScrolled();
     }
 
+    var nfLastHeroVisible = null;
     function applyDynamic() {
         applyCssLabels();
         updateAdmin();
@@ -1975,10 +2017,20 @@
         // applyDynamic() as soon as the configuration arrives.
         if (CT_CONFIG === null) return;
         setupNavTabs();
-        setupHero();
-        setupContinueWatching();
-        setupExtraRows();
-        setupGenreRows();
+        setupHero();   // self-gates + cleans up the hero when off-Home
+        var onHome = isHomePage();
+        // These build/scan the home container and each re-derives activeHomeContainer()
+        // (a querySelectorAll + offsetParent FORCED-LAYOUT read). applyDynamic runs on
+        // every document.body mutation frame, so off-Home (detail/library/playback) they
+        // were burning several synchronous reflows per frame for nothing — gate them.
+        if (onHome) {
+            setupContinueWatching();
+            setupExtraRows();
+            setupGenreRows();
+        }
+        // markHomeOwned() must run OFF-Home too: it is the only code that CLEARS the
+        // html.nf-home class (which hides library tab strips). It early-returns cheaply
+        // off-Home, before the expensive activeHomeContainer() scan.
         markHomeOwned();
         setupRatingPlate();
         setupTopTen();
@@ -1995,12 +2047,18 @@
         // hidden in #homeTab while the Favorites sub-tab is shown; those views keep
         // the solid header + stock padding.
         var heroVisible = false;
-        if (isHomePage()) {
+        if (onHome) {
             document.querySelectorAll('.nf-hero').forEach(function (h) { if (h.offsetParent !== null) heroVisible = true; });
         }
-        document.documentElement.classList.toggle('nf-hero-top', heroVisible);
+        // Toggle the root classes only when the value CHANGES or the header lost its class
+        // (Jellyfin recreates .skinHeader on client-side navigation) — so a settled home
+        // page doesn't rewrite classes every frame, but a fresh header is still re-synced.
         var hdr = document.querySelector('.skinHeader');
-        if (hdr) hdr.classList.toggle('nf-hero-header', heroVisible);
+        if (heroVisible !== nfLastHeroVisible || (hdr && hdr.classList.contains('nf-hero-header') !== heroVisible)) {
+            nfLastHeroVisible = heroVisible;
+            document.documentElement.classList.toggle('nf-hero-top', heroVisible);
+            if (hdr) hdr.classList.toggle('nf-hero-header', heroVisible);
+        }
     }
 
     function init() {

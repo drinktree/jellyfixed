@@ -334,12 +334,11 @@ body, .mainDrawer, .dialog {
    native home sections are hidden). VERIFIED live: detail docWidth back to viewport. */
 .emby-scroller { overflow-x: auto !important; }
 .emby-scrollbuttons-button {
-    background: rgba(20,20,20,0.7) !important;
+    background: rgba(20,20,20,0.85) !important;
     color: white !important;
     border: none !important;
     border-radius: 4px !important;
     transition: background 0.2s ease, transform 0.2s ease !important;
-    backdrop-filter: blur(4px) !important;
 }
 .emby-scrollbuttons-button:hover {
     background: rgba(20,20,20,0.95) !important;
@@ -1114,11 +1113,10 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
    (two competing blocks used to shadow each other). */
 
 .toast {
-    background-color: rgba(51,51,51,0.95) !important;
+    background-color: #333333 !important;   /* opaque — was 0.95 + blur(10px), which was ~95% occluded */
     color: var(--text-main) !important;
     font-family: var(--font-netflix) !important;
     border-radius: 4px !important;
-    backdrop-filter: blur(10px) !important;
     box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
 }
 
@@ -1265,13 +1263,15 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.32); border: 2px solid transparent; background-clip: padding-box; }
 * { scrollbar-color: rgba(255,255,255,0.2) transparent; }
 
-.skinHeader { transition: background 0.4s ease, backdrop-filter 0.4s ease !important; }
+.skinHeader { transition: background 0.4s ease !important; }   /* dropped animating backdrop-filter (expensive, and the base header has none) */
 
 .sectionTitle .sectionTitleTextButton::after { content: ' \203A'; }
 
 /* --- Cards: smoother, deeper Netflix hover (transform lives in the base
    .card:hover rule in the CARDS section) --- */
-.card { will-change: transform; }
+/* will-change only during the hover (was on base .card, which permanently promoted
+   EVERY card to its own GPU layer — 100+ on a library grid; :hover never fires on touch). */
+.card:hover { will-change: transform; }
 .cardImageContainer { transition: filter 0.3s ease, transform 0.35s cubic-bezier(0.33,1,0.68,1) !important; }
 .card:hover .cardScalable { box-shadow: 0 16px 38px rgba(0,0,0,0.85) !important; }
 .cardOverlayContainer { background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.25) 45%, transparent 65%) !important; }
@@ -1376,6 +1376,11 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 @keyframes nf-kenburns {
     from { transform: scale(1.01); }
     to   { transform: scale(1.1); }
+}
+/* Touch / low-end WebViews and reduced-motion get a static hero: the 16s full-viewport
+   composited scale (re-firing every rotation) is a steady GPU/battery drain there. */
+@media (hover: none), (prefers-reduced-motion: reduce) {
+    .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
 }
 /* Self-contained autoplay clip of the actual title (a remux of the file itself, not a
    YouTube trailer) — fades in over the backdrop on the active slide. */
@@ -1497,6 +1502,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .nf-row-scroll {
     overflow-x: auto; overflow-y: visible;
     scrollbar-width: none; -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
     padding: 6px 4% 22px;
 }
 .nf-row-scroll::-webkit-scrollbar { display: none; }
@@ -1599,7 +1605,7 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 /* Continue Watching row — own sharp landscape cards with progress (no blurhash) */
 .nf-cw-section { margin: 0 0 2.4vw; }
 .nf-cw-section .sectionTitle { padding-left: 4%; font-size: clamp(1.05rem, 1.35vw, 1.45rem); font-weight: 700; color: #e5e5e5; letter-spacing: 0.2px; margin: 0 0 0.5em; }
-.nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; padding: 6px 4% 22px; }
+.nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 6px 4% 22px; }
 .nf-cw-scroll::-webkit-scrollbar { display: none; }
 .nf-cw-track { display: flex; gap: 0.5vw; align-items: flex-start; }
 .nf-cw-card { flex: 0 0 auto; width: clamp(220px, 19vw, 340px); text-decoration: none; }
@@ -1681,9 +1687,7 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
 }
 /* Frosted hover-preview popup with deeper, softer shadow */
 .nf-pop {
-    background: rgba(24, 24, 26, 0.82) !important;
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    backdrop-filter: blur(16px) saturate(140%);
+    background: #18181a !important;   /* opaque — was rgba(.82) + blur(16px); the blur was ~82% occluded, invisible payoff / full GPU cost */
     box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
     border-radius: 8px;
 }

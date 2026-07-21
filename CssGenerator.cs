@@ -254,6 +254,9 @@ namespace Jellyfin.Plugin.CustomTheme
             if (config.HeaderBlur)
             {
                 sb.AppendLine(".skinHeader { backdrop-filter: blur(12px) !important; -webkit-backdrop-filter: blur(12px) !important; }");
+                // A fixed, full-width backdrop-filter re-blurs the framebuffer on every scroll
+                // frame — the largest recurring GPU cost on the page. Off on touch WebViews.
+                sb.AppendLine("@media (hover: none) { .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; } }");
             }
 
             if (config.SpoilerMode)
@@ -433,7 +436,12 @@ namespace Jellyfin.Plugin.CustomTheme
                 // and .nf-row-track (our genre rows).
                 if (config.CardHoverScale)
                 {
-                    sb.AppendLine(@".card:hover { transform: none !important; box-shadow: none !important; z-index: 60 !important; }
+                    // Whole block is hover-only. Wrapped in @media (hover: hover) so touch/TV
+                    // WebViews never carry the row-wide :has(~ .card:hover) / general-sibling
+                    // rules — those are re-evaluated on every DOM mutation (a style-recalc
+                    // multiplier) even though they can never match without a pointer.
+                    sb.AppendLine(@"@media (hover: hover) {
+.card:hover { transform: none !important; box-shadow: none !important; z-index: 60 !important; }
 .card:hover .cardScalable { transform: scale(1.2) !important; transform-origin: center center !important; box-shadow: 0 18px 40px rgba(0,0,0,0.85) !important; border-radius: 6px !important; }
 .scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: translateX(30px) !important; }
 .scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: translateX(-30px) !important; }
@@ -443,6 +451,7 @@ namespace Jellyfin.Plugin.CustomTheme
 .card:hover .cardScalable { transform: none !important; }
 .scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: none !important; }
 .scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: none !important; }
+}
 }");
                 }
                 else
@@ -486,6 +495,9 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine(@".skinHeader { backdrop-filter: blur(16px) saturate(140%) !important; -webkit-backdrop-filter: blur(16px) saturate(140%) !important; background: rgba(10,10,10,0.55) !important; }
 .dialog, .formDialog, .actionSheet, .ct-overlay { backdrop-filter: blur(20px) saturate(160%) !important; -webkit-backdrop-filter: blur(20px) saturate(160%) !important; background: rgba(26,26,26,0.78) !important; }
 .mainDrawer { backdrop-filter: blur(18px) !important; -webkit-backdrop-filter: blur(18px) !important; background: rgba(10,10,10,0.6) !important; }");
+                // The fixed header's glass re-blurs the framebuffer every scroll frame; on touch
+                // drop it to a flat opaque bar (the dialog/drawer blurs are transient, left as-is).
+                sb.AppendLine("@media (hover: none) { .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(10,10,10,0.92) !important; } }");
             }
 
             if (config.OledBlack)
