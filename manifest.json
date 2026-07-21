@@ -13,7 +13,7 @@
         "changelog": "Reverted to the v2.5.50 theme baseline and kept ONLY the home-billboard top fix. The v2.5.51 visual overhaul and the v2.5.52-2.5.55 work are dropped. The one change vs 2.5.50: the home page kept jellyfin's stock 7.5em top padding, which pushed the billboard ~120px down so it no longer bled under the header (a dark band with a hard cutoff sat above it). The old CSS guard meant to remove that padding keyed off #homeTab.is-active, which this jellyfin build's markup does not use; it is now driven from JS off the same visibility test the hero already uses, so the billboard starts at the very top under the transparent header. Views without a visible hero keep the solid header + stock padding.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.56/custom-theme-v2.5.56.zip",
-        "checksum": "",
+        "checksum": "02e7fb8f124a2405cd039e43206abf38",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
