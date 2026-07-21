@@ -13,7 +13,7 @@
         "changelog": "Big performance + mobile pass on the v2.5.50-baseline theme. MOBILE: autoplay preview clips are now skipped on touch / save-data / cellular / TV devices (an idle Home page was streaming full-bitrate video every ~20s \u2014 GBs/hr of data + battery); hero backdrops are sized to the device and loaded one-at-a-time instead of six 1920px images; the fixed-header glass blur (HeaderBlur/GlassEffect) and the Ken Burns hero zoom are turned off on touch, where a full-viewport blur / composited animation janks scrolling. RENDERING: will-change moved off every card (it was pinning 100+ permanent GPU layers) to the hovered card only; occluded backdrop-filter blurs on the hover card, toasts and scroll buttons removed (invisible, but full GPU cost); the hover card-scale block (incl. its :has() style-recalc rules) is gated to pointer devices. MAIN THREAD: home builders no longer run their forced-layout scans off the Home page; row page-dots cache their measurements instead of forcing layout on every scroll frame; row scrollers get momentum + overscroll-contain. No visual change on desktop.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.57/custom-theme-v2.5.57.zip",
-        "checksum": "",
+        "checksum": "766964a8479d124ecc3fb55267e35ee4",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
