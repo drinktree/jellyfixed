@@ -13,7 +13,7 @@
         "changelog": "Better fix for the desktop-app (Jellyfin Media Player) playback lag + missing seek-preview. v2.5.60 detected app playback via #videoOsdPage, which didn't reliably match in JMP. It now keys off .skinHeader.osdHeader \u2014 the class jellyfin-web adds to the header for the WHOLE duration of playback (and which JMP sets too, since it embeds jellyfin-web). So html.nf-playing is set reliably in the app, which removes the film-grain overlay from on top of the seek-bar scene preview (restoring it) and stops the per-frame recomposite/DOM-scan that was making scrubbing lag brutally. Browser + mobile unchanged.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.61/custom-theme-v2.5.61.zip",
-        "checksum": "",
+        "checksum": "128d2352ce90d6eed418b2ef2289b6df",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
