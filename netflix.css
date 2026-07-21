@@ -2044,70 +2044,95 @@ html.transparentDocument .view-transition { animation: none !important; }
 }
 #similarCollapsible .scrollSlider > .card { width: auto !important; min-width: 0 !important; }
 
-/* --- Detail: episode rows — white titles, gray synopsis, quiet #404040
-   separators instead of floating rounded chips. */
-.detailPageContent .listItem {
+/* ===== EPISODE LIST (Season / single-season Series page) — Netflix episode row.
+   VERIFIED against the live Jellyfin 10.11 DOM (2026-07-21) in the public demo with
+   this theme injected. The real markup is:
+     .listItem.listItem-withContentWrapper           (outer wrapper)
+       > .listItem-content                           (THE flex row: image | body | buttons)
+           > .listItemImage(.listItemImage-large)    (background-image thumbnail, NOT an <img>)
+           > .listItemBody                           (.listItemBodyText title / .listItemMediaInfo / .listItem-overview)
+           > .listViewUserDataButtons                (info / played / favorite / menu)
+   The section is #listChildrenCollapsible.detailVerticalSection.
+   GOTCHA that broke v2.5.62–2.5.63: there is NO `.detailPageContent` on this page
+   (it is `.detailPagePrimaryContent`), and image/body/buttons are NOT direct
+   children of `.listItem` — they live inside `.listItem-content`. So the old
+   `.detailPageContent .listItem > .listItemImage` rules matched nothing, while the
+   one rule that DID match forced `.listItem` itself to `flex-flow:row`, collapsing
+   the body to ~109px (synopsis one word per line). Style `.listItem-content`, not
+   `.listItem`, and scope to `.itemDetailPage`. ===== */
+.itemDetailPage .listItem {
+    display: block !important;
+    width: auto !important;
     border-radius: 0 !important;
     border-bottom: 1px solid #404040 !important;
     padding: 14px 8px !important;
+    background: transparent !important;
+    transition: background-color 0.2s ease !important;
 }
-.detailPageContent .listItem:last-child { border-bottom: none !important; }
-.detailPageContent .listItemBody h3,
-.detailPageContent .listItemBody .listItemBodyText:first-child {
-    color: #fff !important;
-    font-weight: 500 !important;
-    font-size: 1rem !important;
-}
-.detailPageContent .listItem .secondary,
-.detailPageContent .listItemBodyText.secondary {
-    color: #d2d2d2 !important;
-    font-size: 0.9rem !important;
-    line-height: 1.5 !important;
-}
-/* Clamp only the synopsis — the media-info line is a flex row of divs and
-   would turn into a vertical stack under a -webkit-box clamp. */
-.detailPageContent .listItem-overview {
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-    max-width: 640px !important;
-}
+.itemDetailPage .detailVerticalSection .listItem:last-child { border-bottom: none !important; }
+.itemDetailPage .listItem:hover { background-color: rgba(255,255,255,0.05) !important; }
 
-/* ---- EPISODE ROWS: force Jellyfin's episode list back into a clean Netflix row. The
-   flex layout had collapsed — the synopsis wrapped one word per line and the thumbnail
-   was mispositioned. Landscape preview on the left, then title / runtime / synopsis
-   filling the rest (min-width:0 is what lets the text wrap normally), actions on the
-   right. Scoped to the episode list so it can't touch cards/seasons. ---- */
-.detailPageContent .listItem,
-.detailVerticalSection .listItem {
+/* The real flex row (image | body | buttons) */
+.itemDetailPage .listItem .listItem-content {
     display: flex !important;
     flex-flow: row nowrap !important;
     align-items: flex-start !important;
     gap: 16px !important;
-    width: auto !important;
+    width: 100% !important;
 }
-.detailPageContent .listItem > .listItemImage,
-.detailPageContent .listItem > .listItemImageContainer,
-.detailVerticalSection .listItem > .listItemImage {
+
+/* Landscape preview thumbnail on the left (background-image div) */
+.itemDetailPage .listItem .listItemImage {
     flex: 0 0 auto !important;
     width: clamp(150px, 16vw, 200px) !important;
+    height: auto !important;
     aspect-ratio: 16 / 9 !important;
-    height: auto !important; min-height: 0 !important;
-    border-radius: 6px !important; overflow: hidden !important;
-    background-size: cover !important; background-position: center !important;
+    min-height: 0 !important;
     margin: 0 !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+    background-size: cover !important;
+    background-position: center !important;
 }
-.detailPageContent .listItem .listItemImage img,
-.detailPageContent .listItem .listItemImageContainer img {
+/* Defensive: some builds put a real <img> inside the image box */
+.itemDetailPage .listItem .listItemImage img {
     width: 100% !important; height: 100% !important; object-fit: cover !important;
 }
-.detailPageContent .listItem > .listItemBody,
-.detailVerticalSection .listItem > .listItemBody {
-    flex: 1 1 auto !important; min-width: 0 !important; width: auto !important;
-    padding: 0 !important; align-self: stretch !important;
+
+/* Title / runtime / synopsis fill the rest — min-width:0 lets the text wrap normally */
+.itemDetailPage .listItem .listItemBody {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+    padding: 0 !important;
+    font-family: var(--font-netflix) !important;
 }
-.detailPageContent .listItem > .listItemMediaInfo,
-.detailPageContent .listItem > .listViewUserDataButtons,
-.detailPageContent .listItem > .paper-icon-button-light {
-    flex: 0 0 auto !important; align-self: center !important;
+.itemDetailPage .listItem .listItemBody > .listItemBodyText:first-child,
+.itemDetailPage .listItem .listItemBody h3 {
+    color: #fff !important;
+    font-weight: 500 !important;
+    font-size: 1rem !important;
+}
+.itemDetailPage .listItem .secondary,
+.itemDetailPage .listItem .listItemBodyText.secondary {
+    color: #d2d2d2 !important;
+    font-size: 0.9rem !important;
+    line-height: 1.5 !important;
+}
+/* Clamp only the synopsis (the media-info line is a flex row of divs and would
+   stack vertically under a -webkit-box clamp). */
+.itemDetailPage .listItem .listItem-overview {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 3 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    max-width: 640px !important;
+}
+
+/* Action buttons kept to the right, vertically centred against the row */
+.itemDetailPage .listItem .listViewUserDataButtons {
+    flex: 0 0 auto !important;
+    align-self: center !important;
 }
 
 /* --- Detail: genres as Netflix's quiet comma-separated links (stock already
