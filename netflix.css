@@ -2068,6 +2068,46 @@ html.transparentDocument .view-transition { animation: none !important; }
    would turn into a vertical stack under a -webkit-box clamp. */
 .detailPageContent .listItem-overview {
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    max-width: 640px !important;
+}
+
+/* ---- EPISODE ROWS: force Jellyfin's episode list back into a clean Netflix row. The
+   flex layout had collapsed — the synopsis wrapped one word per line and the thumbnail
+   was mispositioned. Landscape preview on the left, then title / runtime / synopsis
+   filling the rest (min-width:0 is what lets the text wrap normally), actions on the
+   right. Scoped to the episode list so it can't touch cards/seasons. ---- */
+.detailPageContent .listItem,
+.detailVerticalSection .listItem {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+    width: auto !important;
+}
+.detailPageContent .listItem > .listItemImage,
+.detailPageContent .listItem > .listItemImageContainer,
+.detailVerticalSection .listItem > .listItemImage {
+    flex: 0 0 auto !important;
+    width: clamp(150px, 16vw, 200px) !important;
+    aspect-ratio: 16 / 9 !important;
+    height: auto !important; min-height: 0 !important;
+    border-radius: 6px !important; overflow: hidden !important;
+    background-size: cover !important; background-position: center !important;
+    margin: 0 !important;
+}
+.detailPageContent .listItem .listItemImage img,
+.detailPageContent .listItem .listItemImageContainer img {
+    width: 100% !important; height: 100% !important; object-fit: cover !important;
+}
+.detailPageContent .listItem > .listItemBody,
+.detailVerticalSection .listItem > .listItemBody {
+    flex: 1 1 auto !important; min-width: 0 !important; width: auto !important;
+    padding: 0 !important; align-self: stretch !important;
+}
+.detailPageContent .listItem > .listItemMediaInfo,
+.detailPageContent .listItem > .listViewUserDataButtons,
+.detailPageContent .listItem > .paper-icon-button-light {
+    flex: 0 0 auto !important; align-self: center !important;
 }
 
 /* --- Detail: genres as Netflix's quiet comma-separated links (stock already
