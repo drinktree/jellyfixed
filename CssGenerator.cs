@@ -64,7 +64,7 @@ namespace Jellyfin.Plugin.CustomTheme
 
         private static readonly Dictionary<string, string> Fonts = new()
         {
-            ["inter"] = "'Inter', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif",
+            ["inter"] = "'Inter', 'Helvetica Neue', Arial, sans-serif",
             ["poppins"] = "'Poppins', sans-serif",
             ["montserrat"] = "'Montserrat', sans-serif",
             ["roboto"] = "'Roboto', sans-serif",
@@ -139,7 +139,7 @@ namespace Jellyfin.Plugin.CustomTheme
             // --- Variable overrides (win by cascade order) ---
             sb.AppendLine(":root {");
             sb.AppendLine($"    --accent-red: {accent};");
-            sb.AppendLine($"    --accent-red-hover: {Darken(accent, 0.16)};");
+            sb.AppendLine($"    --accent-red-hover: {Lighten(accent, 0.15)};");
             sb.AppendLine($"    --bg-dark: {bg};");
             sb.AppendLine($"    --text-main: {text};");
             sb.AppendLine($"    --text-muted: {muted};");
@@ -434,7 +434,7 @@ namespace Jellyfin.Plugin.CustomTheme
                 if (config.CardHoverScale)
                 {
                     sb.AppendLine(@".card:hover { transform: none !important; box-shadow: none !important; z-index: 60 !important; }
-.card:hover .cardScalable { transform: scale(1.2) !important; transform-origin: center center !important; }
+.card:hover .cardScalable { transform: scale(1.2) !important; transform-origin: center center !important; box-shadow: 0 18px 40px rgba(0,0,0,0.85) !important; border-radius: 6px !important; }
 .scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: translateX(30px) !important; }
 .scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: translateX(-30px) !important; }
 .scrollSlider > .card:first-child:hover .cardScalable, .nf-row-track > .card:first-child:hover .cardScalable { transform-origin: left center !important; }
@@ -554,29 +554,6 @@ namespace Jellyfin.Plugin.CustomTheme
 
             using var reader = new StreamReader(stream);
             return reader.ReadToEnd();
-        }
-
-        /// <summary>Mixes a hex colour toward black by <paramref name="amount"/> (0..1).
-        /// Netflix's button ramp DARKENS on hover (#E50914 -> #C11119); lightening it
-        /// was the tell that the red wasn't theirs.</summary>
-        private static string Darken(string hex, double amount)
-        {
-            if (string.IsNullOrEmpty(hex) || hex.Length != 7 || hex[0] != '#')
-            {
-                return hex;
-            }
-
-            if (!int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
-                !int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
-                !int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-            {
-                return hex;
-            }
-
-            r = (int)(r * (1 - amount));
-            g = (int)(g * (1 - amount));
-            b = (int)(b * (1 - amount));
-            return string.Create(CultureInfo.InvariantCulture, $"#{r:X2}{g:X2}{b:X2}");
         }
 
         /// <summary>Mixes a hex colour toward white by <paramref name="amount"/> (0..1). Returns the input unchanged if it is not a #RRGGBB string.</summary>
