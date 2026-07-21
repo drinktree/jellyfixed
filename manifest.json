@@ -13,7 +13,7 @@
         "changelog": "Fixes the dark band + hard cutoff above the home billboard. The home page kept jellyfin's stock 7.5em top padding, which pushed the hero ~120px down the screen so it no longer bled up under the header (a dark strip with a hard edge sat above it). The old CSS guard that was meant to zero that padding keyed off #homeTab.is-active, which does not match this jellyfin build's markup; it is now driven from JS off the same visibility test the hero already uses, so the billboard starts at the very top under the transparent header \u2014 matching how a detail page's backdrop bleeds to the top. Views without a visible hero (the Favorites sub-tab, or with the billboard off) keep the solid header and stock padding.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.54/custom-theme-v2.5.54.zip",
-        "checksum": "",
+        "checksum": "d5a0394a74441b17348321710c10881a",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
