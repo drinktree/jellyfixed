@@ -2004,7 +2004,21 @@
     }
 
     var nfLastHeroVisible = null;
+    var nfLastRescue = 0;
     function applyDynamic() {
+        // PLAYBACK fast-path: while the video is up (html.transparentDocument) the OSD —
+        // the seek bar, the scene-preview thumbnail that tracks the scrubber, and the
+        // position/duration timers — mutates the DOM every frame. The document.body
+        // MutationObserver would otherwise re-run EVERY scanner below (full-document
+        // querySelectorAll in setupMatchScore / nfRescueStuckImages, forced-layout reads,
+        // etc.) ~60x/sec and saturate the main thread — exactly what makes seek-bar
+        // scrubbing stutter on desktop. Only the maturity-rating plate matters during
+        // playback; when it ends, the OSD teardown is itself a body mutation that re-fires
+        // this and resumes the full path.
+        if (document.documentElement.classList.contains('transparentDocument')) {
+            if (CT_CONFIG !== null) setupRatingPlate();
+            return;
+        }
         applyCssLabels();
         updateAdmin();
         addButton();
@@ -2036,7 +2050,11 @@
         setupTopTen();
         setupMatchScore();
         setupDetailClip();
-        nfRescueStuckImages();
+        // nfRescueStuckImages does a full-document querySelectorAll; it's a slow-path rescue
+        // for images the lazy-loader dropped, not a per-frame concern — throttle it to ~1s so
+        // it doesn't scan the whole document on every single mutation frame during scrolling.
+        var nfNow = Date.now();
+        if (nfNow - nfLastRescue > 1000) { nfLastRescue = nfNow; nfRescueStuckImages(); }
         // ---- Home billboard top-bleed fix ----
         // The home page keeps jellyfin's stock .libraryPage padding-top:7.5em, which
         // pushes .nf-hero ~120px down so it no longer bleeds under the header (a tall
