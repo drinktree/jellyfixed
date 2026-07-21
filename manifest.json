@@ -13,7 +13,7 @@
         "changelog": "Detail-page polish (first pass): the Video / Audio / Subtitles pickers \u2014 which showed the raw release filename and read like a form on an otherwise cinematic page \u2014 are receded into quiet, compact, chip-style controls with small uppercase labels. More detail-page refinements to follow.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.62/custom-theme-v2.5.62.zip",
-        "checksum": "",
+        "checksum": "96b1a1bab5b32be147e56d43e1619cda",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
