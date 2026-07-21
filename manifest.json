@@ -13,7 +13,7 @@
         "changelog": "Brings back the full v2.5.54 visual design ON TOP of the reliability/performance work \u2014 the best of both. Restores the v2.5.51 visual overhaul (design-token system: elevation + radii + easing, reworked billboard scrim, red-darkens-on-hover, sharper device-density artwork) and the cinematic 'stunning pass': ambient colour glow sampled from the artwork, film grain (desktop only), row edge-fades, staggered hover reveal, hero trailer choreography (title logo shrinks / synopsis fades as the trailer plays), variable-font typography, scroll-snap, TV focus glow-ring and physical button-press depth, plus the Ambient colour + Film grain toggles. Every reliability/perf fix is kept: preview clips still skip on mobile/cellular/save-data, the video-player fast-path keeps seek-bar scrubbing smooth, home builders don't force layout off-screen, row scrolling is cached, backdrop-filter blur is off on touch, and the hero loads one device-sized backdrop instead of six. Merge verified by two adversarial review passes.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.59/custom-theme-v2.5.59.zip",
-        "checksum": "",
+        "checksum": "20980837ea40e616de86e189d5c7b3d6",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
