@@ -13,7 +13,7 @@
         "changelog": "Actually fixes the episode list on season pages. v2.5.63's fix targeted the wrong markup, so its rules never applied while one stray rule collapsed the layout. Verified against the live Jellyfin 10.11 DOM: episode rows are .listItem elements with an inner .listItem-content wrapper (there is no .detailPageContent on this page), so the previous selectors matched nothing and the synopsis wrapped one word per line, the thumbnail was missing and the buttons floated into the text. The row is now rebuilt correctly by styling .listItem-content: a 16:9 landscape preview on the left, title / runtime / synopsis filling the middle, and the action buttons kept to the right - a clean Netflix episode row.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.64/custom-theme-v2.5.64.zip",
-        "checksum": "",
+        "checksum": "fba42d105948eac27869ccb386b8be5c",
         "timestamp": "2026-07-21T00:00:00"
       },
       {
