@@ -13,7 +13,7 @@
         "changelog": "Fixes the missing / glitchy seek-bar preview thumbnail during video playback in the desktop app (Jellyfin Media Player). The theme paints two fixed full-viewport decorative layers - a film grain and a red vignette - that sit over the video OSD. They were only removed when the browser sets transparentDocument, which the desktop app never does, so over the app's player they covered the scrub-preview thumbnail and its per-mouse-move repaint glitched under the grain's blend. They (plus the ambient glow) are now also removed whenever playback is detected via the OSD header, with a CSS backstop keyed on the video OSD, so Jellyfin's stock seek preview renders untouched.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.66/custom-theme-v2.5.66.zip",
-        "checksum": "",
+        "checksum": "b84a515ff2893aa517bca8bffff11cca",
         "timestamp": "2026-07-22T00:00:00"
       },
       {
