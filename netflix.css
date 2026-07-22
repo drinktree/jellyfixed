@@ -2044,95 +2044,105 @@ html.transparentDocument .view-transition { animation: none !important; }
 }
 #similarCollapsible .scrollSlider > .card { width: auto !important; min-width: 0 !important; }
 
-/* ===== EPISODE LIST (Season / single-season Series page) — Netflix episode row.
-   VERIFIED against the live Jellyfin 10.11 DOM (2026-07-21) in the public demo with
-   this theme injected. The real markup is:
-     .listItem.listItem-withContentWrapper           (outer wrapper)
-       > .listItem-content                           (THE flex row: image | body | buttons)
-           > .listItemImage(.listItemImage-large)    (background-image thumbnail, NOT an <img>)
-           > .listItemBody                           (.listItemBodyText title / .listItemMediaInfo / .listItem-overview)
-           > .listViewUserDataButtons                (info / played / favorite / menu)
-   The section is #listChildrenCollapsible.detailVerticalSection.
-   GOTCHA that broke v2.5.62–2.5.63: there is NO `.detailPageContent` on this page
-   (it is `.detailPagePrimaryContent`), and image/body/buttons are NOT direct
-   children of `.listItem` — they live inside `.listItem-content`. So the old
-   `.detailPageContent .listItem > .listItemImage` rules matched nothing, while the
-   one rule that DID match forced `.listItem` itself to `flex-flow:row`, collapsing
-   the body to ~109px (synopsis one word per line). Style `.listItem-content`, not
-   `.listItem`, and scope to `.itemDetailPage`. ===== */
-.itemDetailPage .listItem {
-    display: block !important;
-    width: auto !important;
-    border-radius: 0 !important;
-    border-bottom: 1px solid #404040 !important;
-    padding: 14px 8px !important;
-    background: transparent !important;
-    transition: background-color 0.2s ease !important;
-}
-.itemDetailPage .detailVerticalSection .listItem:last-child { border-bottom: none !important; }
-.itemDetailPage .listItem:hover { background-color: rgba(255,255,255,0.05) !important; }
+/* ===== EPISODE & SEASON OVERVIEWS as full-width Netflix card rows =====
+   VERIFIED live on demo.jellyfin.org (Jellyfin 10.11) with this theme injected — both a
+   Season page (episodes) and a Series page (seasons).
 
-/* The real flex row (image | body | buttons) */
-.itemDetailPage .listItem .listItem-content {
+   Both overviews render into #listChildrenCollapsible, which sits INSIDE the narrow
+   .detailPagePrimaryContent (max-width:700px — intentional for the metadata/overview
+   column). Season page: episodes are `.listItem.listItem-withContentWrapper` in a
+   `.itemsContainer.vertical-list` (image/body/buttons live inside a `.listItem-content`
+   wrapper — there is NO `.detailPageContent` here; that gotcha broke the v2.5.62–2.5.64
+   attempts). Series page: seasons are native `.card.overflowPortraitCard` in a
+   `.itemsContainer.vertical-wrap`.
+
+   The user wanted these to look like the home rows; the old vertical list was cramped in
+   the 700px column. So we: (a) break the section out of the 700px column to full width
+   (92vw, matching the secondary/cast sections) WITHOUT widening the metadata siblings;
+   (b) turn the container into a horizontal scroll strip like a home row; (c) reshape each
+   episode `.listItem` into a landscape card (thumbnail on top, single-line title below,
+   synopsis + button strip hidden). Season `.card`s are native and just flow in the row. */
+
+/* (a) Full-width breakout from the 700px primary column. margin-left:-4% cancels the
+   .detailSection's `padding:0 4%`; the parent must not clip. Metadata/overview siblings
+   keep their narrow column. Scoped to #...Collapsible-in-primary so the full-width
+   secondary children rows (e.g. an artist's discography) are untouched. */
+.itemDetailPage .detailPagePrimaryContent { overflow: visible !important; }
+.itemDetailPage .detailPagePrimaryContent #listChildrenCollapsible,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible {
+    width: 92vw !important;
+    max-width: none !important;
+    margin-left: -4% !important;
+    box-sizing: border-box !important;
+}
+
+/* (b) Horizontal scroll strip — covers both the .vertical-list (episodes) and
+   .vertical-wrap (seasons) containers. Hidden scrollbar; bottom padding gives air. */
+.itemDetailPage #listChildrenCollapsible .itemsContainer,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .itemsContainer {
     display: flex !important;
     flex-flow: row nowrap !important;
-    align-items: flex-start !important;
-    gap: 16px !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    gap: 6px !important;
+    padding: 6px 0 24px !important;
+    scrollbar-width: none !important;
+}
+.itemDetailPage #listChildrenCollapsible .itemsContainer::-webkit-scrollbar,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .itemsContainer::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Native season / children cards just flow in the row */
+.itemDetailPage #listChildrenCollapsible .card,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .card {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+}
+
+/* (c) Episode `.listItem` -> landscape card (thumbnail on top, title below).
+   Card width matches the home Continue-Watching cards (clamp 220–340). */
+.itemDetailPage #listChildrenCollapsible .listItem {
+    flex: 0 0 auto !important;
+    width: clamp(220px, 19vw, 340px) !important;
+    display: block !important;
+    border-bottom: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+.itemDetailPage #listChildrenCollapsible .listItem:hover { background: transparent !important; }
+.itemDetailPage #listChildrenCollapsible .listItem .listItem-content {
+    display: flex !important;
+    flex-flow: column nowrap !important;
+    align-items: stretch !important;
+    gap: 7px !important;
     width: 100% !important;
 }
-
-/* Landscape preview thumbnail on the left (background-image div) */
-.itemDetailPage .listItem .listItemImage {
-    flex: 0 0 auto !important;
-    width: clamp(150px, 16vw, 200px) !important;
-    height: auto !important;
+.itemDetailPage #listChildrenCollapsible .listItem .listItemImage {
+    width: 100% !important;
     aspect-ratio: 16 / 9 !important;
-    min-height: 0 !important;
-    margin: 0 !important;
+    height: auto !important;
     border-radius: 6px !important;
     overflow: hidden !important;
-    background-size: cover !important;
-    background-position: center !important;
+    margin: 0 !important;
+    transition: outline 0.15s ease !important;
 }
-/* Defensive: some builds put a real <img> inside the image box */
-.itemDetailPage .listItem .listItemImage img {
-    width: 100% !important; height: 100% !important; object-fit: cover !important;
-}
-
-/* Title / runtime / synopsis fill the rest — min-width:0 lets the text wrap normally */
-.itemDetailPage .listItem .listItemBody {
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    width: auto !important;
-    padding: 0 !important;
-    font-family: var(--font-netflix) !important;
-}
-.itemDetailPage .listItem .listItemBody > .listItemBodyText:first-child,
-.itemDetailPage .listItem .listItemBody h3 {
-    color: #fff !important;
-    font-weight: 500 !important;
-    font-size: 1rem !important;
-}
-.itemDetailPage .listItem .secondary,
-.itemDetailPage .listItem .listItemBodyText.secondary {
-    color: #d2d2d2 !important;
-    font-size: 0.9rem !important;
-    line-height: 1.5 !important;
-}
-/* Clamp only the synopsis (the media-info line is a flex row of divs and would
-   stack vertically under a -webkit-box clamp). */
-.itemDetailPage .listItem .listItem-overview {
-    display: -webkit-box !important;
-    -webkit-line-clamp: 3 !important;
-    -webkit-box-orient: vertical !important;
+.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImage { outline: 2px solid #fff !important; }
+.itemDetailPage #listChildrenCollapsible .listItem .listItemBody { padding: 0 !important; }
+.itemDetailPage #listChildrenCollapsible .listItem .listItemBody > .listItemBodyText:first-child {
+    white-space: nowrap !important;
     overflow: hidden !important;
-    max-width: 640px !important;
+    text-overflow: ellipsis !important;
+    margin: 0 !important;
+    font-size: 0.85rem !important;
+    color: #d2d2d2 !important;
+    font-weight: 400 !important;
 }
-
-/* Action buttons kept to the right, vertically centred against the row */
-.itemDetailPage .listItem .listViewUserDataButtons {
-    flex: 0 0 auto !important;
-    align-self: center !important;
+/* hide the synopsis, media-info line and button strip for a clean card */
+.itemDetailPage #listChildrenCollapsible .listItem .listItem-overview,
+.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo,
+.itemDetailPage #listChildrenCollapsible .listItem .listViewUserDataButtons {
+    display: none !important;
 }
 
 /* --- Detail: genres as Netflix's quiet comma-separated links (stock already
