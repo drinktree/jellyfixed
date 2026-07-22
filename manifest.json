@@ -13,7 +13,7 @@
         "changelog": "Reworks the episode and season overviews on show pages into full-width horizontal card rows, like the home page rows. Previously the episode list was a narrow vertical list cramped in the left metadata column. Now the section breaks out of the 700px metadata column to full width, becomes a horizontal scrolling strip, and each episode is a 16:9 landscape card (thumbnail on top, title below). Seasons on a show page get the same full-width card-row treatment. Verified live against Jellyfin 10.11.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.65/custom-theme-v2.5.65.zip",
-        "checksum": "",
+        "checksum": "61ced5bc9364abe6d0fb9a379a9afd31",
         "timestamp": "2026-07-22T00:00:00"
       },
       {
