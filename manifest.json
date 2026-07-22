@@ -13,7 +13,7 @@
         "changelog": "Fixes the seek-bar scrub-preview thumbnail stutter during video playback in the desktop app (Jellyfin Media Player). Root cause: the theme detected playback only via transparentDocument, the video OSD page, or the OSD header - but in this Jellyfin build none of those are present during playback, so the film grain, red vignette and ambient glow were never lifted off the player and the grain's per-frame blend recomposited over the preview thumbnail on every mouse-move. Playback is now also detected via .videoPlayerContainer, the video player's mount element, which is present throughout every playback state and absent when idle (no false positives - audio playback uses a different container). Verified against the live Jellyfin web client.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.67/custom-theme-v2.5.67.zip",
-        "checksum": "",
+        "checksum": "69926a6736e808efa5199d107b73f443",
         "timestamp": "2026-07-23T00:00:00"
       },
       {
