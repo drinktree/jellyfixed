@@ -2231,16 +2231,24 @@ html.nf-playing .backgroundContainer:not(.withBackdrop) { background-image: none
    Over the OSD these layers cover the scrub-preview thumbnail, whose image repaints on
    every mouse-move and glitches under the grain's mix-blend recomposite. Re-drop grain,
    vignette AND ambient whenever the theme detects playback (html.nf-playing, set off
-   .skinHeader.osdHeader), plus a JS-independent :has() backstop keyed on the video OSD.
-   Each comma list is all-:has, so on engines without :has the whole rule simply no-ops
-   and html.nf-playing stays the fallback. --- */
+   .skinHeader.osdHeader / .videoPlayerContainer), plus a JS-independent :has() backstop.
+   .videoPlayerContainer is the UNIVERSAL playback signal: live testing on jellyfin-web found a
+   playback state (video in .videoPlayerContainer-onTop, URL still on the library route) where
+   transparentDocument, #videoOsdPage:not(.hide) AND .skinHeader.osdHeader are ALL absent — the
+   exact JMP-lag window that v2.5.66's OSD hooks never matched. .videoPlayerContainer is present
+   through every video-playback state and absent when idle (verified: gone on Home; audio uses a
+   different container), so it has no false positives. Each comma list is all-:has, so on engines
+   without :has the whole rule simply no-ops and html.nf-playing (JS) stays the fallback. --- */
 html.nf-playing body::after { display: none !important; }
 html:has(#videoOsdPage:not(.hide))::after,
-html:has(.skinHeader.osdHeader)::after { display: none !important; }
+html:has(.skinHeader.osdHeader)::after,
+html:has(.videoPlayerContainer)::after { display: none !important; }
 html:has(#videoOsdPage:not(.hide)) body::after,
-html:has(.skinHeader.osdHeader) body::after { display: none !important; }
+html:has(.skinHeader.osdHeader) body::after,
+html:has(.videoPlayerContainer) body::after { display: none !important; }
 html:has(#videoOsdPage:not(.hide)) .backgroundContainer:not(.withBackdrop),
-html:has(.skinHeader.osdHeader) .backgroundContainer:not(.withBackdrop) { background-image: none !important; }
+html:has(.skinHeader.osdHeader) .backgroundContainer:not(.withBackdrop),
+html:has(.videoPlayerContainer) .backgroundContainer:not(.withBackdrop) { background-image: none !important; }
 
 /* --- 3. Row edge fades: cards dissolve into the gutter instead of hard-cutting,
    so a row reads as continuing into the margins. Overlay gradients (not a mask,

@@ -2162,8 +2162,16 @@
         // the header for the WHOLE duration of playback (kept, just opacity-faded, when the OSD
         // controls hide) — and it's present in Jellyfin Media Player too, which does NOT set
         // transparentDocument (native mpv). #videoOsdPage is a fallback.
+        // .videoPlayerContainer is the UNIVERSAL signal (live-verified against jellyfin-web): this
+        // build has a playback state — video mounted in .videoPlayerContainer-onTop while the URL
+        // is still on the library route — where transparentDocument, #videoOsdPage:not(.hide) AND
+        // .skinHeader.osdHeader are ALL absent. That is the exact JMP-lag window: none of the three
+        // signals above fire, so nf-playing never set and the film grain (mix-blend, z-index 2.1e9)
+        // recomposited over the seek-preview thumbnail every frame. .videoPlayerContainer is present
+        // the whole time a video plays and gone when idle (verified: absent on Home, and audio
+        // playback uses a different container, so no false positives).
         var playing = document.documentElement.classList.contains('transparentDocument')
-            || !!document.querySelector('.skinHeader.osdHeader, #videoOsdPage:not(.hide)');
+            || !!document.querySelector('.skinHeader.osdHeader, #videoOsdPage:not(.hide), .videoPlayerContainer');
         document.documentElement.classList.toggle('nf-playing', playing);
         if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();

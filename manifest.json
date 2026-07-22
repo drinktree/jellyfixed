@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.67.0",
+        "changelog": "Fixes the seek-bar scrub-preview thumbnail stutter during video playback in the desktop app (Jellyfin Media Player). Root cause: the theme detected playback only via transparentDocument, the video OSD page, or the OSD header - but in this Jellyfin build none of those are present during playback, so the film grain, red vignette and ambient glow were never lifted off the player and the grain's per-frame blend recomposited over the preview thumbnail on every mouse-move. Playback is now also detected via .videoPlayerContainer, the video player's mount element, which is present throughout every playback state and absent when idle (no false positives - audio playback uses a different container). Verified against the live Jellyfin web client.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.67/custom-theme-v2.5.67.zip",
+        "checksum": "",
+        "timestamp": "2026-07-23T00:00:00"
+      },
+      {
         "version": "2.5.66.0",
         "changelog": "Fixes the missing / glitchy seek-bar preview thumbnail during video playback in the desktop app (Jellyfin Media Player). The theme paints two fixed full-viewport decorative layers - a film grain and a red vignette - that sit over the video OSD. They were only removed when the browser sets transparentDocument, which the desktop app never does, so over the app's player they covered the scrub-preview thumbnail and its per-mouse-move repaint glitched under the grain's blend. They (plus the ambient glow) are now also removed whenever playback is detected via the OSD header, with a CSS backstop keyed on the video OSD, so Jellyfin's stock seek preview renders untouched.",
         "targetAbi": "10.11.0.0",
