@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Plugin.CustomTheme</AssemblyName>
     <RootNamespace>Jellyfin.Plugin.CustomTheme</RootNamespace>
-    <Version>2.5.65.0</Version>
-    <AssemblyVersion>2.5.65.0</AssemblyVersion>
-    <FileVersion>2.5.65.0</FileVersion>
+    <Version>2.5.66.0</Version>
+    <AssemblyVersion>2.5.66.0</AssemblyVersion>
+    <FileVersion>2.5.66.0</FileVersion>
   </PropertyGroup>
 
   <!-- The bundled File Transformation provider is a separate assembly so its name

@@ -2222,6 +2222,26 @@ html.transparentDocument::after { display: none !important; }
 html.nf-playing::after { display: none !important; }
 html.nf-playing .backgroundContainer:not(.withBackdrop) { background-image: none !important; }
 
+/* --- Keep ALL theme decoration off the video player, in the desktop app too, so the
+   stock seek-bar scrub preview renders untouched. Two fixed full-viewport layers sit
+   over the player: the film grain (html::after, above) and the red vignette
+   (body::after, injected by CssGenerator). Both are dropped on .transparentDocument —
+   but the desktop app (Jellyfin Media Player / native mpv) plays WITHOUT it, so the
+   vignette was never re-dropped there and the grain leaned entirely on html.nf-playing.
+   Over the OSD these layers cover the scrub-preview thumbnail, whose image repaints on
+   every mouse-move and glitches under the grain's mix-blend recomposite. Re-drop grain,
+   vignette AND ambient whenever the theme detects playback (html.nf-playing, set off
+   .skinHeader.osdHeader), plus a JS-independent :has() backstop keyed on the video OSD.
+   Each comma list is all-:has, so on engines without :has the whole rule simply no-ops
+   and html.nf-playing stays the fallback. --- */
+html.nf-playing body::after { display: none !important; }
+html:has(#videoOsdPage:not(.hide))::after,
+html:has(.skinHeader.osdHeader)::after { display: none !important; }
+html:has(#videoOsdPage:not(.hide)) body::after,
+html:has(.skinHeader.osdHeader) body::after { display: none !important; }
+html:has(#videoOsdPage:not(.hide)) .backgroundContainer:not(.withBackdrop),
+html:has(.skinHeader.osdHeader) .backgroundContainer:not(.withBackdrop) { background-image: none !important; }
+
 /* --- 3. Row edge fades: cards dissolve into the gutter instead of hard-cutting,
    so a row reads as continuing into the margins. Overlay gradients (not a mask,
    which would clip the hover zoom); a hovered card at z-index 60 pops above. --- */
