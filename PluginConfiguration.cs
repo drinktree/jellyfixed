@@ -110,7 +110,7 @@ namespace Jellyfin.Plugin.CustomTheme
         public bool AmbientColor { get; set; } = true;
 
         /// <summary>Subtle film-grain texture over the UI (adds depth, kills banding). Off on TV.</summary>
-        public bool FilmGrain { get; set; } = true;
+        public bool FilmGrain { get; set; }
 
         /// <summary>Show Netflix-style top navigation tabs (Home + libraries) in the header (replaces the Custom Tabs plugin).</summary>
         public bool NavTabs { get; set; } = true;

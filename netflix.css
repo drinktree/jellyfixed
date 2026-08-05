@@ -47,15 +47,6 @@
     --nf-ease-in: cubic-bezier(.4,0,.68,.06);    /* leaving — hard */
     --nf-ease-fade: cubic-bezier(.33,0,0,1);
     --nf-dur: 250ms;
-
-    /* The signature eased scrim: 13 stops approximating a cubic, ending at 0.6
-       — this is what kills the Mach banding a 2-stop gradient shows. */
-    --nf-scrim-up: linear-gradient(180deg,
-        rgba(0,0,0,0) 40%, rgba(0,0,0,.008333) 45%, rgba(0,0,0,.03333) 50%,
-        rgba(0,0,0,.075) 55%, rgba(0,0,0,.1333) 60%, rgba(0,0,0,.2083) 65%,
-        rgba(0,0,0,.3) 70%, rgba(0,0,0,.3917) 75%, rgba(0,0,0,.4667) 80%,
-        rgba(0,0,0,.525) 85%, rgba(0,0,0,.5667) 90%, rgba(0,0,0,.5917) 95%,
-        rgba(0,0,0,.6) 100%);
 }
 
 /* =============================================
@@ -97,6 +88,9 @@ body, .mainDrawer, .dialog {
     z-index: 10000 !important;
     transition: background 0.4s ease !important;
     backdrop-filter: none !important;
+    /* stock sets contain:content, whose paint containment CLIPS the section-tab
+       row we hang below the 68px bar — it rendered fully invisible. */
+    contain: none !important;
 }
 
 /* Netflix: over a billboard, the header is transparent with a top scrim at the
@@ -128,19 +122,28 @@ body, .mainDrawer, .dialog {
     display: none !important;
 }
 
-/* Netflix N logo */
-.headerLeft::before {
-    content: 'N';
-    color: var(--accent-red);
+/* The page title collides with the theme nav in the header (it printed "Movies"
+   over the nav links on library pages). Netflix shows no page title in the top
+   bar — hide it in browse, but KEEP it in the player OSD where it carries the
+   "Series - S1:E3 - Name" line. */
+.skinHeader .pageTitle { display: none !important; }
+.skinHeader.osdHeader .pageTitle { display: flex !important; }
+
+/* Netflix N logo — a real, clickable element (headerButton.js builds .nf-logo
+   and wires it to Home; the old ::before pseudo could never receive the click). */
+.nf-logo {
+    color: var(--accent-red) !important;
     font-weight: 900;
-    font-size: 2.6rem;
-    letter-spacing: -2px;
+    font-size: 2rem;              /* ≈ Netflix's 25px logo cap height */
+    letter-spacing: -1.5px;
     cursor: pointer;
     display: flex;
     align-items: center;
     margin-right: 10px;
     transform: scaleY(1.1);
     font-family: var(--font-netflix);
+    text-decoration: none !important;
+    line-height: 1;
 }
 
 .headerLeft {
@@ -149,28 +152,36 @@ body, .mainDrawer, .dialog {
     padding-inline-start: 4% !important;
 }
 
-/* Header tabs centered */
+/* Library section tabs (Filme / Vorschläge / Favoriten …) — these used to be
+   absolutely centered INSIDE the 68px top bar, colliding with the theme's own
+   nav links. Move them to a clean second row under the top bar instead: quiet,
+   left-aligned on the 4% rail, solid #141414 so content scrolls under it.
+   (Home hides them entirely via html.nf-home further down.) */
 .headerTabs.sectionTabs {
-    background: transparent !important;
+    background: var(--bg-dark) !important;
     position: absolute !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
+    top: var(--nav-height) !important;
     margin: 0 !important;
-    height: var(--nav-height) !important;
+    height: 44px !important;
     display: flex !important;
     align-items: center !important;
+    justify-content: flex-start !important;
+    padding-inline-start: var(--nf-gutter) !important;
     z-index: 10 !important;
     width: auto !important;
 }
 
 /* Netflix nav items are BARE text — no pills, borders or hover backgrounds;
-   active is simply bold white, hover dims. */
+   active is simply bold white, hover dims. Section tabs are the quieter,
+   secondary tier under the primary nav. */
 .headerTabs .emby-tab-button {
     background: transparent !important;
-    color: #e5e5e5 !important;
+    color: var(--nf-text-3) !important;
     font-family: var(--font-netflix) !important;
-    font-size: 0.9rem !important;
+    font-size: 0.85rem !important;
     font-weight: 400 !important;
     padding: 7px 12px !important;
     height: auto !important;
@@ -183,7 +194,7 @@ body, .mainDrawer, .dialog {
 }
 
 .headerTabs .emby-tab-button:hover {
-    color: var(--text-muted) !important;
+    color: var(--nf-text-2) !important;
     background-color: transparent !important;
 }
 
@@ -197,16 +208,16 @@ body, .mainDrawer, .dialog {
 .emby-tabs-slider { display: flex !important; gap: 8px !important; }
 .emby-tab-button::after, .emby-tab-button .tabButtonActive-bg { display: none !important; }
 
-/* Header right */
+/* Header right — plain white icons with Netflix's roomier spacing */
 .headerRight {
     display: flex !important;
     align-items: center !important;
-    gap: 5px !important;
+    gap: 14px !important;
     padding-inline-end: 4% !important;
 }
 
-.headerRight .headerButton { color: var(--text-main) !important; opacity: 0.85; transition: opacity 0.2s ease !important; }
-.headerRight .headerButton:hover { opacity: 1; }
+.headerRight .headerButton { color: var(--text-main) !important; opacity: 1; transition: opacity 0.2s ease !important; }
+.headerRight .headerButton:hover { opacity: 0.8; }
 .headerUserButton { border-radius: 4px !important; overflow: hidden; }
 .headerSyncButton, .headerCastButton, .headerAudioPlayerButton { display: none !important; }
 
@@ -227,11 +238,11 @@ body, .mainDrawer, .dialog {
        Native overflow (auto) must stand. Home rows use their own .nf-row-scroll. */
 }
 
-/* Netflix row headers are #e5e5e5 at weight 500, not bold — one header voice
-   everywhere (the theme's own genre rows already use 500). */
+/* ONE row-header voice everywhere: Netflix's row titles read bold #e5e5e5 at
+   ~1.4vw, brightening to white on row hover (the nf-* rows share this scale). */
 .sectionTitle {
-    font-size: 1.3rem !important;
-    font-weight: 500 !important;
+    font-size: clamp(1.1rem, 1.4vw, 1.45rem) !important;
+    font-weight: 700 !important;
     margin-bottom: 0.4rem !important;
     color: #e5e5e5 !important;
     font-family: var(--font-netflix) !important;
@@ -239,10 +250,16 @@ body, .mainDrawer, .dialog {
 
 .sectionTitle:hover { color: var(--text-main) !important; }
 .padded-left, .padded-right { padding: 0 !important; }
+/* Library browse grids hang off the same 4% rail as everything else — the
+   global padded reset above exists for home rows and left the grid flush
+   against the viewport edge. */
+.libraryPage .padded-left { padding-inline-start: var(--nf-gutter) !important; }
+.libraryPage .padded-right { padding-inline-end: var(--nf-gutter) !important; }
 
-/* Section title arrow on hover — Netflix "explore" feel */
+/* Section title arrow on hover — Netflix "explore" feel. Netflix never uses
+   red for navigation affordances: light gray, brightening on hover. */
 .sectionTitle .sectionTitleTextButton {
-    color: var(--accent-red) !important;
+    color: var(--nf-text-2) !important;
     font-size: 0.85rem !important;
     font-weight: 600 !important;
     opacity: 0 !important;
@@ -267,7 +284,8 @@ body, .mainDrawer, .dialog {
 .homeSectionsContainer .scrollSlider {
     padding-bottom: 25px !important;
     margin-bottom: -25px !important;
-    gap: 6px !important;
+    gap: 4px !important;
+    gap: max(4px, 0.4vw) !important;   /* Netflix's 0.2vw-per-side tile packing; 4px floor for old engines */
 }
 
 /* Make backdrop cards (Als Nächstes, etc.) wider to fill viewport */
@@ -348,12 +366,14 @@ body, .mainDrawer, .dialog {
     opacity: 1 !important;
 }
 
-/* Unplayed count badge — Netflix red pill */
-.indicator {
+/* Unplayed count badge — Netflix red pill. .countIndicator (episode count) and
+   .mediaSourceIndicator (version-count circle) are the 10.11 classes that stock
+   paints cyan #00a4dc — the bare .indicator alone left library badges blue. */
+.indicator, .countIndicator, .mediaSourceIndicator {
     background-color: var(--accent-red) !important;
     font-family: var(--font-netflix) !important;
     font-weight: 700 !important;
-    border-radius: 3px !important;
+    border-radius: var(--r-badge) !important;
     font-size: 0.7rem !important;
     padding: 1px 5px !important;
     min-width: 18px !important;
@@ -418,13 +438,36 @@ body, .mainDrawer, .dialog {
     background: transparent !important;
 }
 
+/* The in-flow backdrop band (#itemBackdrop) used to end in a hard horizontal
+   edge against the black page. Netflix dissolves the art into the background.
+   Gated to pages WITHOUT the fixed app backdrop (.withBackdrop): when that
+   full-viewport layer is up it continues below the spacer, and fading the
+   spacer alone would paint a dark band mid-image (the viewport-bottom ramp on
+   .withBackdrop above handles that case). Old engines without :has() keep the
+   pre-existing hard edge — no regression. */
+.itemDetailPage #itemBackdrop { position: relative !important; }
+html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop::after {
+    content: '';
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+        rgba(20,20,20,0) 55%, rgba(20,20,20,.06) 62%, rgba(20,20,20,.16) 69%,
+        rgba(20,20,20,.30) 76%, rgba(20,20,20,.52) 83%, rgba(20,20,20,.74) 90%,
+        rgba(20,20,20,.9) 96%, var(--bg-dark) 100%);
+}
+
 /* .backgroundContainer is a sibling of .backdropContainer (NOT inside .itemDetailPage).
    When on a detail page, Jellyfin adds .withBackdrop class.
    We make it transparent and apply the Netflix gradient overlay here (z-index 1, above backdrop). */
 .backgroundContainer.withBackdrop {
     background-color: transparent !important;
+    /* Eased 13-stop bottom ramp (same shape as the hero) — the old 3-stop fade
+       left a visible tonal step where the art met the page. */
     background-image:
-        linear-gradient(to top, var(--bg-dark) 0%, rgba(20,20,20,0.7) 20%, transparent 50%),
+        linear-gradient(180deg,
+            rgba(20,20,20,0) 38%, rgba(20,20,20,.05) 48%, rgba(20,20,20,.14) 56%,
+            rgba(20,20,20,.28) 64%, rgba(20,20,20,.46) 72%, rgba(20,20,20,.66) 80%,
+            rgba(20,20,20,.84) 88%, rgba(20,20,20,.96) 95%, var(--bg-dark) 100%),
         linear-gradient(to right, rgba(20,20,20,0.85) 0%, transparent 35%),
         linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 15%) !important;
     z-index: 1 !important;
@@ -551,7 +594,7 @@ body, .mainDrawer, .dialog {
 /* --- METADATA ROW (year, rating, score) --- */
 .itemMiscInfo {
     font-family: var(--font-netflix) !important;
-    color: #d2d2d2 !important; /* Netflix's year/duration read near-white */
+    color: var(--nf-text-2) !important; /* Netflix's year/duration read near-white */
     font-size: 0.95rem !important;
     margin-top: 2px !important;
     display: flex !important;
@@ -569,14 +612,14 @@ body, .mainDrawer, .dialog {
     font-size: 1rem !important;
 }
 
-/* Content rating badge — Netflix's maturity box is sharp-cornered */
+/* Content rating badge — one maturity-badge shape everywhere (--r-badge) */
 .mediaInfoOfficialRating {
     border: 1px solid rgba(255,255,255,0.4) !important;
-    border-radius: 0 !important;
-    padding: 1px 6px !important;
+    border-radius: var(--r-badge) !important;
+    padding: 0 0.4em !important;
     font-size: 0.75rem !important;
-    color: #bcbcbc !important;
-    line-height: 1.4 !important;
+    color: var(--nf-text-3) !important;
+    line-height: 1.5 !important;
 }
 
 /* "Ends at 11:20 PM" is a player-style estimate Netflix never shows on a title
@@ -595,10 +638,10 @@ body, .mainDrawer, .dialog {
     font-weight: 700 !important; margin-bottom: 4px !important; opacity: 0.8 !important;
 }
 .itemDetailPage .selectContainer .emby-select {
-    font-size: 0.82rem !important; color: #cfcfcf !important;
+    font-size: 0.82rem !important; color: var(--nf-text-2) !important;
     background: rgba(255,255,255,0.05) !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 6px !important; padding: 7px 30px 7px 11px !important;
+    border-radius: 4px !important; padding: 7px 30px 7px 11px !important;
     text-overflow: ellipsis !important;
     transition: background 0.2s ease, border-color 0.2s ease !important;
 }
@@ -692,10 +735,10 @@ body, .mainDrawer, .dialog {
     position: relative !important;
 }
 
+/* Netflix's circle buttons brighten their ring on hover — they never zoom. */
 .mainDetailButtons .btnPlaystate:hover, .mainDetailButtons .btnUserRating:hover, .mainDetailButtons .btnShare:hover, .mainDetailButtons .btnMoreCommands:hover {
     border-color: white !important;
     background-color: rgba(255,255,255,0.1) !important;
-    transform: scale(1.1) !important;
 }
 
 /* --- ACTIVE STATES: green check when watched, red heart when favorited --- */
@@ -747,12 +790,12 @@ body, .mainDrawer, .dialog {
     color: white !important;
 }
 
-/* --- TOOLTIPS for circle buttons on hover --- */
+/* --- TOOLTIPS for circle buttons on hover — Netflix's appear ABOVE --- */
 .mainDetailButtons .btnPlaystate::after,
 .mainDetailButtons .btnUserRating::after,
 .mainDetailButtons .btnMoreCommands::after {
     position: absolute !important;
-    bottom: -32px !important;
+    bottom: calc(100% + 10px) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     background: #e5e5e5 !important;
@@ -761,7 +804,7 @@ body, .mainDrawer, .dialog {
     font-weight: 700 !important;
     font-family: var(--font-netflix) !important;
     padding: 4px 10px !important;
-    border-radius: 3px !important;
+    border-radius: var(--r-badge) !important;
     white-space: nowrap !important;
     opacity: 0 !important;
     pointer-events: none !important;
@@ -782,18 +825,18 @@ body, .mainDrawer, .dialog {
     opacity: 1 !important;
 }
 
-/* Tooltip arrow */
+/* Tooltip arrow (points down from the tooltip above) */
 .mainDetailButtons .btnPlaystate::before,
 .mainDetailButtons .btnUserRating::before,
 .mainDetailButtons .btnMoreCommands::before {
     content: '' !important;
     position: absolute !important;
-    bottom: -8px !important;
+    bottom: calc(100% + 5px) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     border-left: 5px solid transparent !important;
     border-right: 5px solid transparent !important;
-    border-bottom: 5px solid #e5e5e5 !important;
+    border-top: 5px solid #e5e5e5 !important;
     opacity: 0 !important;
     pointer-events: none !important;
     transition: opacity 0.15s ease !important;
@@ -842,10 +885,10 @@ body, .mainDrawer, .dialog {
     z-index: 3 !important;
 }
 
-/* Description text — Netflix synopsis is white 16px/24px */
+/* Description text — Netflix synopsis is white 16px at 1.4 line-height */
 .overview-text, .itemOverview {
     font-size: 1rem !important;
-    line-height: 1.5 !important;
+    line-height: 1.4 !important;
     color: #fff !important;
     font-family: var(--font-netflix) !important;
     margin-bottom: 20px !important;
@@ -869,7 +912,8 @@ body, .mainDrawer, .dialog {
 /* Detail sections (seasons, cast, similar) */
 .detailSection { padding: 0 4% !important; }
 
-/* Fix: detailPageContent has huge left padding (for poster) — reset it */
+/* .detailPageContent DOES exist on season pages (live-verified — an earlier
+   audit wrongly called it dead): it carries the poster-era side padding. */
 .detailPageContent {
     padding-left: 4% !important;
     padding-right: 4% !important;
@@ -882,10 +926,9 @@ body, .mainDrawer, .dialog {
     padding-top: 30px !important;
 }
 
-.detailPageContent .verticalSection .sectionTitle,
 .detailPageSecondaryContainer .sectionTitle {
     font-size: 1.4rem !important;
-    font-weight: 500 !important;
+    font-weight: 700 !important;
     margin-top: 10px !important;
     margin-bottom: 12px !important;
     color: #e5e5e5 !important;
@@ -926,19 +969,32 @@ body, .mainDrawer, .dialog {
     line-height: 1.5 !important;
 }
 
-/* Season cards */
+/* Season cards — boxart never changes shape: 4px like every other tile */
 .detailVerticalSection .card.overflowPortraitCard:not(.personCard) .cardScalable {
-    border-radius: 6px !important;
+    border-radius: var(--card-radius) !important;
 }
 
-/* --- ÄHNLICHES / SIMILAR SECTION --- */
+/* --- ÄHNLICHES / SIMILAR SECTION — Netflix "More Like This" info cards:
+   artwork on top of a #2f2f2f panel that carries the text. Cards stay inert
+   (Netflix's MLT tiles don't zoom). --- */
+#similarCollapsible .card .cardBox {
+    background: var(--nf-surface-hi) !important;
+    border-radius: var(--card-radius) !important;
+    overflow: hidden !important;
+}
 #similarCollapsible .card .cardScalable {
-    border-radius: 6px !important;
+    border-radius: 0 !important;
 }
+#similarCollapsible .card:hover { transform: none !important; }
+#similarCollapsible .card:hover .cardScalable { box-shadow: none !important; }
+#similarCollapsible .card:hover .cardBox { outline: 2px solid rgba(255,255,255,0.7); }
+#similarCollapsible .cardText { padding: 2px 10px !important; color: var(--nf-text-2) !important; }
+#similarCollapsible .cardText-first { padding-top: 8px !important; color: #fff !important; }
+#similarCollapsible .cardText:last-child { padding-bottom: 10px !important; }
 
-/* --- DESCRIPTION "Mehr anzeigen" button --- */
+/* --- DESCRIPTION "Mehr anzeigen" button — quiet white, never red --- */
 .itemOverview-seeMore {
-    color: var(--accent-red) !important;
+    color: #fff !important;
     font-family: var(--font-netflix) !important;
     font-weight: 600 !important;
     transition: color 0.2s ease !important;
@@ -946,7 +1002,7 @@ body, .mainDrawer, .dialog {
 }
 
 .itemOverview-seeMore:hover {
-    color: var(--accent-red-hover) !important;
+    color: var(--nf-text-2) !important;
     text-decoration: underline !important;
 }
 
@@ -1069,7 +1125,7 @@ body, .mainDrawer, .dialog {
 .visual-card {
     background-color: rgba(0,0,0,0.85) !important;
     padding: 60px !important;
-    border-radius: 8px !important;
+    border-radius: 4px !important;   /* Netflix's login card is 4px */
     max-width: 450px !important;
 }
 
@@ -1077,7 +1133,7 @@ body, .mainDrawer, .dialog {
 #loginPage form, .loginPage form {
     background: rgba(0, 0, 0, 0.75) !important;
     padding: 48px 56px 56px !important;
-    border-radius: 8px !important;
+    border-radius: 4px !important;
     max-width: 420px !important;
     margin: 8vh auto 0 !important;
 }
@@ -1125,10 +1181,11 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
    SIDE DRAWER
    ============================================= */
 
-.mainDrawer { background-color: var(--bg-darker) !important; }
+/* Netflix menu surfaces: #141414 panel, solid #2f2f2f hover rows */
+.mainDrawer { background-color: var(--bg-dark) !important; }
 .navMenuOption { font-family: var(--font-netflix) !important; color: var(--text-muted) !important; transition: color 0.2s ease, background 0.2s ease !important; }
-.navMenuOption:hover { color: var(--text-main) !important; background-color: rgba(255,255,255,0.08) !important; }
-.navMenuOption-selected { color: var(--text-main) !important; background-color: rgba(255,255,255,0.1) !important; }
+.navMenuOption:hover { color: var(--text-main) !important; background-color: var(--nf-surface-hi) !important; }
+.navMenuOption-selected { color: var(--text-main) !important; background-color: var(--nf-surface-hi) !important; }
 
 /* Nav drawer vs. fixed header: the drawer (top:0) used to run under the
    transparent billboard header, so its top entries collided with the logo/tabs.
@@ -1137,27 +1194,37 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
 .mainDrawer-scrollContainer { padding-top: var(--nav-height) !important; }
 body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; }
 /* Gated off during playback: a filter on .mainAnimatedPages creates a containing
-   block that re-anchors the fixed OSD bar away from the viewport. */
-html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPages { filter: brightness(0.55) !important; transition: filter 0.2s ease !important; }
+   block that re-anchors the fixed OSD bar away from the viewport.
+   (nf-playing too — transparentDocument alone misses one real playback state.) */
+html:not(.transparentDocument):not(.nf-playing) body:has(.mainDrawer.drawer-open) .mainAnimatedPages { filter: brightness(0.55) !important; transition: filter 0.2s ease !important; }
 
 /* =============================================
    MISC
    ============================================= */
 
-/* Progress bar — Netflix red */
-.itemProgressBar-inner, .progressBarFill { background-color: var(--accent-red) !important; }
+/* Progress bar — ONE Netflix spec everywhere: 3px, red fill, light track.
+   .itemProgressBarForeground is the 10.11 fill class (stock cyan) — the old
+   -inner/-Fill names missed it, so library-card bars stayed blue. */
+.itemProgressBar-inner, .progressBarFill, .itemProgressBarForeground {
+    background-color: var(--accent-red) !important;
+}
 .itemProgressBar {
-    background-color: rgba(255,255,255,0.2) !important;
+    background-color: rgba(255,255,255,0.3) !important;
     border-radius: 0 !important;
     height: 3px !important;
 }
 
-/* Dialogs — dark Netflix style */
+/* Dialogs — dark Netflix style (6px surface radius, like the preview card) */
 .dialog {
-    border-radius: 8px !important;
+    border-radius: var(--r-surface) !important;
     background-color: #181818 !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
     box-shadow: var(--e-4) !important;
+}
+/* Fullscreen (phone) dialogs meet the screen edge — no radius or hairline there */
+.dialog.dialog-fullscreen, .dialog.dialog-fullscreen-lowres {
+    border-radius: 0 !important;
+    border: none !important;
 }
 .formDialogHeader {
     background-color: #181818 !important;
@@ -1191,13 +1258,14 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
    SMOOTH PAGE TRANSITIONS
    ============================================= */
 
+/* Netflix page changes are pure fades — nothing slides */
 .view-transition {
-    animation: nfFadeIn 0.35s ease !important;
+    animation: nfFadeIn 0.4s ease !important;
 }
 
 @keyframes nfFadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* Section titles — Netflix "explore more" arrow on hover */
@@ -1267,12 +1335,13 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
     font-family: var(--font-netflix) !important;
 }
 
+/* Netflix's search box is square with a bright border */
 .searchfields-txtSearch, #txtSearch {
-    background-color: rgba(0,0,0,0.7) !important;
-    border: 1px solid rgba(255,255,255,0.3) !important;
+    background-color: rgba(0,0,0,0.75) !important;
+    border: 1px solid rgba(255,255,255,0.85) !important;
     color: white !important;
     font-family: var(--font-netflix) !important;
-    border-radius: 4px !important;
+    border-radius: 0 !important;
     transition: border-color 0.2s ease, background-color 0.2s ease !important;
 }
 
@@ -1285,10 +1354,18 @@ html:not(.transparentDocument) body:has(.mainDrawer.drawer-open) .mainAnimatedPa
    SELECTION / FOCUS STATES
    ============================================= */
 
-a:focus-visible, button:focus-visible, input:focus-visible,
-select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
-    outline: 2px solid #fff !important;   /* Netflix's focus ring is white */
+/* Netflix's focus ring is white. Text fields are excluded — clicking into an
+   input always matches :focus-visible, which drew a decorative offset ring on
+   plain mouse focus; fields signal focus with their own border instead. */
+a:focus-visible, button:focus-visible,
+select:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid #fff !important;
     outline-offset: 2px !important;
+}
+input:focus, textarea:focus, .emby-input:focus {
+    outline: none !important;
+    border-color: rgba(255,255,255,0.9) !important;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.7) !important;   /* border-like, works on borderless fields */
 }
 
 /* Tab focus ring — underline plus a visible border so the focused tab
@@ -1306,7 +1383,7 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 
 @media (max-width: 768px) {
     .itemName { font-size: 1.8rem !important; }
-    .headerLeft::before { font-size: 2rem; }
+    .nf-logo { font-size: 1.7rem; }
     .detailPagePrimaryContent { max-width: 100% !important; }
     .detailPageWrapperContainer { padding-top: 20vh !important; }
     .mainDetailButtons { gap: 8px !important; }
@@ -1325,7 +1402,7 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.32); border: 2px solid transparent; background-clip: padding-box; }
-* { scrollbar-color: rgba(255,255,255,0.2) transparent; }
+html { scrollbar-color: rgba(255,255,255,0.2) transparent; }
 
 .skinHeader { transition: background 0.4s ease !important; }   /* dropped animating backdrop-filter (expensive, and the base header has none) */
 
@@ -1378,7 +1455,7 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
    .nf-noimg after retrying; people with no image at all get the same look via
    the stock defaultCardBackground classes, so both read as intentional. */
 .nf-noimg, .personCard .cardImageContainer.defaultCardBackground {
-    background-color: #2b2b2b !important;
+    background-color: var(--nf-surface-hi) !important;
     background-image: none !important;
     display: flex !important;
     align-items: center !important;
@@ -1423,7 +1500,9 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     height: 80vh;
     min-height: 480px;
     max-height: 860px;
-    margin: calc(var(--nav-height) * -1 - 10px) 0 1vw;
+    /* Negative bottom margin tucks the first row into the billboard's fade the
+       way Netflix does; capped at 3vh so it can never reach the controls band. */
+    margin: calc(var(--nav-height) * -1 - 10px) 0 -3vh;
     overflow: hidden;
     background: #0b0b0b;
 }
@@ -1432,6 +1511,14 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     opacity: 0;
     transition: opacity 1s ease;
     pointer-events: none;
+}
+/* Solid landing strip: rows tuck 3vh into the hero, and even a 97%-opaque
+   vignette lets bright backdrop pixels ghost through at the seam. This strip
+   guarantees the last stretch is truly #141414 under the overlapping row. */
+.nf-hero::before {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 7vh;
+    background: linear-gradient(180deg, rgba(20,20,20,0) 0%, rgba(20,20,20,.92) 55%, var(--bg-dark) 100%);
+    z-index: 2; pointer-events: none;
 }
 .nf-hero-slide.active { opacity: 1; pointer-events: auto; }
 .nf-hero-bg {
@@ -1479,7 +1566,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
         linear-gradient(180deg,
             rgba(20,20,20,0) 42%, rgba(20,20,20,.06) 52%, rgba(20,20,20,.16) 60%,
             rgba(20,20,20,.30) 68%, rgba(20,20,20,.48) 76%, rgba(20,20,20,.68) 84%,
-            rgba(20,20,20,.86) 92%, var(--bg-dark) 100%),
+            rgba(20,20,20,.86) 90%, rgba(20,20,20,.97) 95%, var(--bg-dark) 98%),
         /* angled directional scrim — darkest at the bottom-left corner where the
            copy lives, fully clear by ~55%, exactly as Netflix builds it */
         /* clears at 72%, not 55%: at 16:9 the top of the copy block projects to
@@ -1492,7 +1579,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     padding: 0 4% 9vh;
     max-width: 680px;
 }
-.nf-hero-logo { max-width: 80%; max-height: 170px; margin-bottom: 18px; filter: var(--logo-shadow); }
+.nf-hero-logo { max-width: 95%; max-height: min(26vh, 230px); margin-bottom: 18px; filter: var(--logo-shadow); }
 .nf-hero-title {
     font-family: var(--font-netflix);
     font-weight: 900; font-size: clamp(2rem, 4.4vw, 4rem); line-height: 1.02;
@@ -1504,7 +1591,19 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     margin-bottom: 14px; font-size: 0.95rem; color: var(--nf-text-2); font-weight: 600;
 }
 .nf-hero-match { color: #46d369; font-weight: 700; }
-.nf-hero-rating { border: 1px solid rgba(255,255,255,0.45); border-radius: 3px; padding: 0 6px; font-size: 0.8rem; }
+/* Billboard maturity badge — Netflix pins it to the slide's right edge with a
+   #dcdcdc bar (headerButton.js emits .nf-hero-maturity per slide; the old
+   inline .nf-hero-rating chip in the meta row is gone). */
+.nf-hero-maturity {
+    position: absolute; right: 0; bottom: calc(9vh + 1px); z-index: 6;
+    display: flex; align-items: center; box-sizing: border-box;
+    min-width: 8.5em; min-height: 42px;
+    background: rgba(51,51,51,0.6);
+    border-left: 3px solid #dcdcdc;
+    color: #fff; font-size: 0.95rem;
+    padding: 0.4em 3.2em 0.4em 0.8em;
+}
+.nf-hero-rating { border: 1px solid rgba(255,255,255,0.45); border-radius: var(--r-badge); padding: 0 0.4em; font-size: 0.8rem; }
 .nf-hero-overview {
     font-family: var(--font-netflix);
     font-size: 1.05rem; line-height: 1.45; color: var(--nf-text-2);
@@ -1515,14 +1614,14 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .nf-hero-btn {
     display: inline-flex; align-items: center; gap: 9px;
     font-family: var(--font-netflix); font-weight: 700; font-size: 1.1rem;
-    padding: 12px 28px; border-radius: 5px; border: none; cursor: pointer;
-    text-decoration: none; transition: background 0.2s ease, transform 0.12s ease;
+    padding: 12px 28px; border-radius: 4px; border: none; cursor: pointer;
+    text-decoration: none; transition: background 0.2s ease;
 }
 .nf-hero-btn .material-icons { font-size: 1.6rem; }
-.nf-hero-btn:hover { transform: scale(1.03); }
+/* Netflix billboard buttons respond with background only — no zoom, no lift. */
 .nf-hero-play { background: #fff; color: #000; }
 .nf-hero-play:hover { background: rgba(255,255,255,0.78); }
-.nf-hero-info { background: rgba(109,109,110,0.6); color: #fff; }
+.nf-hero-info { background: rgba(109,109,110,0.7); color: #fff; }
 .nf-hero-info:hover { background: rgba(109,109,110,0.4); }
 .nf-hero-list {
     background: rgba(42,42,42,0.6); color: #fff;
@@ -1532,7 +1631,10 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .nf-hero-list:hover { border-color: #fff; background: rgba(42,42,42,0.85); transform: none; }
 .nf-hero-list.active .material-icons { color: #46d369; }
 .nf-hero-controls {
-    position: absolute; right: 0; bottom: 9vh; z-index: 4;
+    /* Netflix's bottom-right line: [pause][dots][mute] … [maturity badge flush
+       at the edge]. Controls clear the badge's reserved band; z-index 6 keeps
+       them clickable above rows tucked into the hero's bottom margin. */
+    position: absolute; right: 150px; bottom: 9vh; z-index: 6;
     display: flex; align-items: center; gap: 14px;
 }
 .nf-hero-ctrl {
@@ -1541,7 +1643,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .nf-hero-ctrl:hover { border-color: #fff; }
-.nf-hero-dots { display: flex; gap: 2px; align-items: center; padding-inline-end: 4%; }
+.nf-hero-dots { display: flex; gap: 2px; align-items: center; }
 /* Dots are real buttons: keyboard-focusable, labelled, with a ≥24px hit area. */
 .nf-hero-dot {
     min-width: 17px; height: 24px; padding: 0;
@@ -1567,7 +1669,10 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 /* =============================================
    CURATED GENRE ROWS (built by headerButton.js) — replaces Home Screen Sections
    ============================================= */
-.nf-genre-section { margin: 0 0 3vw; }
+/* position:relative + z-index: rows tuck into the hero's bottom fade (negative
+   hero margin) — static sections would otherwise paint UNDER the hero's
+   absolutely-positioned slides and get their titles clipped. */
+.nf-genre-section { margin: 0 0 2.6vw; position: relative; z-index: 3; }
 /* Our rows carry the gutter on their own title/scroller — without this they
    ALSO inherit .verticalSection's 4% and sit at 8%, so row titles and first
    tiles stop lining up with the header logo and the hero copy. */
@@ -1577,9 +1682,10 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .nf-genre-section .nf-card .cardText { display: none !important; }
 .nf-genre-section .nf-card .cardBox { padding-bottom: 0 !important; }
 .nf-genre-section .sectionTitle {
-    padding-left: var(--nf-gutter);
+    display: flex; align-items: center;
+    padding-left: var(--nf-gutter); padding-right: var(--nf-gutter);
     font-size: clamp(1.1rem, 1.4vw, 1.45rem);
-    font-weight: 500; color: var(--nf-text-3) !important; letter-spacing: normal;
+    font-weight: 700; color: var(--nf-text-2) !important; letter-spacing: normal;
     margin: 0 0 0.5em;
     transition: color var(--nf-dur) var(--nf-ease-in);
 }
@@ -1591,7 +1697,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     padding: 6px var(--nf-gutter) 22px;
 }
 .nf-row-scroll::-webkit-scrollbar { display: none; }
-.nf-row-track { display: flex; gap: 0.5vw; align-items: flex-start; }
+.nf-row-track { display: flex; gap: 4px; gap: max(4px, 0.4vw); align-items: flex-start; }
 /* ~6 landscape cards across like Netflix (was ~4). The 3-class selector + !important
    overrides the global ".homeSectionsContainer .card.overflowBackdropCard {min-width:320px}". */
 .nf-genre-section .card.nf-card {
@@ -1641,40 +1747,52 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
    ============================================= */
 .nf-pop {
     position: fixed; z-index: 10010; /* above the fixed header (10000) */
-    border-radius: 6px; overflow: hidden;
+    overflow: hidden;
     background: #181818;
-    box-shadow: 0 12px 45px rgba(0,0,0,0.8);
     font-family: var(--font-netflix);
     opacity: 0; transform: scale(0.92); transform-origin: center bottom;
-    transition: opacity 0.18s ease, transform 0.18s ease;
+    transition: opacity 0.22s var(--nf-ease-out), transform 0.22s var(--nf-ease-out);
 }
 .nf-pop.show { opacity: 1; transform: scale(1); }
+/* Netflix's preview closes instantly on mouse-leave — only the open animates. */
+.nf-pop:not(.show) { transition: none; }
 .nf-pop-media { display: block; text-decoration: none; position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000 center / cover no-repeat; }
 /* Popup clip stays invisible until it actually renders frames — otherwise the
    frame-less video element paints solid black over the artwork. */
 .nf-pop-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.45s ease; }
 .nf-pop-media video.show { opacity: 1; }
 .nf-pop-fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, #181818 2%, transparent 55%); }
-.nf-pop-info { padding: 8px 16px 16px; }
-.nf-pop-actions { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.nf-pop-info { padding: 10px 16px 16px; }
+.nf-pop-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+/* Netflix's mini-modal buttons are 32px circles */
 .nf-pop-btn {
-    width: 38px; height: 38px; border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.5); background: rgba(42,42,42,0.55); color: #fff;
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5); background: rgba(42,42,42,0.6); color: #fff;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease;
 }
-.nf-pop-btn .material-icons { font-size: 22px; }
+.nf-pop-btn .material-icons { font-size: 18px; }
 .nf-pop-btn.play { background: #fff; color: #000; border-color: #fff; }
 .nf-pop-btn.play:hover { background: rgba(255,255,255,0.8); }
-.nf-pop-btn:hover { border-color: #fff; background: rgba(60,60,60,0.8); }
+.nf-pop-btn:hover { border-color: #fff; background: rgba(42,42,42,0.9); }
 .nf-pop-btn.more { margin-left: auto; }
 .nf-pop-btn.nf-pop-list.active .material-icons { color: #46d369; }
-.nf-pop-title { font-weight: 700; font-size: 1rem; color: #fff; margin-bottom: 7px; line-height: 1.2; }
-.nf-pop-meta { display: flex; align-items: center; gap: 9px; font-size: 0.82rem; color: #ddd; margin-bottom: 7px; flex-wrap: wrap; }
+/* Title rides ON the artwork (Netflix's boxart carries the name) and fades out
+   once the preview clip is actually rendering frames. */
+.nf-pop-media-title {
+    position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 1;
+    font-weight: 700; font-size: 1.05rem; color: #fff; line-height: 1.15;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.8);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: opacity 0.4s ease;
+}
+.nf-pop-media.clip-on .nf-pop-media-title { opacity: 0; }
+.nf-pop-meta { display: flex; align-items: center; gap: 9px; font-size: 0.9rem; color: var(--nf-text-2); margin-bottom: 7px; flex-wrap: wrap; }
 .nf-pop-match { color: #46d369; font-weight: 700; }
-.nf-pop-rating { border: 1px solid rgba(255,255,255,0.4); padding: 0 5px; border-radius: 3px; font-size: 0.72rem; }
-.nf-pop-genres { font-size: 0.82rem; color: #ccc; }
-.nf-pop-genres span:not(:last-child)::after { content: '•'; margin: 0 7px; color: #777; }
+.nf-pop-rating { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.72rem; }
+.nf-pop-hd { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.66rem; color: var(--nf-text-3); }
+.nf-pop-genres { font-size: 0.85rem; color: var(--nf-text-2); }
+.nf-pop-genres span:not(:last-child)::after { content: '•'; margin: 0 7px; color: #646464; }
 @media (max-width: 768px) { .nf-pop { display: none; } }
 
 /* =============================================
@@ -1688,18 +1806,18 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 html.nf-home .skinHeader .headerTabs { display: none !important; }
 
 /* Continue Watching row — own sharp landscape cards with progress (no blurhash) */
-.nf-cw-section { margin: 0 0 2.4vw; }
-.nf-cw-section .sectionTitle { padding-left: var(--nf-gutter); font-size: clamp(1.1rem, 1.4vw, 1.45rem); font-weight: 500; color: var(--nf-text-3) !important; letter-spacing: normal; margin: 0 0 0.5em; transition: color var(--nf-dur) var(--nf-ease-in); }
+.nf-cw-section { margin: 0 0 2.6vw; position: relative; z-index: 3; }
+.nf-cw-section .sectionTitle { display: flex; align-items: center; padding-left: var(--nf-gutter); padding-right: var(--nf-gutter); font-size: clamp(1.1rem, 1.4vw, 1.45rem); font-weight: 700; color: var(--nf-text-2) !important; letter-spacing: normal; margin: 0 0 0.5em; transition: color var(--nf-dur) var(--nf-ease-in); }
 .nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 6px var(--nf-gutter) 22px; }
 .nf-cw-scroll::-webkit-scrollbar { display: none; }
-.nf-cw-track { display: flex; gap: 0.5vw; align-items: flex-start; }
-.nf-cw-card { flex: 0 0 auto; width: clamp(220px, 19vw, 340px); text-decoration: none; }
+.nf-cw-track { display: flex; gap: 4px; gap: max(4px, 0.4vw); align-items: flex-start; }
+/* Same tile size as every other row — Netflix never sizes Continue Watching differently */
+.nf-cw-card { flex: 0 0 auto; width: clamp(165px, 15.2vw, 285px); text-decoration: none; }
 .nf-cw-thumb {
     position: relative; width: 100%; aspect-ratio: 16 / 9;
-    border-radius: 5px; overflow: hidden;
-    background: #222 center / cover no-repeat;
-    box-shadow: var(--e-1);
-    transition: outline 0.15s ease;
+    border-radius: var(--card-radius); overflow: hidden;
+    background: var(--nf-surface) center / cover no-repeat;
+    transition: outline 0.15s ease;   /* flat at rest — Netflix tiles carry no resting shadow */
 }
 .nf-cw-card:hover .nf-cw-thumb { outline: 2px solid #fff; }
 .nf-cw-play {
@@ -1711,9 +1829,11 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 }
 .nf-cw-card:hover .nf-cw-play { opacity: 1; }
 .nf-cw-play .material-icons { color: #fff; font-size: 26px; }
-.nf-cw-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,0.25); }
+.nf-cw-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,0.3); }
 .nf-cw-prog > i { display: block; height: 100%; background: var(--accent-red, #E50914); }
-.nf-cw-title { margin-top: 7px; font-size: 0.85rem; color: #d2d2d2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Netflix's Continue Watching tiles are clean boxart — no text under the card.
+   Title/episode/time live in the hover popup like every other row. */
+.nf-cw-title { display: none; }
 @media (max-width: 768px) { .nf-cw-card { width: 60vw; } }
 
 /* =============================================
@@ -1746,14 +1866,16 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
     position: fixed !important;
     top: 50% !important;
     left: 50% !important;
-    width: 50px;
-    height: 50px;
-    margin: -25px 0 0 -25px !important;
+    width: 54px;
+    height: 54px;
+    margin: -27px 0 0 -27px !important;
     box-sizing: border-box;
     border-radius: 50%;
-    border: 8px solid;
-    border-color: var(--accent-red, #E50914) transparent;
-    animation: nf-loadspin 1s infinite;
+    /* Netflix's loader: ONE red arc sweeping at constant speed (a double arc +
+       eased timing read as a wobble). */
+    border: 4px solid;
+    border-color: var(--accent-red, #E50914) var(--accent-red, #E50914) var(--accent-red, #E50914) transparent;
+    animation: nf-loadspin 0.9s linear infinite;
     z-index: 100000;
 }
 @keyframes nf-loadspin { to { transform: rotate(1turn); } }
@@ -1768,14 +1890,13 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
     border-inline-start: 1px solid var(--nf-hairline);
     box-shadow: var(--e-4) !important;
 }
-/* Frosted hover-preview popup with deeper, softer shadow */
+/* Hover-preview popup: opaque slab with Netflix's tight drop shadow — no glass,
+   no glow halo, no hairline ring. */
 .nf-pop {
-    /* Netflix's preview card is an opaque #181818 slab — no glass anywhere in
-       their product, and blur on a scaling element also shimmers. */
     background: var(--nf-surface) !important;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    box-shadow: var(--e-3), 0 0 0 1px rgba(255,255,255,0.06);
+    box-shadow: rgba(0, 0, 0, 0.75) 0px 3px 10px;
     border-radius: var(--r-surface);
 }
 .nf-pop-media { border-radius: var(--r-surface) var(--r-surface) 0 0; }
@@ -1789,12 +1910,11 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
     /* Netflix scales the tile — it never re-rounds it mid-zoom. */
     border-radius: var(--card-radius) !important;
 }
-/* Micro-interactions on the round action buttons */
+/* Buttons respond with color only — Netflix never zooms or lifts them.
+   (The zero-duration :active dip further down stays: that one IS Netflix.) */
 .nf-hero-btn, .nf-pop-btn {
-    transition: transform .15s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+    transition: background-color .2s ease, border-color .2s ease;
 }
-.nf-hero-btn:hover { transform: translateY(-1px); }
-.nf-pop-btn:hover { transform: scale(1.08); }
 /* Slightly glassy genre/trend section headers */
 .nf-genre-section .sectionTitle, .nf-cw-section .sectionTitle {
     letter-spacing: .2px;
@@ -1805,27 +1925,34 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
    to reach off-screen cards on desktop; Netflix-style hover chevrons.
    ============================================= */
 .nf-row-wrap { position: relative; }
+/* Netflix's row handles are flat translucent strips spanning the row height,
+   with a large chevron — not gradient fades. */
 .nf-row-arrow {
     position: absolute; top: 6px; bottom: 22px; width: 4%; min-width: 36px;
     z-index: 6; border: none; padding: 0; color: #fff; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.2s ease;
+    opacity: 0; transition: opacity 0.2s ease, background 0.2s ease;
+    background: rgba(20,20,20,0.5);
 }
-.nf-row-arrow-back { left: 0; background: linear-gradient(to right, rgba(20,20,20,0.8), transparent); }
-.nf-row-arrow-fwd { right: 0; background: linear-gradient(to left, rgba(20,20,20,0.8), transparent); }
+.nf-row-arrow-back { left: 0; border-radius: 0 var(--card-radius) var(--card-radius) 0; }
+.nf-row-arrow-fwd { right: 0; border-radius: var(--card-radius) 0 0 var(--card-radius); }
+.nf-row-arrow:hover { background: rgba(20,20,20,0.7); }
 .nf-row-wrap:hover .nf-row-arrow, .nf-row-arrow:focus-visible { opacity: 1; }
 .nf-at-start .nf-row-arrow-back, .nf-at-end .nf-row-arrow-fwd { visibility: hidden; }
-.nf-row-arrow .material-icons { font-size: 34px; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+.nf-row-arrow .material-icons { font-size: 40px; transition: transform 0.15s ease; }
+.nf-row-arrow:hover .material-icons { transform: scale(1.25); }
 @media (max-width: 768px), (hover: none) { .nf-row-arrow { display: none; } }
 
-/* Netflix page-indicator segments in the row header, revealed on row hover. */
+/* Netflix page-indicator segments — top-right of the row header, revealed on
+   row hover (the section title is a flex row; auto margin pushes these to the
+   4% right rail exactly like Netflix). */
 .nf-row-pages {
-    display: inline-flex; gap: 2px; margin-inline-start: 12px;
+    display: inline-flex; gap: 1px; margin-inline-start: auto;
     vertical-align: middle; opacity: 0; transition: opacity 0.2s ease;
 }
 .verticalSection:hover .nf-row-pages { opacity: 1; }
 .nf-row-page { width: 12px; height: 2px; background: #4d4d4d; }
-.nf-row-page.active { background: #aaa; }
+.nf-row-page.active { background: #b3b3b3; }
 @media (max-width: 768px), (hover: none) { .nf-row-pages { display: none; } }
 
 /* Netflix's red NEW flag on freshly added artwork. */
@@ -1833,15 +1960,13 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
     position: absolute; top: 0; inset-inline-start: 0; z-index: 2;
     background: var(--accent-red); color: #fff;
     font-family: var(--font-netflix); font-size: 0.62rem; font-weight: 700;
-    letter-spacing: 0.08em; padding: 2px 7px; border-radius: 0 0 3px 0;
+    letter-spacing: 0.08em; padding: 2px 7px; border-radius: 0 0 var(--r-badge) 0;
     pointer-events: none;
 }
 
-/* Continue Watching: episode/time line and the Netflix remove control. */
-.nf-cw-sub {
-    margin-top: 2px; font-size: 0.78rem; color: #8c8c8c;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+/* Continue Watching: the episode/time line moved into the hover popup with the
+   title — tiles stay clean boxart like Netflix. */
+.nf-cw-sub { display: none; }
 .nf-cw-remove {
     position: absolute; top: 6px; inset-inline-end: 6px; z-index: 3;
     width: 30px; height: 30px; border-radius: 50%;
@@ -1871,27 +1996,37 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
 
 /* Audio / subtitle pickers DURING PLAYBACK only — html.transparentDocument is
    set by the client while the player is up, so app-wide menus keep their look. */
-html.transparentDocument .actionSheet {
+html.transparentDocument .actionSheet,
+html.nf-playing .actionSheet {
     background: rgba(20,20,20,0.96) !important;
     border: 1px solid rgba(255,255,255,0.12) !important;
     border-radius: 6px !important;
 }
-html.transparentDocument .actionSheetTitle {
+html.transparentDocument .actionSheetTitle,
+html.nf-playing .actionSheetTitle {
     font-family: var(--font-netflix) !important;
     font-size: 1.3rem !important; font-weight: 700 !important;
     text-transform: none !important; color: #fff !important;
 }
-html.transparentDocument .actionSheetMenuItem {
+html.transparentDocument .actionSheetMenuItem,
+html.nf-playing .actionSheetMenuItem {
     border-radius: 0 !important; padding: 0.65em 1.2em !important;
     border-inline-start: 3px solid transparent !important;
 }
-html.transparentDocument .actionSheetMenuItem:hover { background: rgba(255,255,255,0.08) !important; }
+html.transparentDocument .actionSheetMenuItem:hover,
+html.nf-playing .actionSheetMenuItem:hover { background: rgba(255,255,255,0.08) !important; }
 /* Selected track: Netflix marks it with a red bar rather than a tick.
    NOTE: jellyfin gives EVERY item a .listItemIcon.check span for alignment and
    hides the unselected ones with an inline visibility:hidden — so the selected
    one is the only check that is not inline-hidden. */
-html.transparentDocument .actionSheetMenuItem .listItemIcon.check { color: transparent !important; width: 0 !important; margin: 0 !important; }
+html.transparentDocument .actionSheetMenuItem .listItemIcon.check,
+html.nf-playing .actionSheetMenuItem .listItemIcon.check { color: transparent !important; width: 0 !important; margin: 0 !important; }
 html.transparentDocument .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden"])) {
+    border-inline-start-color: var(--accent-red) !important;
+    background: rgba(255,255,255,0.05) !important;
+    font-weight: 600 !important;
+}
+html.nf-playing .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden"])) {
     border-inline-start-color: var(--accent-red) !important;
     background: rgba(255,255,255,0.05) !important;
     font-weight: 600 !important;
@@ -1960,8 +2095,20 @@ html.transparentDocument .view-transition { animation: none !important; }
     padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left) !important;
 }
 .skinHeader.osdHeader.osdHeader-hidden { opacity: 0 !important; }
-/* No Netflix "N" in the player header — it sits next to the back button. */
-.skinHeader.osdHeader .headerLeft::before { display: none !important; }
+/* No Netflix "N" and no browse nav in the player header — Netflix's player
+   shows only back + title. */
+.skinHeader.osdHeader .nf-logo, .skinHeader.osdHeader .headerLeft::before { display: none !important; }
+.skinHeader.osdHeader .nf-nav-tabs { display: none !important; }
+html.nf-playing .nf-nav-tabs { display: none !important; }
+html:has(.videoPlayerContainer) .nf-nav-tabs { display: none !important; }
+
+/* The theme's fixed opaque header (z 10000) painted OVER the video in the
+   verified playback state where the client never adds .osdHeader (video mounts
+   in .videoPlayerContainer-onTop at z 1000, URL still on a browse route — the
+   JMP case). Sink the header below the player there, exactly like stock's
+   z-999 header; the .osdHeader state above keeps its own in-flow handling. */
+html.nf-playing .skinHeader:not(.osdHeader) { z-index: 900 !important; }
+html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !important; }
 
 /* =============================================
    LOADING & IMAGE REVEAL — Netflix never shows a hard image swap or a blank
@@ -2122,12 +2269,25 @@ html.transparentDocument .view-transition { animation: none !important; }
     width: 100% !important;
     aspect-ratio: 16 / 9 !important;
     height: auto !important;
-    border-radius: 6px !important;
+    border-radius: var(--card-radius) !important;
     overflow: hidden !important;
     margin: 0 !important;
-    transition: outline 0.15s ease !important;
+    transition: filter 0.2s ease, box-shadow 0.2s ease !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImage { outline: 2px solid #fff !important; }
+/* Hover matches the home cards' response (brighten + lift), not a white ring */
+.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImage {
+    filter: brightness(1.12) !important;
+    box-shadow: var(--e-2) !important;
+}
+/* The stock play circle sits on every thumb at rest — Netflix reveals it on hover */
+.itemDetailPage #listChildrenCollapsible .listItem .listItemImageButton {
+    opacity: 0 !important;
+    transition: opacity 0.2s ease !important;
+}
+.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImageButton,
+.itemDetailPage #listChildrenCollapsible .listItem .listItemImageButton:focus-visible {
+    opacity: 1 !important;
+}
 .itemDetailPage #listChildrenCollapsible .listItem .listItemBody { padding: 0 !important; }
 .itemDetailPage #listChildrenCollapsible .listItem .listItemBody > .listItemBodyText:first-child {
     white-space: nowrap !important;
@@ -2135,13 +2295,28 @@ html.transparentDocument .view-transition { animation: none !important; }
     text-overflow: ellipsis !important;
     margin: 0 !important;
     font-size: 0.85rem !important;
-    color: #d2d2d2 !important;
+    color: var(--nf-text-2) !important;
     font-weight: 400 !important;
 }
-/* hide the synopsis, media-info line and button strip for a clean card */
+/* hide the synopsis and button strip for a clean card; the media-info line
+   stays as a quiet runtime row (Netflix's episode cards show duration) */
 .itemDetailPage #listChildrenCollapsible .listItem .listItem-overview,
-.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo,
 .itemDetailPage #listChildrenCollapsible .listItem .listViewUserDataButtons {
+    display: none !important;
+}
+.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo {
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 0.75rem !important;
+    color: var(--nf-text-4) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+/* Netflix episode cards show the runtime alone — no end-time estimate, no
+   match score in the card line. */
+.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo .endsAt,
+.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo .starRatingContainer {
     display: none !important;
 }
 
@@ -2152,7 +2327,7 @@ html.transparentDocument .view-transition { animation: none !important; }
     background: none !important;
     padding: 0 !important;
     font-size: 0.9rem !important;
-    color: #ddd !important;
+    color: var(--nf-text-2) !important;
 }
 .genresGroup .genres .button-link:hover, .genres a.button-link:hover {
     color: #fff !important;
@@ -2188,8 +2363,10 @@ html.transparentDocument .view-transition { animation: none !important; }
    app WebViews. The fallbacks below keep the opaque #181818 layer alive where
    @property is unsupported (iOS < 16.4, frozen WebViews) or before JS samples. */
 html.layout-mobile { transition: none; }
+/* The glow hugs the hero seam only — Netflix's browse canvas is flat #141414,
+   so the tint must read as light spilling from the billboard, not a wash. */
 .backgroundContainer:not(.withBackdrop) {
-    background-image: radial-gradient(120% 90% at 50% 22%, var(--nf-ambient-glow, transparent) 0%, transparent 60%) !important;
+    background-image: radial-gradient(120% 60% at 50% 0%, var(--nf-ambient-glow, transparent) 0%, transparent 45%) !important;
 }
 .detailPageSecondaryContainer {
     background-image:
@@ -2203,6 +2380,9 @@ html.layout-mobile { transition: none; }
    UI. Hidden during playback so it never touches the picture. Desktop only: a
    full-viewport fixed mix-blend layer forces a per-frame recomposite that janks
    scrolling/preview playback on the low-end mobile WebViews the apps run in. --- */
+@media (hover: hover) and (pointer: fine) {
+/* hover-gated: iPads/touch laptops in desktop mode report layout-desktop but
+   still run WebView compositors that jank under a fixed blend layer */
 html:not(.layout-tv):not(.layout-mobile)::after {
     content: '';
     position: fixed;
@@ -2213,6 +2393,7 @@ html:not(.layout-tv):not(.layout-mobile)::after {
     mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNDAnIGhlaWdodD0nMTQwJz48ZmlsdGVyIGlkPSduJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC44NScgbnVtT2N0YXZlcz0nMicgc3RpdGNoVGlsZXM9J3N0aXRjaCcvPjxmZUNvbG9yTWF0cml4IHR5cGU9J3NhdHVyYXRlJyB2YWx1ZXM9JzAnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBmaWx0ZXI9J3VybCgjbiknLz48L3N2Zz4=");
     background-size: 140px 140px;
+}
 }
 html.transparentDocument::after { display: none !important; }
 /* The desktop app (Jellyfin Media Player / native mpv) shows the video OSD WITHOUT
@@ -2257,14 +2438,14 @@ html:has(.videoPlayerContainer) .backgroundContainer:not(.withBackdrop) { backgr
     content: '';
     position: absolute;
     top: 0; bottom: 0;
-    width: 6%;   /* a touch wider than the 4% gutter so cards dissolve a bit more */
+    width: 4%;   /* matches the gutter — subtle dissolve, not a curtain */
     z-index: 5;
     pointer-events: none;
 }
-.nf-row-wrap::before { inset-inline-start: 0; background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
-.nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
-[dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
-[dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.55) 45%, transparent 100%); }
+.nf-row-wrap::before { inset-inline-start: 0; background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
+.nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
 
 /* --- 4. Staggered hover reveal: the preview card's metadata unfolds top-to-bottom
    instead of appearing all at once. --- */

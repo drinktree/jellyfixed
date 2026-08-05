@@ -151,8 +151,11 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.AppendLine("}");
 
             // --- Always-on extras (moved out of the base theme) ---
-            sb.AppendLine(".itemProgressBar-inner, .progressBarFill { background-color: var(--progress-color) !important; }");
-            sb.AppendLine(".headerUserButton .headerButton-icon { display: none !important; }");
+            sb.AppendLine(".itemProgressBar-inner, .progressBarFill, .itemProgressBarForeground { background-color: var(--progress-color) !important; }");
+            // Hide the generic person icon only when an avatar image is actually present —
+            // unconditional hiding left avatar-less accounts with an invisible button.
+            // (Engines without :has() show icon + avatar together, which still works.)
+            sb.AppendLine(".headerUserButton:has(img) .headerButton-icon { display: none !important; }");
             sb.AppendLine(".headerUserButton { overflow: hidden !important; border-radius: 4px !important; }");
 
             AppendLogo(sb, config);
@@ -263,10 +266,14 @@ namespace Jellyfin.Plugin.CustomTheme
 
             if (config.SpoilerMode)
             {
+                // Scoped to detail pages and non-person cards: the old unscoped rule
+                // blurred cast faces, library tiles and collection folders too.
                 sb.AppendLine(@".overview-text, .itemOverview { filter: blur(8px) !important; cursor: pointer !important; transition: filter 0.3s ease !important; }
 .overview-text:hover, .itemOverview:hover { filter: none !important; }
-.card:not(:has(.indicatorIcon)) .cardImageContainer { filter: blur(10px) brightness(0.6) !important; transition: filter 0.3s ease !important; }
-.card:not(:has(.indicatorIcon)) .cardImageContainer:hover { filter: none !important; }");
+.itemDetailPage .card:not(:has(.indicatorIcon)):not(.personCard) .cardImageContainer { filter: blur(10px) brightness(0.6) !important; transition: filter 0.3s ease !important; }
+.itemDetailPage .card:not(:has(.indicatorIcon)):not(.personCard) .cardImageContainer:hover { filter: none !important; }
+.itemDetailPage #listChildrenCollapsible .listItem:not(:has(.indicatorIcon)) .listItemImage { filter: blur(10px) brightness(0.6) !important; transition: filter 0.3s ease !important; }
+.itemDetailPage #listChildrenCollapsible .listItem:not(:has(.indicatorIcon)):hover .listItemImage { filter: none !important; }");
             }
         }
 
@@ -435,7 +442,10 @@ namespace Jellyfin.Plugin.CustomTheme
                 // and self-excluded under .nf-reveal-native: headerButton.js adds
                 // that class as a failsafe when the theme's rows fail to build, and
                 // natives then return to their natural display.
-                sb.AppendLine(".homeSectionsContainer:not(.nf-reveal-native) > *:not(.nf-hero):not(.nf-cw-section):not(.nf-genre-section) { display: none !important; }");
+                // Keyed on html.nf-js (added synchronously at the top of headerButton.js):
+                // if the script never loads at all, natives stay visible instead of the
+                // home page blanking forever — the hide is now fail-OPEN at every layer.
+                sb.AppendLine("html.nf-js .homeSectionsContainer:not(.nf-reveal-native) > *:not(.nf-hero):not(.nf-cw-section):not(.nf-genre-section) { display: none !important; }");
             }
 
             if (config.HoverPreviewCard)
@@ -475,12 +485,13 @@ namespace Jellyfin.Plugin.CustomTheme
                 }
             }
 
-            if (config.NavLeft)
+            if (!config.NavLeft)
             {
-                // Logo + tabs pinned to the left like Netflix, instead of centered tabs.
-                sb.AppendLine(@".headerTabs.sectionTabs { position: static !important; left: auto !important; transform: none !important; margin: 0 0 0 10px !important; }
-.headerLeft { flex: 0 0 auto !important; }
-.skinHeader .headerLeft { margin-right: 8px !important; }");
+                // The base sheet now lays the section tabs out as a left-aligned second
+                // row under the top bar (they used to be absolutely centered INSIDE it,
+                // colliding with the theme nav). NavLeft=true is that base layout;
+                // turning it off centers the second row instead.
+                sb.AppendLine(".headerTabs.sectionTabs { justify-content: center !important; padding-inline-start: 0 !important; }");
             }
 
             if (config.MatchScore)
@@ -524,17 +535,16 @@ namespace Jellyfin.Plugin.CustomTheme
             // Detail page polish (always on — lightweight). Covers series: seasons + episode list.
             sb.AppendLine(@".detailPagePrimaryContent .sectionTitle { font-size: 1.3rem !important; font-weight: 700 !important; }
 #castContent .card, .peopleCards .card { --card-radius: 50%; }
-/* Episode list rows */
-.listItem { border-radius: 8px !important; padding: 10px 12px !important; transition: background 0.2s ease !important; }
-.listItem:hover { background: rgba(255,255,255,0.07) !important; }
-.listItemImage { border-radius: 6px !important; }
+/* Episode list rows — same 4px shape and hover tint as the base sheet */
+.listItem { border-radius: 4px !important; padding: 10px 12px !important; transition: background 0.2s ease !important; }
+.listItem:hover { background: rgba(255,255,255,0.05) !important; }
+.listItemImage { border-radius: 4px !important; }
 .listItemBody .listItemBodyText { font-family: var(--font-netflix) !important; }
 .listItem .secondary, .listItemBodyText.secondary { color: var(--text-muted) !important; }
 /* Season selector / tabs on a series */
-.detailPageContent .emby-select, .seasonSelector { background: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.18) !important; border-radius: 6px !important; color: var(--text-main) !important; }
-.childrenItemsContainer .card { --card-radius: 6px; }
-/* Episode play progress + unplayed look consistent with cards */
-.listItem .itemProgressBar { border-radius: 4px !important; overflow: hidden !important; }");
+.seasonSelector { background: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.18) !important; border-radius: 4px !important; color: var(--text-main) !important; }
+/* Episode play progress — one square 3px spec everywhere */
+.listItem .itemProgressBar { border-radius: 0 !important; overflow: hidden !important; }");
         }
 
         /// <summary>Styles for the slide-in settings panel created by headerButton.js.</summary>

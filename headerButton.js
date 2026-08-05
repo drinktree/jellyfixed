@@ -1,6 +1,10 @@
 (function () {
     'use strict';
 
+    // Fail-open marker: the generated CSS keys its instant-hide rules on html.nf-js,
+    // so a missing/broken script can never blank the home page again.
+    try { document.documentElement.classList.add('nf-js'); } catch (e) {}
+
     var PLUGIN_ID = '78b7b285-8d9e-4e4c-8e4d-7a71f76d4e2a';
     var CT_CONFIG = null;
 
@@ -9,9 +13,9 @@
     // (detail play button, tooltips) are driven via custom properties below.
     var LOCALES = {
         en: { home: 'Home', play: 'Play', moreInfo: 'More Info', myList: 'My List', like: 'Like', cw: 'Continue Watching', season: 'Season', seasons: 'Seasons', sound: 'Toggle sound', pause: 'Pause', slide: 'Slide', themeSettings: 'Theme settings', scrollBack: 'Scroll left', scrollFwd: 'Scroll right', labelPlay: 'Play', labelResume: 'Resume', labelReplay: 'Replay', tipWatched: 'Watched', tipFavorite: 'Favorite', tipMore: 'More',
-             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'NEW', minLeft: '{0} min left', removeRow: 'Remove from row', page: 'Page' },
+             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'NEW', minLeft: '{0} min left', hourAbbr: '{0} h', minAbbr: '{0} min', removeRow: 'Remove from row', page: 'Page' },
         de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr',
-             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'NEU', minLeft: 'Noch {0} Min.', removeRow: 'Aus Zeile entfernen', page: 'Seite' }
+             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'NEU', minLeft: 'Noch {0} Min.', hourAbbr: '{0} Std.', minAbbr: '{0} Min.', removeRow: 'Aus Zeile entfernen', page: 'Seite' }
     };
     function nfL() {
         var l = (document.documentElement.getAttribute('lang') || navigator.language || 'en').toLowerCase();
@@ -41,10 +45,13 @@
     // that cross-fades, so the page subtly shifts hue as the hero rotates.
     var nfAmbientCanvas = null;
     var nfLastAmbientUrl = null;   // dedupe sampling by image URL, not by DOM element
+    var nfAmbientTries = {};       // url -> failed load attempts; give up after 2
+    var nfAmbientToken = 0;        // only the LATEST sample in flight may write the glow
     function nfApplyAmbient(r, g, b) {
         var s = document.documentElement.style;
         s.setProperty('--nf-ambient', 'rgb(' + r + ',' + g + ',' + b + ')');
-        s.setProperty('--nf-ambient-glow', 'rgba(' + r + ',' + g + ',' + b + ',0.30)');
+        // Alpha clamped to 0.05: the glow is a tint, never a wash over the page.
+        s.setProperty('--nf-ambient-glow', 'rgba(' + r + ',' + g + ',' + b + ',0.05)');
     }
     function nfClearAmbient() {
         document.documentElement.style.setProperty('--nf-ambient-glow', 'rgba(0,0,0,0)');
@@ -53,7 +60,9 @@
     function nfSampleAmbient(url) {
         if (!url || cfg('AmbientColor', true) === false) return;
         if (url === nfLastAmbientUrl) return;   // same image (incl. a reused backdrop element) — skip
+        if (nfAmbientTries[url] >= 2) return;   // failed twice — stop retrying this image
         nfLastAmbientUrl = url;
+        var token = ++nfAmbientToken;
         try {
             var img = new Image();
             img.decoding = 'async';
@@ -61,6 +70,7 @@
             // tag would force a second, non-cache-shared fetch of the already-painted backdrop.
             try { if (new URL(url, location.href).origin !== location.origin) img.crossOrigin = 'anonymous'; } catch (e) {}
             img.onload = function () {
+                if (token !== nfAmbientToken) return;   // superseded by a newer sample — don't race the write
                 try {
                     if (!nfAmbientCanvas) { nfAmbientCanvas = document.createElement('canvas'); nfAmbientCanvas.width = 16; nfAmbientCanvas.height = 16; }
                     var ctx = nfAmbientCanvas.getContext('2d');
@@ -79,6 +89,12 @@
                     if (!w) return;
                     nfApplyAmbient(Math.round(r / w), Math.round(g / w), Math.round(b / w));
                 } catch (e) {}
+            };
+            img.onerror = function () {
+                // A failed load stays retryable (busy server) — but never loops:
+                // count the attempts and give this URL up after the second failure.
+                nfAmbientTries[url] = (nfAmbientTries[url] || 0) + 1;
+                if (nfLastAmbientUrl === url) { nfLastAmbientUrl = null; }
             };
             img.src = url;
         } catch (e) {}
@@ -366,6 +382,20 @@
         return '<span class="' + cls + '">' + Math.round(n * 10) + '% Match</span>';
     }
 
+    // Netflix-style runtime text from RunTimeTicks: "1 Std. 42 Min." (de) /
+    // "1 h 42 min" (en) — same LOCALES mechanism as every other UI string.
+    function nfRuntimeText(ticks) {
+        var mins = Math.round((parseInt(ticks, 10) || 0) / 600000000);
+        if (mins <= 0) return '';
+        var l = nfL();
+        var h = Math.floor(mins / 60);
+        var m = mins % 60;
+        var parts = [];
+        if (h) { parts.push(l.hourAbbr.replace('{0}', h)); }
+        if (m || !h) { parts.push(l.minAbbr.replace('{0}', m)); }
+        return parts.join(' ');
+    }
+
     // ============ Header settings button ============
     // The plugin-configuration endpoints require an administrator, so the palette
     // button is only shown to admins (non-admins used to get a button that could
@@ -507,6 +537,7 @@
 
     // ============ Top nav tabs (header) — replaces Custom Tabs ============
     var navViews = null;
+    var navViewsUid = null;   // the user the cached views were fetched for
     var navFetching = false;
 
     // Mirrors appRouter.getRouteUrl in jellyfin-web 10.11 exactly. The old
@@ -569,14 +600,22 @@
             }
             if (typeof ApiClient === 'undefined' || !ApiClient.getUserViews || !ApiClient.getCurrentUserId) return;
             if (!document.querySelector('.headerLeft')) return;
+            var navUid = ApiClient.getCurrentUserId();
+            // The cached views are per-account: an SPA user switch must never keep
+            // rendering the previous user's libraries. A still-unknown (falsy) uid —
+            // login resolving — keeps the cache rather than refetch-spamming.
+            if (navViews && navUid && navViewsUid !== navUid) {
+                navViews = null;
+                document.querySelectorAll('.nf-nav-tabs').forEach(function (n) { n.remove(); });
+            }
             if (navViews) { renderNavTabs(); return; }
             if (navFetching) return;
-            var navUid = ApiClient.getCurrentUserId();
             if (!navUid) return; // not logged in yet — avoid GET /Users/null/Views -> 400
             navFetching = true;
             ApiClient.getUserViews({ UserId: navUid }).then(function (res) {
                 navFetching = false;
                 navViews = (res && res.Items) || [];
+                navViewsUid = navUid;
                 renderNavTabs();
             }).catch(function () { navFetching = false; });
         } catch (e) {}
@@ -594,17 +633,33 @@
         return h === '' || h === '#/' || h === '#/home' || h === '#/home.html';
     }
 
+    // Memoized per applyDynamic pass: the querySelectorAll + offsetParent reads force
+    // layout and this runs up to ~6x per pass. nfPassId (bumped at every applyDynamic
+    // entry) invalidates the memo; isConnected guards async callers between passes
+    // against a container the SPA has since detached.
+    var nfPassId = 0;
+    var nfHomeCache = { frame: -1, el: null };
     function activeHomeContainer() {
+        if (nfHomeCache.frame === nfPassId && (nfHomeCache.el === null || nfHomeCache.el.isConnected)) {
+            return nfHomeCache.el;
+        }
+        var el = null;
         var pages = document.querySelectorAll('.homeSectionsContainer');
         for (var i = 0; i < pages.length; i++) {
-            if (pages[i].offsetParent !== null) return pages[i];
+            if (pages[i].offsetParent !== null) { el = pages[i]; break; }
         }
-        return null;
+        nfHomeCache.frame = nfPassId;
+        nfHomeCache.el = el;
+        return el;
     }
 
     function removeHero() {
         document.querySelectorAll('.nf-hero').forEach(function (h) {
             if (h._timer) { clearInterval(h._timer); h._timer = null; }
+            if (h._nfIO) { try { h._nfIO.disconnect(); } catch (e) {} h._nfIO = null; }
+            // A live clip must die through nfKillVideo (the single teardown path) —
+            // h.remove() alone leaves the stream/transcode running server-side.
+            h.querySelectorAll('.nf-hero-video').forEach(nfKillVideo);
             h.remove();
         });
     }
@@ -612,9 +667,22 @@
     // We are the hero now: hide a detected external billboard (e.g. the Jellyfin
     // Media Bar) and undo the top margin it adds to the home container, so there is
     // never a double hero. Lets our hero fully replace Media Bar without uninstalling it.
+    // The scan is a full-document case-insensitive attribute-substring query — far
+    // too heavy for every mutation frame. Run it at most once per second, and after
+    // 3 consecutive no-match scans stop entirely until the route (hash) changes.
+    var nfExtHeroLast = 0;
+    var nfExtHeroMisses = 0;
+    var nfExtHeroHash = null;
     function suppressExternalHero(container) {
+        var hash = location.hash || '';
+        if (hash !== nfExtHeroHash) { nfExtHeroHash = hash; nfExtHeroMisses = 0; }
+        if (nfExtHeroMisses >= 3) return;
+        var now = Date.now();
+        if (now - nfExtHeroLast < 1000) return;
+        nfExtHeroLast = now;
         var ext = document.querySelectorAll('#slides-container, [id*="slideshow" i], [class*="mediabar" i]');
-        if (!ext.length) return;
+        if (!ext.length) { nfExtHeroMisses++; return; }
+        nfExtHeroMisses = 0;
         ext.forEach(function (el) { if (!el.closest || !el.closest('.nf-hero')) el.style.display = 'none'; });
         if (container) { container.style.marginTop = '0px'; }
     }
@@ -718,9 +786,12 @@
 
         var match = matchHtml(item.CommunityRating, 'nf-hero-match');
         var year = item.ProductionYear ? '<span>' + item.ProductionYear + '</span>' : '';
-        var rating = item.OfficialRating ? '<span class="nf-hero-rating">' + esc(item.OfficialRating) + '</span>' : '';
+        // Maturity rating as a right-edge billboard badge (real Netflix), not an
+        // inline meta chip — emitted per slide so it crossfades with the slide.
+        // netflix.css owns its positioning at the slide's right edge.
+        var maturity = item.OfficialRating ? '<span class="nf-hero-maturity">' + esc(item.OfficialRating) + '</span>' : '';
         var genres = (item.Genres || []).slice(0, 3).map(esc).join(' • ');
-        var meta = '<div class="nf-hero-meta">' + match + year + rating + (genres ? '<span>' + genres + '</span>' : '') + '</div>';
+        var meta = '<div class="nf-hero-meta">' + match + year + (genres ? '<span>' + genres + '</span>' : '') + '</div>';
         var overview = item.Overview ? '<div class="nf-hero-overview">' + esc(item.Overview) + '</div>' : '';
 
         var fav = !!(item.UserData && item.UserData.IsFavorite);
@@ -735,7 +806,7 @@
                     '<a class="nf-hero-btn nf-hero-info" href="' + detailUrl + '"><span class="material-icons" aria-hidden="true">info</span> ' + nfL().moreInfo + '</a>' +
                     '<button type="button" class="nf-hero-btn nf-hero-list' + (fav ? ' active' : '') + '" data-id="' + item.Id + '" title="' + nfL().myList + '" aria-label="' + nfL().myList + '"><span class="material-icons" aria-hidden="true">' + (fav ? 'check' : 'add') + '</span></button>' +
                 '</div>' +
-            '</div></div>';
+            '</div>' + maturity + '</div>';
     }
 
     function renderHero(container, items) {
@@ -772,7 +843,22 @@
             // Restore the hero copy when no clip is playing (choreography off).
             hero.querySelectorAll('.nf-hero-slide.nf-clip-on').forEach(function (s) { s.classList.remove('nf-clip-on'); });
         }
+        // Offscreen guard: a hero scrolled out of view kills its clip immediately and
+        // must not attach new ones or rotate (each rotation fetches a full-width
+        // backdrop and can start a stream/transcode nobody can see).
+        var heroInView = true;
+        if ('IntersectionObserver' in window) {
+            hero._nfIO = new IntersectionObserver(function (en) {
+                heroInView = en[en.length - 1].isIntersecting;
+                if (!heroInView) stopClip();
+            }, { threshold: 0 });
+            hero._nfIO.observe(hero);
+        }
         function attachClip(slideEl, playId, ms, ticks) {
+            // Guarded here too — playClip's Series branch is async and can resolve
+            // after a scroll-away or after real playback has started.
+            if (!heroInView) return;
+            if (document.documentElement.classList.contains('nf-playing')) return;
             if (!slideEl || !slideEl.classList.contains('active') || !document.body.contains(slideEl)) return;
             var v = nfNewClipVideo('nf-hero-video');
             // Netflix choreography: once the trailer actually renders, shrink the
@@ -793,6 +879,10 @@
             nfClipLoop(v);
         }
         function playClip(idx) {
+            if (!heroInView) return;
+            // Never start a hero preview stream UNDER real playback — the applyDynamic
+            // fast-path returns early while nf-playing, so nothing else would stop it.
+            if (document.documentElement.classList.contains('nf-playing')) return;
             if (cfg('PreviewClips', true) === false) return;
             if (document.hidden || nfReducedMotion() || nfCheapMode()) return;
             var item = items[idx], slideEl = slideEls[idx];
@@ -833,7 +923,21 @@
         }
 
         if (slideEls.length > 1) {
-            hero._timer = setInterval(function () { if (!paused && !popEl && !document.hidden) go(cur + 1); }, HERO_INTERVAL);
+            hero._timer = setInterval(function () {
+                // The SPA can drop the whole home container — removeHero only reaches
+                // ATTACHED heroes (document.querySelectorAll), so a detached hero must
+                // clean itself up or its interval (and any live clip) leaks forever.
+                if (!document.contains(hero)) {
+                    clearInterval(hero._timer); hero._timer = null;
+                    if (hero._nfIO) { try { hero._nfIO.disconnect(); } catch (e) {} hero._nfIO = null; }
+                    stopClip();
+                    return;
+                }
+                // Hold rotation while scrolled offscreen or during REAL playback (the
+                // applyDynamic fast-path never reaches the hero then).
+                if (!paused && !popEl && !document.hidden && heroInView
+                    && !document.documentElement.classList.contains('nf-playing')) go(cur + 1);
+            }, HERO_INTERVAL);
             dotEls.forEach(function (el) {
                 el.addEventListener('click', function () { go(+el.getAttribute('data-idx')); });
             });
@@ -1579,6 +1683,9 @@
         // watchdog, errors — so restore the copy here or it stays stuck when a kill
         // path bypasses stopClip()/_stopTimer.
         try { var s = v.closest && v.closest('.nf-hero-slide'); if (s) s.classList.remove('nf-clip-on'); } catch (e) {}
+        // Same for the hover popup: the media-title overlay fades out while a clip
+        // renders (clip-on) and must come back on every teardown path.
+        try { var pm = v.closest && v.closest('.nf-pop-media'); if (pm) pm.classList.remove('clip-on'); } catch (e) {}
         try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
         try { v.remove(); } catch (e) {}
     }
@@ -1712,7 +1819,9 @@
         var video = nfNewClipVideo('');
         // Fade in only once frames are actually rendering — a <video> without a
         // decoded frame paints SOLID BLACK over the artwork (the "black screen").
-        video.addEventListener('playing', function () { video.classList.add('show'); });
+        // clip-on lets CSS fade the media-title overlay out with the clip;
+        // nfKillVideo removes it again on every teardown path.
+        video.addEventListener('playing', function () { video.classList.add('show'); media.classList.add('clip-on'); });
         nfClaim(video);
         nfClipSrc(video, playId, ms, ticks);
         media.insertBefore(video, media.firstChild);
@@ -1776,15 +1885,24 @@
             var detailUrl = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
             var match = matchHtml(item.CommunityRating, 'nf-pop-match');
             var rating = item.OfficialRating ? '<span class="nf-pop-rating">' + esc(item.OfficialRating) + '</span>' : '';
-            var extra = item.ChildCount ? ('<span>' + item.ChildCount + ' ' + (item.ChildCount > 1 ? nfL().seasons : nfL().season) + '</span>')
-                : (item.ProductionYear ? '<span>' + item.ProductionYear + '</span>' : '');
+            // Netflix meta order: match %, maturity, then duration (movies) or season
+            // count (series), then an HD chip. Year only when neither length is known.
+            var extra = '';
+            if (item.ChildCount) {
+                extra = '<span>' + item.ChildCount + ' ' + (item.ChildCount > 1 ? nfL().seasons : nfL().season) + '</span>';
+            } else if (item.Type !== 'Series' && item.RunTimeTicks) {
+                var dur = nfRuntimeText(item.RunTimeTicks);
+                if (dur) { extra = '<span>' + dur + '</span>'; }
+            }
+            if (!extra && item.ProductionYear) { extra = '<span>' + item.ProductionYear + '</span>'; }
+            var hd = (item.IsHD === true || (item.IsHD === undefined && item.Width >= 1280)) ? '<span class="nf-pop-hd">HD</span>' : '';
             var genres = (item.Genres || []).slice(0, 3).map(function (g) { return '<span>' + esc(g) + '</span>'; }).join('');
 
             var pop = document.createElement('div');
             pop.className = 'nf-pop';
             pop.style.left = left + 'px'; pop.style.top = top + 'px'; pop.style.width = Wp + 'px';
             pop.innerHTML =
-                '<a class="nf-pop-media" href="' + detailUrl + '"' + (media ? ' style="background-image:url(\'' + media + '\')"' : '') + '><div class="nf-pop-fade"></div></a>' +
+                '<a class="nf-pop-media" href="' + detailUrl + '"' + (media ? ' style="background-image:url(\'' + media + '\')"' : '') + '><div class="nf-pop-fade"></div><span class="nf-pop-media-title">' + esc(item.Name || '') + '</span></a>' +
                 '<div class="nf-pop-info">' +
                     '<div class="nf-pop-actions">' +
                         '<a class="nf-pop-btn play" href="' + detailUrl + '" title="' + nfL().play + '" aria-label="' + nfL().play + '"><span class="material-icons" aria-hidden="true">play_arrow</span></a>' +
@@ -1792,8 +1910,7 @@
                         '<button type="button" class="nf-pop-btn nf-pop-like" title="' + nfL().like + '" aria-label="' + nfL().like + '"><span class="material-icons" aria-hidden="true">thumb_up_off_alt</span></button>' +
                         '<a class="nf-pop-btn more" href="' + detailUrl + '" title="' + nfL().moreInfo + '" aria-label="' + nfL().moreInfo + '"><span class="material-icons" aria-hidden="true">expand_more</span></a>' +
                     '</div>' +
-                    '<div class="nf-pop-title">' + esc(item.Name || '') + '</div>' +
-                    '<div class="nf-pop-meta">' + match + rating + extra + '</div>' +
+                    '<div class="nf-pop-meta">' + match + rating + extra + hd + '</div>' +
                     (genres ? '<div class="nf-pop-genres">' + genres + '</div>' : '') +
                 '</div>';
 
@@ -1840,6 +1957,14 @@
             destroyPopEl();
             popEl = pop;
             document.body.appendChild(pop);
+            // Bottom-viewport clamp (mirrors the horizontal clamp above): the height
+            // is only measurable once the content is in the DOM — shift the popup up
+            // so it never runs off the bottom edge, and never above the 8px gutter.
+            var popH = pop.offsetHeight;
+            if (popH && top + popH > window.innerHeight - 8) {
+                top = Math.max(8, window.innerHeight - 8 - popH);
+                pop.style.top = top + 'px';
+            }
 
             // Reveal only once the artwork is ALREADY painted — showing the tile
             // while the image was still loading flashed a black box first.
@@ -1977,19 +2102,26 @@
     }
 
     // ============ Logo -> Home ============
-    // The Netflix "N" logo sits on the (non-clickable) page-title element. Make it
-    // navigate home like Netflix by delegating to Jellyfin's own home button.
+    // The theme HIDES Jellyfin's page-title elements, so a click handler bound to
+    // them was dead. Build a real "N" logo as the FIRST child of .headerLeft (the
+    // SPA recreates the header on navigation — the existence check re-adds it there
+    // without ever duplicating) and delegate to Jellyfin's own home button.
+    // netflix.css owns all styling of .nf-logo.
     function setupLogoHome() {
         try {
-            var logo = document.querySelector('.skinHeader .pageTitleWithLogo, .skinHeader .pageTitle');
-            if (!logo || logo.getAttribute('data-nf-home') === '1') return;
-            logo.setAttribute('data-nf-home', '1');
-            logo.style.cursor = 'pointer';
-            logo.addEventListener('click', function (e) {
+            var left = document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
+            if (!left || left.querySelector('.nf-logo')) return;
+            var a = document.createElement('a');
+            a.className = 'nf-logo';
+            a.href = '#/home';
+            a.setAttribute('aria-label', nfL().home);
+            a.textContent = 'N';
+            a.addEventListener('click', function (e) {
                 e.preventDefault();
                 var home = document.querySelector('.headerHomeButton');
                 if (home) { home.click(); } else { window.location.hash = '#/home'; }
             });
+            left.insertBefore(a, left.firstChild);
         } catch (e) {}
     }
 
@@ -2127,7 +2259,7 @@
         var h = document.querySelector('.skinHeader');
         if (!h) return;
         var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-        h.classList.toggle('nf-scrolled', y > 60);
+        h.classList.toggle('nf-scrolled', y > 8);   // Netflix goes solid almost immediately
     }
     function setupHeaderScroll() {
         if (window.__nfHeaderScroll) return;
@@ -2144,6 +2276,11 @@
     var nfLastHeroVisible = null;
     var nfLastRescue = 0;
     function applyDynamic() {
+        nfPassId++;   // new pass — invalidates the activeHomeContainer memo
+        // Jellyfin's boot assigns html.className wholesale, wiping the early
+        // nf-js marker — re-assert it (idempotent) so the generated CleanHome
+        // hide stays keyed on a live script.
+        try { document.documentElement.classList.add('nf-js'); } catch (e) {}
         // PLAYBACK fast-path: while the video is up (html.transparentDocument) the OSD —
         // the seek bar, the scene-preview thumbnail that tracks the scrubber, and the
         // position/duration timers — mutates the DOM every frame. The document.body
