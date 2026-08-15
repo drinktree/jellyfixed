@@ -873,18 +873,21 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
 .itemDetailPage .selectContainer .emby-select:hover {
     background: rgba(255,255,255,0.09) !important; border-color: rgba(255,255,255,0.22) !important;
 }
-/* Read-only pickers read as text, not as a control you can fail to operate. */
+/* Read-only pickers keep the SAME box — only the contrast and the affordances
+   change. Stripping the box entirely (as v2.5.70 did) made the group incoherent:
+   VIDEO is always disabled and AUDIO usually is, so you got two flat text rows
+   next to one boxed Subtitles row — three rows that visibly did not match. The
+   box is what holds the row rhythm together; disabled-ness is carried by the
+   dimmer value, the missing chevron and the cursor. */
 .itemDetailPage .selectContainer .emby-select[disabled] {
-    background: transparent !important;
-    border-color: transparent !important;
+    background: rgba(255,255,255,0.03) !important;
+    border-color: rgba(255,255,255,0.07) !important;
     box-shadow: none !important;
     color: var(--nf-text-4) !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
     cursor: default !important;
 }
 .itemDetailPage .selectContainer .emby-select[disabled]:hover {
-    background: transparent !important; border-color: transparent !important;
+    background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.07) !important;
 }
 /* Stock hides the chevron next to a disabled select with a NON-important rule, which
    our styling below would out-specify — put it back explicitly. */
@@ -2707,6 +2710,29 @@ html:has(.videoPlayerContainer) .nf-pop { display: none !important; }
    CssGenerator's (0,1,0) regardless of source order. */
 html.nf-playing .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 html:has(.videoPlayerContainer) .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* Same for every OTHER surface the Glass Effect option blurs. A backdrop-filter
+   forces its own render surface plus a framebuffer read-back and blur pass — over
+   a playing video that is a per-frame GPU cost. The audio/subtitle action sheet is
+   the one you open WHILE watching, so it matters most. Opaque fills replace the
+   blur so the panels stay readable over the picture (a 0.78-alpha panel with no
+   blur would let the video read straight through the menu text).
+   These options all default OFF, but they are exactly what someone tuning the
+   theme turns on — and playback must not depend on that choice. */
+html.nf-playing .actionSheet,
+html.nf-playing .dialog,
+html.nf-playing .formDialog,
+html.nf-playing .ct-overlay,
+html.nf-playing .mainDrawer {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+html.nf-playing .dialog,
+html.nf-playing .formDialog { background-color: #181818 !important; }
+html.nf-playing .mainDrawer { background-color: #101010 !important; }
+html:has(.videoPlayerContainer) .actionSheet { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+html:has(.videoPlayerContainer) .dialog { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+html:has(.videoPlayerContainer) .mainDrawer { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
 /* Stock .hide-s .backdropContainer at both transparency levels, but neither level is
    reached during State-A — leaving a fixed 100vh cover-fit backdrop bitmap retained

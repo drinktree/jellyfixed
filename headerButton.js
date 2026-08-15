@@ -2497,9 +2497,19 @@
     // only marks "this view has a backdrop" — it is NOT scroll-driven — so we drive
     // the solid state ourselves with a .nf-scrolled class toggled on window scroll.
     var nfHdrScrollEl = null;
+    var nfHdrScrollHash = null;
     function syncHeaderScrolled(hdr, force) {
         var h = hdr || document.querySelector('.skinHeader');
-        if (!h) { nfHdrScrollEl = null; return; }
+        if (!h) { nfHdrScrollEl = null; nfHdrScrollHash = null; return; }
+        // Re-sync on NAVIGATION as well as on a new header element. Jellyfin keeps ONE
+        // persistent .skinHeader across routes, so the element-identity guard below
+        // never fires on a page change — and if the previous page was scrolled, the
+        // stale .nf-scrolled rode along. On a page WITH a backdrop that swaps the
+        // header's transparent scrim for a solid #141414 bar, i.e. an opaque black
+        // band across the top of the artwork. Landing on a shorter page also clamps
+        // scrollTop to 0 without necessarily firing a scroll event, so the passive
+        // listener cannot be relied on to correct it. A string compare is free.
+        if (location.hash !== nfHdrScrollHash) { nfHdrScrollHash = location.hash; force = true; }
         // Reading pageYOffset forces a style + layout flush. applyDynamic runs on
         // every DOM-mutation frame, so calling this unconditionally turned each of
         // Jellyfin's mutation bursts (virtual list, lazy image loader) into a
