@@ -13,7 +13,7 @@
         "changelog": "v2.5.71 - Fixes the black bar over the detail-page banner, and makes the track pickers consistent with each other. BLACK BAR (regression introduced in v2.5.69): syncHeaderScrolled gained an element-identity guard so it would stop forcing a layout read on every DOM-mutation frame - but Jellyfin keeps ONE persistent .skinHeader across routes, so the guard never fired on navigation and a stale .nf-scrolled rode along from the previous page. On a page with a backdrop that swaps the header's transparent scrim for a solid #141414 bar: an opaque black band across the top of the artwork. It now also re-syncs whenever the route changes (a string compare, so the per-frame saving is kept). PICKERS: v2.5.70 stripped the box off disabled pickers, but VIDEO is always disabled and AUDIO usually is, so you got two flat text rows beside one boxed Subtitles row - three rows that did not match. All three keep the same box now; disabled-ness is carried by the dimmer value, the missing chevron and the cursor. PLAYBACK HARDENING: every surface the Glass Effect / Header Blur options blur (action sheets, dialogs, the drawer) is now unconditionally un-blurred during playback, with opaque fills so the panels stay readable over the picture. A backdrop-filter forces a framebuffer read-back and blur pass per frame, and the audio/subtitle action sheet is the one you open while watching.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.71/custom-theme-v2.5.71.zip",
-        "checksum": "",
+        "checksum": "144dd435d4ca0375e1bc0571687068c8",
         "timestamp": "2026-08-15T15:20:00Z"
       },
       {
