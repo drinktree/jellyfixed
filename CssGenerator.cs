@@ -321,41 +321,49 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine("@media (max-width: 768px) { .itemName { font-size: 2.2rem !important; } }");
             }
 
-            // Card size. Native rows use min-width; our genre/CW rows size via width
-            // clamps, so they get their own scaled rules (a plain min-width here used
-            // to make "small" cards BIGGER on the theme's own rows).
+            // Card size. Native rows use min-width; the theme's own rows divide each
+            // row into a WHOLE number of tiles via --nf-tile (netflix.css), so the
+            // presets shift the COUNT rather than overriding the width — an explicit
+            // width here would re-introduce the sliced tile hanging in the gutter,
+            // and (having no breakpoints of its own) would flatten the whole ladder.
+            var tileDelta = 0;
             if (config.CardSize == "small")
             {
                 sb.AppendLine(".homeSectionsContainer .card.overflowPortraitCard:not(.personCard) { min-width: 120px !important; }");
                 sb.AppendLine(".homeSectionsContainer .card.overflowBackdropCard:not(.nf-card) { min-width: 240px !important; }");
-                sb.AppendLine(".nf-genre-section .card.nf-card { width: clamp(140px, 12.5vw, 240px) !important; }");
-                sb.AppendLine(".nf-cw-card { width: clamp(180px, 15.5vw, 280px) !important; }");
+                tileDelta += 1;
             }
             else if (config.CardSize == "large")
             {
                 sb.AppendLine(".homeSectionsContainer .card.overflowPortraitCard:not(.personCard) { min-width: 200px !important; }");
                 sb.AppendLine(".homeSectionsContainer .card.overflowBackdropCard:not(.nf-card) { min-width: 420px !important; }");
-                sb.AppendLine(".nf-genre-section .card.nf-card { width: clamp(200px, 18.5vw, 330px) !important; }");
-                sb.AppendLine(".nf-cw-card { width: clamp(260px, 22.5vw, 400px) !important; }");
+                tileDelta -= 1;
             }
 
             // Card style. Native cards can only be reshaped (their image is baked into
             // the markup); the theme's own genre-row cards re-render with the matching
             // art client-side (headerButton.js nfCardImage), so they get their own
-            // shape + width rules here and are excluded from the native rule.
+            // shape rules here and are excluded from the native rule.
             if (config.CardStyle == "portrait")
             {
                 sb.AppendLine(".card.overflowBackdropCard:not(.nf-card) .cardPadder { padding-bottom: 150% !important; }");
                 sb.AppendLine(".card.overflowBackdropCard:not(.nf-card) .cardImageContainer { background-position: center !important; }");
                 sb.AppendLine(".nf-genre-section .cardPadder-overflowBackdrop { padding-bottom: 150% !important; }");
-                var portraitWidth = config.CardSize == "small"
-                    ? "clamp(100px, 9vw, 170px)"
-                    : config.CardSize == "large"
-                        ? "clamp(150px, 13.5vw, 260px)"
-                        : "clamp(120px, 10.5vw, 200px)";
-                sb.AppendLine($".nf-genre-section .card.nf-card {{ width: {portraitWidth} !important; }}");
+                // A 2:3 tile is 1.5x as tall as a 16:9 one, so the 1.2 hover zoom
+                // overflows the row scroller by 0.15 x tile width instead of 0.056 —
+                // past the base sheet's 22px clearance from ~978px up, and the
+                // scroller clips vertically (overflow-y:visible computes to auto).
+                // Inside @supports because max() has to stay out of the literal tier.
+                sb.AppendLine("@supports (width: clamp(1px, 1vw, 2px)) { :root { --nf-zoom-pad: max(22px, calc(0.155 * var(--nf-tile))); } }");
+                tileDelta += 2;   // 2:3 boxart is far narrower than 16:9
             }
-            else if (config.CardStyle == "landscape")
+
+            if (tileDelta != 0)
+            {
+                AppendTileLadder(sb, tileDelta);
+            }
+
+            if (config.CardStyle == "landscape")
             {
                 sb.AppendLine(".card.overflowPortraitCard:not(.personCard) .cardPadder { padding-bottom: 56.25% !important; }");
                 sb.AppendLine(".card.overflowPortraitCard:not(.personCard) .cardImageContainer { background-position: center top !important; }");
@@ -385,19 +393,30 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine(".backgroundContainer.withBackdrop { background-image: linear-gradient(to top, var(--bg-dark) 0%, rgba(20,20,20,0.85) 30%, rgba(20,20,20,0.5) 60%), linear-gradient(to right, rgba(20,20,20,0.95) 0%, transparent 45%), linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 20%) !important; }");
             }
 
-            // Animation speed
+            // Animation speed. These emit the transition-duration LONGHAND, but the base
+            // sheet sets the `transition` SHORTHAND (which includes duration) against
+            // higher-specificity selectors — and specificity beats source order, so the
+            // old low-specificity list silently did nothing for the detail-page circle
+            // buttons or for .cardScalable. Match the base sheet's selectors instead.
+            const string animTargets = ".card, .card .cardScalable, .skinHeader, .cardOverlayContainer, "
+                + ".mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, "
+                + ".mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands";
             if (config.AnimSpeed == "fast")
             {
-                sb.AppendLine(".card, .skinHeader, .cardOverlayContainer, .btnPlaystate, .btnUserRating, .btnMoreCommands { transition-duration: 0.12s !important; }");
+                sb.AppendLine(animTargets + " { transition-duration: 0.12s !important; }");
             }
             else if (config.AnimSpeed == "slow")
             {
-                sb.AppendLine(".card, .skinHeader, .cardOverlayContainer, .btnPlaystate, .btnUserRating, .btnMoreCommands { transition-duration: 0.6s !important; }");
+                sb.AppendLine(animTargets + " { transition-duration: 0.6s !important; }");
             }
             else if (config.AnimSpeed == "off")
             {
-                sb.AppendLine(".card, .skinHeader, .cardOverlayContainer, .cardScalable, .btnPlaystate, .btnUserRating, .btnMoreCommands { transition-duration: 0s !important; }");
-                sb.AppendLine(".card:hover { transform: none !important; }");
+                sb.AppendLine(animTargets + " { transition-duration: 0s !important; }");
+                // `html ` prefix: AppendNetflixExtras runs AFTER this and emits
+                // `.card:hover .cardScalable { transform: scale(1.2) !important }` at the
+                // same specificity, so without the extra element "off" left the zoom running.
+                sb.AppendLine("html .card:hover, html .card:hover .cardScalable { transform: none !important; }");
+                sb.AppendLine("html .nf-cw-card:hover .nf-cw-thumb { transform: none !important; }");
                 sb.AppendLine(".view-transition { animation: none !important; }");
             }
 
@@ -416,6 +435,40 @@ namespace Jellyfin.Plugin.CustomTheme
             {
                 sb.AppendLine("body::after { content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse at 50% 0%, rgba(229,9,20,0.06) 0%, transparent 60%), radial-gradient(ellipse at 80% 50%, rgba(229,9,20,0.03) 0%, transparent 50%); pointer-events: none; z-index: 0; }");
             }
+        }
+
+        /// <summary>
+        /// Re-emits the base sheet's whole-tile ladder shifted by <paramref name="delta"/>
+        /// tiles per row. netflix.css sizes every row (home, continue-watching, episode
+        /// strip) off <c>--nf-tile</c>, which divides the row into N whole tiles at each
+        /// breakpoint. The Card-Size / Card-Style presets therefore move N instead of
+        /// setting a width: a width override has no breakpoints of its own, so it would
+        /// apply at every viewport AND put a sliced tile back in the gutter.
+        /// Divisors are literal numbers, never <c>var()</c>, so this still parses on old
+        /// Chromium / TV engines.
+        /// </summary>
+        private static void AppendTileLadder(StringBuilder sb, int delta)
+        {
+            // Base counts mirror netflix.css: 6 default, 7 wide, then 5 / 4 / 3 / 2.35.
+            sb.AppendLine($":root {{ --nf-tile: {TileExpr(6 + delta)}; }}");
+            sb.AppendLine($"@media (min-width: 1900px) {{ :root {{ --nf-tile: {TileExpr(7 + delta)}; }} }}");
+            sb.AppendLine($"@media (max-width: 1399px) {{ :root {{ --nf-tile: {TileExpr(5 + delta)}; }} }}");
+            sb.AppendLine($"@media (max-width: 1099px) {{ :root {{ --nf-tile: {TileExpr(4 + delta)}; }} }}");
+            sb.AppendLine($"@media (max-width: 799px) {{ :root {{ --nf-tile: {TileExpr(3 + delta)}; }} }}");
+            // Phones keep the fractional peek that stands in for the hidden row arrows,
+            // and the delta is capped at +1 there: a full +2 for portrait boxart would
+            // put 4.35 posters on a 390px screen (79px wide), which is denser than
+            // Netflix mobile and denser than the width this preset used to produce.
+            sb.AppendLine($"@media (max-width: 559px) {{ :root {{ --nf-tile: {TileExpr(2.35 + System.Math.Min(delta, 1))}; }} }}");
+        }
+
+        /// <summary>One rung of the tile ladder, floored at 1.6 tiles so an extreme
+        /// preset can never produce a single full-bleed tile with no peek.</summary>
+        private static string TileExpr(double tiles)
+        {
+            var n = System.Math.Max(1.6, tiles);
+            var gaps = (int)System.Math.Ceiling(n) - 1;
+            return string.Create(CultureInfo.InvariantCulture, $"calc((100% - {gaps} * var(--nf-tile-gap)) / {n:0.##})");
         }
 
         /// <summary>Netflix-style extras: hover preview cards, Top 10 numbers, glass, OLED, detail polish.</summary>
@@ -465,23 +518,45 @@ namespace Jellyfin.Plugin.CustomTheme
                     // WebViews never carry the row-wide :has(~ .card:hover) / general-sibling
                     // rules — those are re-evaluated on every DOM mutation (a style-recalc
                     // multiplier) even though they can never match without a pointer.
+                    // The neighbour slide is a PERCENTAGE of the sibling's own width, not
+                    // a fixed 30px: a tile grows by 10% of its width on each side at
+                    // scale(1.2), so a constant offset left a 2.7px collision at
+                    // CardSize=large and a 12px hole at small, and changed the row's
+                    // hover geometry silently as the window resized. 12% keeps the gap
+                    // opening by a consistent 0.02x tile width at every size.
                     sb.AppendLine(@"@media (hover: hover) {
 .card:hover { transform: none !important; box-shadow: none !important; z-index: 60 !important; }
 .card:hover .cardScalable { transform: scale(1.2) !important; transform-origin: center center !important; }
-.scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: translateX(30px) !important; }
-.scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: translateX(-30px) !important; }
+.scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: translateX(12%) !important; }
+.scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: translateX(-12%) !important; }
+.nf-cw-track > .nf-cw-card:hover ~ .nf-cw-card { transform: translateX(12%) !important; }
+.nf-cw-track > .nf-cw-card:has(~ .nf-cw-card:hover) { transform: translateX(-12%) !important; }
+.nf-cw-track > .nf-cw-card { transition: transform var(--nf-dur) var(--nf-ease-in) !important; }
 .scrollSlider > .card:first-child:hover .cardScalable, .nf-row-track > .card:first-child:hover .cardScalable { transform-origin: left center !important; }
 .scrollSlider > .card:last-child:hover .cardScalable, .nf-row-track > .card:last-child:hover .cardScalable { transform-origin: right center !important; }
+.scrollSlider:not(.similarContent) > .card:first-child:hover ~ .card, .nf-row-track > .card:first-child:hover ~ .card { transform: translateX(22%) !important; }
+.nf-cw-track > .nf-cw-card:first-child:hover ~ .nf-cw-card { transform: translateX(22%) !important; }
+.scrollSlider:not(.similarContent) > .card:has(~ .card:last-child:hover), .nf-row-track > .card:has(~ .card:last-child:hover) { transform: translateX(-22%) !important; }
+.nf-cw-track > .nf-cw-card:has(~ .nf-cw-card:last-child:hover) { transform: translateX(-22%) !important; }
 @media (prefers-reduced-motion: reduce) {
 .card:hover .cardScalable { transform: none !important; }
 .scrollSlider:not(.similarContent) > .card:hover ~ .card, .nf-row-track > .card:hover ~ .card { transform: none !important; }
 .scrollSlider:not(.similarContent) > .card:has(~ .card:hover), .nf-row-track > .card:has(~ .card:hover) { transform: none !important; }
+.nf-cw-track > .nf-cw-card:hover ~ .nf-cw-card { transform: none !important; }
+.nf-cw-track > .nf-cw-card:has(~ .nf-cw-card:hover) { transform: none !important; }
+.scrollSlider:not(.similarContent) > .card:first-child:hover ~ .card, .nf-row-track > .card:first-child:hover ~ .card { transform: none !important; }
+.nf-cw-track > .nf-cw-card:first-child:hover ~ .nf-cw-card { transform: none !important; }
+.scrollSlider:not(.similarContent) > .card:has(~ .card:last-child:hover), .nf-row-track > .card:has(~ .card:last-child:hover) { transform: none !important; }
+.nf-cw-track > .nf-cw-card:has(~ .nf-cw-card:last-child:hover) { transform: none !important; }
 }
 }");
                 }
                 else
                 {
-                    sb.AppendLine(".card:hover { z-index: 60 !important; }");
+                    // hover-gated like the sibling branch: appended after netflix.css,
+                    // an ungated z-index here would beat the touch block and leave a tapped
+                    // tile pinned above its neighbours for the rest of the session.
+                    sb.AppendLine("@media (hover: hover) { .card:hover { z-index: 60 !important; } }");
                 }
             }
 
@@ -556,25 +631,38 @@ namespace Jellyfin.Plugin.CustomTheme
 .ct-settings-btn:hover { opacity: 1; }
 .ct-overlay-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999998; opacity: 0; transition: opacity 0.3s ease; }
 .ct-overlay-bg.open { opacity: 1; }
-.ct-overlay { position: fixed; top: 0; right: -440px; width: 400px; max-width: 90vw; height: 100vh; background: #1a1a1a; color: #fff; z-index: 999999; overflow-y: auto; transition: right 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow: -5px 0 30px rgba(0,0,0,0.5); font-family: var(--font-netflix); }
+/* height twice on purpose: on iOS Safari / Chrome Android 100vh is the LARGE
+   viewport (URL bar collapsed), so with the bar showing the panel overhangs the
+   screen by 12-15% — and being position:fixed, that overhang (which is where the
+   Save button ends up after scrolling) can never be brought into view. Engines
+   without dvh drop the second declaration and keep working. */
+.ct-overlay { position: fixed; top: 0; right: -440px; width: 400px; max-width: 92vw; height: 100vh; height: 100dvh; background: var(--nf-surface, #181818); color: #fff; z-index: 999999; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; transition: right 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow: -5px 0 30px rgba(0,0,0,0.5); font-family: var(--font-netflix); }
 .ct-overlay.open { right: 0; }
-.ct-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #2a2a2a; position: sticky; top: 0; background: #1a1a1a; z-index: 1; }
+.ct-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--nf-hairline, rgba(255,255,255,0.15)); position: sticky; top: 0; background: var(--nf-surface, #181818); z-index: 1; }
 .ct-header h2 { margin: 0; font-size: 1.2rem; }
 .ct-close { background: none; border: none; color: #aaa; font-size: 28px; line-height: 1; cursor: pointer; padding: 0 4px; min-width: 40px; min-height: 40px; }
 .ct-close:hover { color: #fff; }
-.ct-body { padding: 12px 20px 48px; }
+.ct-body { padding: 12px 20px 48px; padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 768px) { .ct-overlay { width: 100%; max-width: 100%; right: -100%; } }
 .ct-sec { margin-bottom: 18px; }
 .ct-sec-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #2a2a2a; }
 .ct-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 0.9rem; color: #ddd; }
 .ct-row select { background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 5px 8px; font-size: 0.8rem; max-width: 55%; }
 .ct-row input[type=text] { background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 5px 8px; font-size: 0.8rem; max-width: 55%; }
 .ct-row input[type=color] { width: 38px; height: 28px; border: 2px solid #555; border-radius: 4px; cursor: pointer; padding: 0; background: none; flex-shrink: 0; }
+/* after the base rules on purpose: media queries add NO specificity, so a phone
+   block placed above them would silently lose to the 55% defaults */
+@media (max-width: 768px) {
+    .ct-row select, .ct-row input[type=text] { max-width: 46%; min-height: 40px; }
+}
 .ct-switch { position: relative; width: 42px; height: 22px; flex-shrink: 0; }
 .ct-switch input { opacity: 0; width: 0; height: 0; }
 .ct-slider { position: absolute; inset: 0; background: #555; border-radius: 22px; cursor: pointer; transition: background 0.2s; }
 .ct-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
 .ct-switch input:checked + .ct-slider { background: var(--accent-red); }
 .ct-switch input:checked + .ct-slider::before { transform: translateX(20px); }
+/* the real input is 0x0 and invisible, so nothing could render keyboard focus */
+.ct-switch input:focus-visible + .ct-slider { outline: 2px solid #fff; outline-offset: 3px; }
 .ct-save-btn { width: 100%; padding: 12px; background: var(--accent-red); color: #fff; border: none; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 16px; font-family: var(--font-netflix); }
 .ct-save-btn:hover { background: var(--accent-red-hover); }
 .ct-save-status { text-align: center; margin-top: 10px; font-size: 0.85rem; min-height: 20px; }");

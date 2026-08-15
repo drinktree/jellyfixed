@@ -47,7 +47,76 @@
     --nf-ease-in: cubic-bezier(.4,0,.68,.06);    /* leaving — hard */
     --nf-ease-fade: cubic-bezier(.33,0,0,1);
     --nf-dur: 250ms;
+
+    /* ---- Type ramp. Inter is wider and rounder than Netflix Sans, so display
+       sizes need negative tracking and the middle of the ramp needs real steps
+       (row title / synopsis / meta used to be 20.2 / 16.8 / 15.2px — one blur).
+       NOTE the literal values here and the clamp()/max() upgrade in the @supports
+       block below. A custom property is NOT validated where it is declared — an
+       engine with var() but without clamp()/max() (Chromium 49-78: Android TV,
+       Tizen, webOS, old System WebViews) substitutes the unsupported function into
+       the CONSUMING declaration, which then becomes invalid-at-computed-value-time
+       and resets to `unset` — it does NOT fall back to an earlier declaration. So
+       every token that feeds a shorthand must be literal by default. */
+    --nf-t-hero: 3.4vw;
+    --nf-t-row:  1.3rem;
+    --nf-t-body: 1.05rem;
+    --nf-t-meta: 0.9rem;
+
+    /* ---- Rows. Netflix divides the row into a WHOLE number of tiles — it never
+       leaves a sliced card hanging in the gutter. --nf-tile is that division;
+       every row (home, continue-watching, episode strip) sizes off it, so one
+       ladder keeps every shelf in the app on the same grid. 100% resolves against
+       the flex track, which is exactly the scroller's content box — no vw, so no
+       scrollbar guessing. --nf-row-gap is the shelf-to-shelf rhythm. */
+    --nf-tile-gap: 4px;
+    --nf-tile: calc((100% - 5 * var(--nf-tile-gap)) / 6);
+    --nf-row-gap: 2.2vw;
+    /* Vertical breathing room inside the row scroller. It has to contain the hover
+       zoom, because `overflow-y: visible` COMPUTES TO AUTO next to `overflow-x:
+       auto` (CSS Overflow 3) and the scroller therefore clips vertically at its
+       padding box. 22px covers the default 16:9 ladder; the @supports block below
+       derives it from the tile so it also covers 4K and the portrait card style. */
+    --nf-zoom-pad: 22px;
+
+    /* One bottom baseline for every piece of billboard furniture (copy block,
+       carousel controls, maturity plate). They used to be 9vh / 9vh / 9vh+1px. */
+    --nf-hero-baseline: 9vh;
+
+    /* One circular-button spec: the ring and rest fill are constant, only the
+       diameter changes (hero 46 / control 42 / popup 32). */
+    --nf-ring: 2px solid rgba(255,255,255,0.5);
+    --nf-ring-fill: rgba(42,42,42,0.6);
 }
+
+/* The clamp()/max() tier of the tokens above. Gated on @supports so engines that
+   have custom properties but not these functions keep the literal values instead
+   of poisoning every shorthand that consumes them (see the note in :root). */
+@supports (width: clamp(1px, 1vw, 2px)) {
+    :root {
+        --nf-t-hero: clamp(2.25rem, 4.2vw, 3.75rem);
+        --nf-t-row:  clamp(1.05rem, 1.4vw, 1.4rem);
+        --nf-t-body: clamp(0.95rem, 1.15vw, 1.125rem);
+        --nf-row-gap: max(20px, 1.8vw);
+        --nf-hero-baseline: clamp(48px, 9vh, 96px);
+        /* 0.0575 = half the 1.2 hover zoom's growth (0.1) x a 16:9 tile's
+           height/width ratio (0.5625). CssGenerator raises the factor to 0.155
+           for the 2:3 portrait card style, where the tile is 1.5x as tall. */
+        --nf-zoom-pad: max(22px, calc(0.0575 * var(--nf-tile)));
+    }
+}
+
+/* Tile ladder. Literal integer divisors (never `/ var()`) so this parses on old
+   Chromium / TV engines; the gap widens to Netflix's 0.2vw-per-side only once
+   there is room for it. Ordered so the narrowest matching query wins. */
+@media (min-width: 1000px) { :root { --nf-tile-gap: 0.4vw; } }
+@media (min-width: 1900px) { :root { --nf-tile: calc((100% - 6 * var(--nf-tile-gap)) / 7); } }
+@media (max-width: 1399px) { :root { --nf-tile: calc((100% - 4 * var(--nf-tile-gap)) / 5); } }
+@media (max-width: 1099px) { :root { --nf-tile: calc((100% - 3 * var(--nf-tile-gap)) / 4); } }
+@media (max-width:  799px) { :root { --nf-tile: calc((100% - 2 * var(--nf-tile-gap)) / 3); } }
+/* Phones keep a deliberate 0.35-tile peek: the row arrows and page dots are
+   hidden on touch, so the sliver IS the "there is more to the right" affordance. */
+@media (max-width:  559px) { :root { --nf-tile: calc((100% - 2 * var(--nf-tile-gap)) / 2.35); } }
 
 /* =============================================
    GLOBAL
@@ -144,6 +213,26 @@ body, .mainDrawer, .dialog {
     font-family: var(--font-netflix);
     text-decoration: none !important;
     line-height: 1;
+}
+/* The mark is a geometric letterform — two full-height bars and a steep diagonal
+   with sharp counters. Inter's Black "N" has a shallow diagonal and rounded
+   joins, and vertically stretching it 10% read as exactly what it was: a
+   stretched font, in the first thing a user sees on every page. Drawn as a mask
+   so it still tints with the configured --accent-red and stays a real clickable
+   <a>; engines without mask support fall through to the text glyph above. */
+@supports ((-webkit-mask-image: linear-gradient(#000,#000)) or (mask-image: linear-gradient(#000,#000))) {
+    .nf-logo {
+        width: 19px; height: 30px;
+        font-size: 0 !important;      /* hides the fallback glyph */
+        letter-spacing: normal;
+        transform: none;
+        background-color: var(--accent-red);
+        -webkit-mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 186 300'%3E%3Cpath d='M0 0h66l54 190V0h66v300h-66L66 110v190H0z'/%3E%3C/svg%3E");
+        mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 186 300'%3E%3Cpath d='M0 0h66l54 190V0h66v300h-66L66 110v190H0z'/%3E%3C/svg%3E");
+        -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+        -webkit-mask-position: center;  mask-position: center;
+        -webkit-mask-size: contain;     mask-size: contain;
+    }
 }
 
 .headerLeft {
@@ -256,6 +345,31 @@ body, .mainDrawer, .dialog {
 .libraryPage .padded-left { padding-inline-start: var(--nf-gutter) !important; }
 .libraryPage .padded-right { padding-inline-end: var(--nf-gutter) !important; }
 
+/* Netflix's browse grid is uniform, untitled boxart — the name lives in the
+   hover preview, exactly like the home rows. Without this, one click takes you
+   from a page of edge-to-edge boxart to a page of titled tiles with a year
+   underneath: the same artwork in two visual languages.
+   Gated three ways: to real titles (people, folders, albums and playlists get no
+   popup, so they keep their labels); to pointer devices ≥769px, because .nf-pop is
+   display:none below that and a phone would be left with nothing to read; and to
+   `.itemsContainer.vertical-wrap`, which is the BROWSE GRID specifically.
+   That last one matters — verified live on demo.jellyfin.org, the search results
+   page also carries `.libraryPage` and puts its cards in a horizontal
+   `.scrollSlider.itemsContainer`, and stripping names off search results is the
+   one place a title is genuinely the thing you are scanning for. */
+@media (hover: hover) and (min-width: 769px) {
+    .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap > .card[data-type="Movie"] .cardText,
+    .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap > .card[data-type="Series"] .cardText {
+        display: none !important;
+    }
+    .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap > .card[data-type="Movie"] .cardBox,
+    .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap > .card[data-type="Series"] .cardBox,
+    .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap > .card[data-type="Movie"] .cardBox-bottompadded,
+    .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap > .card[data-type="Series"] .cardBox-bottompadded {
+        padding-bottom: 0 !important;
+    }
+}
+
 /* Section title arrow on hover — Netflix "explore" feel. Netflix never uses
    red for navigation affordances: light gray, brightening on hover. */
 .sectionTitle .sectionTitleTextButton {
@@ -343,7 +457,11 @@ body, .mainDrawer, .dialog {
 
 .cardScalable { border-radius: var(--card-radius) !important; box-shadow: none !important; overflow: hidden !important; }
 .cardImageContainer { border-radius: var(--card-radius) !important; transition: filter 0.3s ease !important; }
-.card:hover .cardImageContainer { filter: brightness(1.1) !important; }
+/* NOTE: no brightness() on hover. Netflix's hover response is purely geometric —
+   the tile scales and the preview card takes over; the artwork's tone never
+   changes. Brightening it also snapped back visibly when the (un-brightened)
+   popup arrived 300ms later, and it was the only filter on a transformed
+   element, which costs an extra render surface per hovered tile. */
 /* The tile scales as one piece (.card → 1.09). The artwork must NOT take an extra
    inner zoom on top of that — stacked, it overflows the overflow:hidden frame and
    crops at the edges. Pin the image to the frame so it enlarges fully, uncut. */
@@ -399,17 +517,40 @@ body, .mainDrawer, .dialog {
    globally; home is unaffected (its rows use .nf-row-scroll / .nf-cw-scroll, and
    native home sections are hidden). VERIFIED live: detail docWidth back to viewport. */
 .emby-scroller { overflow-x: auto !important; }
+/* Rows scroll with their buttons, never a system bar. Home rows already hide
+   theirs; every OTHER horizontal row in the app (cast/crew, search results,
+   native library rows) painted a 10px light-grey bar underneath, so the two
+   read as different products side by side. */
+.emby-scroller {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+.emby-scroller::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+/* …and the stock scroll buttons now read like the theme's own row chevrons:
+   flat, dark, revealed on row hover, with the ICON growing rather than the box. */
 .emby-scrollbuttons-button {
-    background: rgba(20,20,20,0.85) !important;
-    color: white !important;
+    background: rgba(20,20,20,0.6) !important;
+    color: #fff !important;
     border: none !important;
-    border-radius: 4px !important;
-    transition: background 0.2s ease, transform 0.2s ease !important;
+    border-radius: var(--r-badge) !important;
+    width: 36px !important;
+    height: 36px !important;
+    opacity: 0 !important;
+    transform: none !important;
+    transition: opacity 0.2s ease, background 0.2s ease !important;
 }
-.emby-scrollbuttons-button:hover {
-    background: rgba(20,20,20,0.95) !important;
-    transform: scale(1.1) !important;
-}
+.verticalSection:hover .emby-scrollbuttons-button,
+.detailSection:hover .emby-scrollbuttons-button,
+.emby-scrollbuttons:hover .emby-scrollbuttons-button { opacity: 1 !important; }
+/* Standalone: :focus-visible is unknown to QtWebEngine 5.15 (JMP) and WebView < 86,
+   and ONE unsupported selector invalidates a whole comma list — joined to the rule
+   above it would leave every native row's scroll buttons permanently invisible. */
+.emby-scrollbuttons-button:focus-visible { opacity: 1 !important; }
+.emby-scrollbuttons-button:hover { background: rgba(20,20,20,0.85) !important; transform: none !important; }
+.emby-scrollbuttons-button .material-icons { font-size: 28px !important; transition: transform 0.15s ease !important; }
+.emby-scrollbuttons-button:hover .material-icons { transform: scale(1.25) !important; }
+/* No pointer = no hover reveal: never leave a row with zero affordance. */
+@media (hover: none) { .emby-scrollbuttons-button { opacity: 1 !important; } }
 
 /* =============================================
    DETAIL PAGE — FULL NETFLIX LAYOUT
@@ -600,6 +741,10 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
     display: flex !important;
     align-items: center !important;
     gap: 8px !important;
+    flex-wrap: wrap !important;
+    /* The title above carries a shadow; this line did not, so over a bright
+       backdrop the year / certification / runtime disappeared into the artwork. */
+    text-shadow: 0 2px 8px rgba(0,0,0,0.75) !important;
 }
 
 /* Netflix leads the metadata line with the green match score — .itemMiscInfo is a
@@ -919,6 +1064,18 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
     padding-right: 4% !important;
 }
 
+/* ONE rail for the primary column. .detailPagePrimaryContainer already carries
+   the page's 4% gutter and .detailRibbon (title, metadata, Play button) sits on
+   it correctly — but every .detailSection INSIDE the 700px text column re-applied
+   4% of 700px on top, so the synopsis, genres, tags, links, media-info table and
+   the episode strip all hung off an edge 28px further right than the title.
+   Visible at every viewport width; the clearest "broken column" on the page. */
+.itemDetailPage .detailPagePrimaryContent .detailSection,
+.itemDetailPage .detailPagePrimaryContent .verticalSection {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
 .detailPageSecondaryContainer {
     position: relative;
     z-index: 3;
@@ -1177,6 +1334,29 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
     background-color: var(--accent-red-hover) !important;
 }
 
+/* The sign-in card is the first screen anyone sees, and it was the least themed:
+   stock type inside a Netflix box, a browser-default placeholder, and 44px-short
+   controls. (The phone treatment lives in the RESPONSIVE section.) */
+#loginPage form h1, .loginPage form h1 {
+    font-size: 2rem !important; font-weight: 700 !important;
+    margin: 0 0 24px !important; color: var(--text-main) !important;
+    letter-spacing: -0.015em !important;
+}
+#loginPage .inputContainer, .loginPage .inputContainer { margin-bottom: 16px !important; }
+#loginPage .inputContainer input, .loginPage .inputContainer input {
+    height: 50px !important; padding: 0 16px !important; font-size: 1rem !important;
+}
+#loginPage input::placeholder, .loginPage input::placeholder, .emby-input::placeholder {
+    color: #8c8c8c !important; opacity: 1 !important;
+}
+#loginPage .raised.button-submit, .loginPage .raised.button-submit {
+    width: 100% !important; height: 48px !important;
+    margin-top: 24px !important; font-size: 1rem !important;
+}
+#loginPage .checkboxContainer, .loginPage .checkboxContainer {
+    margin-top: 12px !important; font-size: 0.85rem !important; color: var(--nf-text-3) !important;
+}
+
 /* =============================================
    SIDE DRAWER
    ============================================= */
@@ -1319,12 +1499,50 @@ html:not(.transparentDocument):not(.nf-playing) body:has(.mainDrawer.drawer-open
    PLAYBACK & VIDEO PLAYER
    ============================================= */
 
+/* Eased 9-stop scrim. This was the last 2-stop gradient in a sheet that uses
+   9–13 eased stops everywhere else, and it banded visibly over dark footage. */
 .videoOsdBottom {
-    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%) !important;
+    background: linear-gradient(to top,
+        rgba(0,0,0,.92) 0%, rgba(0,0,0,.88) 12%, rgba(0,0,0,.78) 24%,
+        rgba(0,0,0,.62) 38%, rgba(0,0,0,.44) 52%, rgba(0,0,0,.26) 66%,
+        rgba(0,0,0,.12) 80%, rgba(0,0,0,.04) 90%, transparent 100%) !important;
 }
 
 .osdTimeText {
     font-family: var(--font-netflix) !important;
+}
+
+/* Scrub preview — the single thing you look at most while seeking, and it was
+   still stock. Flat white frame only: NO box-shadow / overflow / padding
+   overrides here. This element repaints on every mouse-move during a seek and
+   it is the exact surface behind the JMP seek-lag regression, so it must stay
+   cheap to composite. */
+.videoOsdBottom .sliderBubble {
+    background: #000 !important;
+    border: 2px solid rgba(255,255,255,0.9) !important;
+    border-radius: var(--r-art) !important;
+}
+.videoOsdBottom .sliderBubbleText {
+    display: block !important;
+    font-family: var(--font-netflix) !important;
+    font-weight: 700 !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.02em !important;
+    background: #000 !important;
+    color: #fff !important;
+    text-align: center !important;
+}
+/* Now-playing line */
+.videoOsdBottom .osdTitle {
+    font-size: 1.4rem !important; font-weight: 700 !important;
+    color: #fff !important; margin-bottom: 2px !important;
+}
+.videoOsdBottom .osdMediaInfo { font-size: 0.85rem !important; color: var(--nf-text-3) !important; }
+/* Tabular figures stop the clock jittering as the digits change. */
+.osdPositionText, .osdDurationText {
+    font-size: 0.82rem !important;
+    color: var(--nf-text-2) !important;
+    font-variant-numeric: tabular-nums !important;
 }
 
 /* =============================================
@@ -1335,19 +1553,33 @@ html:not(.transparentDocument):not(.nf-playing) body:has(.mainDrawer.drawer-open
     font-family: var(--font-netflix) !important;
 }
 
-/* Netflix's search box is square with a bright border */
+/* Netflix's search box: square, thin bright border, magnifier inside on the left. */
 .searchfields-txtSearch, #txtSearch {
     background-color: rgba(0,0,0,0.75) !important;
     border: 1px solid rgba(255,255,255,0.85) !important;
     color: white !important;
     font-family: var(--font-netflix) !important;
     border-radius: 0 !important;
+    height: 44px !important;
+    padding: 0 14px 0 44px !important;
+    font-size: 1rem !important;
     transition: border-color 0.2s ease, background-color 0.2s ease !important;
 }
-
+.searchfields-txtSearch::placeholder, #txtSearch::placeholder {
+    color: #8c8c8c !important;
+    opacity: 1 !important;
+}
 .searchfields-txtSearch:focus, #txtSearch:focus {
     border-color: white !important;
     background-color: rgba(0,0,0,0.9) !important;
+    /* the global input:focus ring below would draw a SECOND ring 1px outside
+       this border — two concentric white outlines on every click into the field */
+    box-shadow: none !important;
+}
+.searchFields .searchfields-icon, .searchFields .material-icons {
+    color: rgba(255,255,255,0.75) !important;
+    font-size: 22px !important;
+    inset-inline-start: 12px !important;
 }
 
 /* =============================================
@@ -1368,6 +1600,25 @@ input:focus, textarea:focus, .emby-input:focus {
     box-shadow: 0 0 0 1px rgba(255,255,255,0.7) !important;   /* border-like, works on borderless fields */
 }
 
+/* Checkboxes and switches. The rule above paints a border + shadow that a native
+   checkbox — and the 0x0 input hidden behind a .ct-switch — simply cannot show,
+   so keyboard focus VANISHED whenever it reached one. Standalone selectors, no
+   :has(), so nothing here can invalidate a comma list on an old TV engine. */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+    outline: 2px solid #fff !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+}
+.emby-checkbox:focus-visible ~ .checkboxOutline {
+    outline: 2px solid #fff !important;
+    outline-offset: 2px !important;
+}
+.emby-toggle:focus-visible ~ .toggleButton-thumb {
+    outline: 2px solid #fff !important;
+    outline-offset: 2px !important;
+}
+
 /* Tab focus ring — underline plus a visible border so the focused tab
    stands out even at a glance */
 .emby-tab-button:focus-visible {
@@ -1377,20 +1628,7 @@ input:focus, textarea:focus, .emby-input:focus {
     border-color: rgba(255,255,255,0.7) !important;
 }
 
-/* =============================================
-   RESPONSIVE
-   ============================================= */
-
-@media (max-width: 768px) {
-    .itemName { font-size: 1.8rem !important; }
-    .nf-logo { font-size: 1.7rem; }
-    .detailPagePrimaryContent { max-width: 100% !important; }
-    .detailPageWrapperContainer { padding-top: 20vh !important; }
-    .mainDetailButtons { gap: 8px !important; }
-    .btnPlay, .btnResume, .btnReplay { height: 38px !important; font-size: 1rem !important; padding: 8px 20px 8px 16px !important; }
-    /* Keep touch targets at 40px minimum on phones */
-    .mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, .mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands { width: 40px !important; height: 40px !important; min-width: 40px !important; }
-}
+/* (RESPONSIVE LAYERS live at the very end of this sheet — see the note there.) */
 
 /* =============================================
    DESIGN REFINEMENTS (v2.1)
@@ -1576,39 +1814,62 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 }
 .nf-hero-content {
     position: absolute; left: 0; bottom: 0; z-index: 3;
-    padding: 0 4% 9vh;
+    padding: 0 var(--nf-gutter) var(--nf-hero-baseline);
     max-width: 680px;
 }
-.nf-hero-logo { max-width: 95%; max-height: min(26vh, 230px); margin-bottom: 18px; filter: var(--logo-shadow); }
+/* Capped to the same optical band as the text title. A logo slide used to render
+   a 230px block and a text slide a 65px one, so the billboard's copy jumped ~170px
+   every 20s crossfade — and a tall logo pushed into the upper half where the 55°
+   scrim has already cleared, losing contrast. Same margin on both treatments. */
+.nf-hero-logo {
+    max-width: 95%;
+    max-width: min(66%, 420px);
+    max-height: 230px;
+    max-height: clamp(88px, 12vh, 148px);
+    margin-bottom: 16px;
+    filter: var(--logo-shadow);
+}
 .nf-hero-title {
     font-family: var(--font-netflix);
-    font-weight: 900; font-size: clamp(2rem, 4.4vw, 4rem); line-height: 1.02;
+    font-weight: 900; font-size: var(--nf-t-hero); line-height: 1.02;
+    /* Inter is airy at display sizes; Netflix Sans is not. Pull it tight. */
+    letter-spacing: -0.022em;
     color: var(--text-main);
-    margin-bottom: 14px;
+    margin-bottom: 16px;
+    /* The logo treatment carries --logo-shadow; the text one carried nothing, so
+       the two slides read as different levels of finish over a bright backdrop. */
+    text-shadow: 0 2px 4px rgba(0,0,0,0.45);
 }
 .nf-hero-meta {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin-bottom: 14px; font-size: 0.95rem; color: var(--nf-text-2); font-weight: 600;
+    margin-bottom: 14px; font-size: var(--nf-t-meta); color: var(--nf-text-2); font-weight: 600;
+    letter-spacing: 0.005em;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.45);
 }
 .nf-hero-match { color: #46d369; font-weight: 700; }
 /* Billboard maturity badge — Netflix pins it to the slide's right edge with a
    #dcdcdc bar (headerButton.js emits .nf-hero-maturity per slide; the old
    inline .nf-hero-rating chip in the meta row is gone). */
+/* Fixed width, not min-width: a long certification ("Ab 16 Jahren", "NC-17 /
+   TV-MA") used to grow the plate past the 150px the controls reserved, and the
+   mute button landed on top of it. Now the controls clear it by a constant 24px. */
 .nf-hero-maturity {
-    position: absolute; right: 0; bottom: calc(9vh + 1px); z-index: 6;
+    position: absolute; right: 0; bottom: var(--nf-hero-baseline); z-index: 6;
     display: flex; align-items: center; box-sizing: border-box;
-    min-width: 8.5em; min-height: 42px;
+    width: 9rem; min-height: 42px;
     background: rgba(51,51,51,0.6);
     border-left: 3px solid #dcdcdc;
     color: #fff; font-size: 0.95rem;
-    padding: 0.4em 3.2em 0.4em 0.8em;
+    padding: 0.4em 0.8em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .nf-hero-rating { border: 1px solid rgba(255,255,255,0.45); border-radius: var(--r-badge); padding: 0 0.4em; font-size: 0.8rem; }
 .nf-hero-overview {
     font-family: var(--font-netflix);
-    font-size: 1.05rem; line-height: 1.45; color: var(--nf-text-2);
+    font-size: var(--nf-t-body); line-height: 1.42; color: var(--nf-text-2);
     margin-bottom: 20px;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.45);
 }
 .nf-hero-actions { display: flex; gap: 12px; align-items: center; }
 .nf-hero-btn {
@@ -1623,48 +1884,45 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .nf-hero-play:hover { background: rgba(255,255,255,0.78); }
 .nf-hero-info { background: rgba(109,109,110,0.7); color: #fff; }
 .nf-hero-info:hover { background: rgba(109,109,110,0.4); }
+/* One ring spec across the three circular-button sizes (46 / 42 / 32) — the
+   weight and rest fill are constant, only the diameter changes. */
 .nf-hero-list {
-    background: rgba(42,42,42,0.6); color: #fff;
-    width: 48px; height: 48px; padding: 0; border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.5); justify-content: center;
+    background: var(--nf-ring-fill); color: #fff;
+    width: 46px; height: 46px; padding: 0; border-radius: 50%;
+    border: var(--nf-ring); justify-content: center;
 }
 .nf-hero-list:hover { border-color: #fff; background: rgba(42,42,42,0.85); transform: none; }
 .nf-hero-list.active .material-icons { color: #46d369; }
 .nf-hero-controls {
-    /* Netflix's bottom-right line: [pause][dots][mute] … [maturity badge flush
-       at the edge]. Controls clear the badge's reserved band; z-index 6 keeps
-       them clickable above rows tucked into the hero's bottom margin. */
-    position: absolute; right: 150px; bottom: 9vh; z-index: 6;
+    /* Netflix's bottom-right line: [mute][pause][dots] … [maturity plate flush
+       at the edge]. The plate is a fixed 9rem, so a constant 24px gap clears it
+       at every width and for every certification string; z-index 6 keeps these
+       clickable above rows tucked into the hero's bottom margin. */
+    position: absolute; right: calc(9rem + 24px); bottom: var(--nf-hero-baseline); z-index: 6;
     display: flex; align-items: center; gap: 14px;
 }
 .nf-hero-ctrl {
     width: 42px; height: 42px; border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.5); background: rgba(20,20,20,0.35); color: #fff;
+    border: var(--nf-ring); background: var(--nf-ring-fill); color: #fff;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .nf-hero-ctrl:hover { border-color: #fff; }
-.nf-hero-dots { display: flex; gap: 2px; align-items: center; }
+.nf-hero-dots { display: flex; gap: 3px; align-items: center; }
 /* Dots are real buttons: keyboard-focusable, labelled, with a ≥24px hit area. */
 .nf-hero-dot {
     min-width: 17px; height: 24px; padding: 0;
     border: none; background: transparent; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
 }
+/* ONE pagination language. The billboard used 9px dots that stretched into a
+   26px pill while the row headers used 12x2 bars for the identical job — two
+   vocabularies 400px apart. Transition only `background`: `all` animated the
+   width, which forced a layout pass on the control strip every rotation. */
 .nf-hero-dot::before {
-    content: ''; width: 9px; height: 9px; border-radius: 50%;
-    background: rgba(255,255,255,0.35); transition: all 0.25s ease;
+    content: ''; width: 12px; height: 2px; border-radius: 0;
+    background: #4d4d4d; transition: background 0.25s ease;
 }
-.nf-hero-dot.active::before { background: #fff; width: 26px; border-radius: 5px; }
-
-@media (max-width: 768px) {
-    .nf-hero { height: 62vh; min-height: 360px; }
-    .nf-hero-content { padding-bottom: 6vh; max-width: 92%; }
-    .nf-hero-logo { max-height: 110px; }
-    .nf-hero-title { font-size: 2rem; }
-    .nf-hero-overview { -webkit-line-clamp: 2; font-size: 0.92rem; }
-    .nf-hero-btn { font-size: 0.92rem; padding: 9px 18px; }
-    .nf-hero-controls { bottom: 6vh; }
-}
+.nf-hero-dot.active::before { background: #fff; }
 
 /* =============================================
    CURATED GENRE ROWS (built by headerButton.js) — replaces Home Screen Sections
@@ -1672,37 +1930,69 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 /* position:relative + z-index: rows tuck into the hero's bottom fade (negative
    hero margin) — static sections would otherwise paint UNDER the hero's
    absolutely-positioned slides and get their titles clipped. */
-.nf-genre-section { margin: 0 0 2.6vw; position: relative; z-index: 3; }
+/* margin/padding carry !important: .verticalSection's own `margin-bottom:.8rem
+   !important` (and .sectionTitle's `margin-bottom:.4rem !important`) are earlier
+   in this sheet but win on !important, so the plain values written here were
+   DEAD — rows actually rendered 12.8px apart instead of the intended rhythm. */
+.nf-genre-section { position: relative; z-index: 3; }
 /* Our rows carry the gutter on their own title/scroller — without this they
    ALSO inherit .verticalSection's 4% and sit at 8%, so row titles and first
    tiles stop lining up with the header logo and the hero copy. */
 .verticalSection.nf-genre-section,
-.verticalSection.nf-cw-section { padding-left: 0 !important; padding-right: 0 !important; }
+.verticalSection.nf-cw-section {
+    padding-left: 0 !important; padding-right: 0 !important;
+    margin: 0 0 var(--nf-row-gap) !important;
+}
 /* Netflix rows show no text under the artwork — title/match live in the hover popup. */
 .nf-genre-section .nf-card .cardText { display: none !important; }
 .nf-genre-section .nf-card .cardBox { padding-bottom: 0 !important; }
-.nf-genre-section .sectionTitle {
+.nf-genre-section .sectionTitle,
+.nf-cw-section .sectionTitle {
     display: flex; align-items: center;
     padding-left: var(--nf-gutter); padding-right: var(--nf-gutter);
-    font-size: clamp(1.1rem, 1.4vw, 1.45rem);
-    font-weight: 700; color: var(--nf-text-2) !important; letter-spacing: normal;
-    margin: 0 0 0.5em;
+    /* !important: `.sectionTitle { font-size: ... !important }` earlier in this
+       sheet outranks any specificity, and this token was dead without it. */
+    font-size: var(--nf-t-row) !important;
+    font-weight: 700; color: var(--nf-text-2) !important;
+    /* Inter needs NEGATIVE tracking at this size; the old +0.2px read loose and
+       webby, like a dashboard heading rather than a Netflix shelf label. */
+    letter-spacing: -0.012em;
+    /* The scroller's 22px top padding is invisible whitespace that has to be there
+       to contain the hover zoom; -10px pulls the title back down through it so the
+       VISIBLE title-to-tile gap is Netflix's ~12px. With --nf-row-gap that gives a
+       1:4 rhythm (12px above its own tiles, 48px below the row before it) — the
+       ratio that makes a title read as belonging to the shelf under it. It used to
+       be 6.4px / 34.8px, so titles floated almost equidistant between two rows and
+       the page read as one undifferentiated stack of thumbnails. */
+    margin: 0 0 -10px !important;
+    margin: 0 0 calc(12px - var(--nf-zoom-pad)) !important;
     transition: color var(--nf-dur) var(--nf-ease-in);
 }
 .nf-genre-section:hover .sectionTitle, .nf-cw-section:hover .sectionTitle { color: var(--text-main) !important; }
+/* overflow-y:visible COMPUTES TO AUTO next to overflow-x:auto (CSS Overflow 3),
+   so this scroller clips vertically at its padding box. The hover zoom
+   (.cardScalable scale(1.2)) overflows by 10% of the tile height — 12px at the
+   default ladder, ~19px for the widest CardSize=large rung — and the old 6px top
+   padding sliced the top off every hovered tile. 22px contains the zoom at every
+   rung and every CardSize preset. */
 .nf-row-scroll {
     overflow-x: auto; overflow-y: visible;
     scrollbar-width: none; -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
-    padding: 6px var(--nf-gutter) 22px;
+    padding: 22px var(--nf-gutter) 22px;
+    padding: var(--nf-zoom-pad) var(--nf-gutter) var(--nf-zoom-pad);
 }
 .nf-row-scroll::-webkit-scrollbar { display: none; }
-.nf-row-track { display: flex; gap: 4px; gap: max(4px, 0.4vw); align-items: flex-start; }
-/* ~6 landscape cards across like Netflix (was ~4). The 3-class selector + !important
-   overrides the global ".homeSectionsContainer .card.overflowBackdropCard {min-width:320px}". */
+.nf-row-track { display: flex; gap: var(--nf-tile-gap); align-items: flex-start; }
+/* Whole-tile rows: the width is a DIVISION of the track, not a clamp, so a row
+   never ends in a sliced card. The clamp stays as the first declaration — an
+   engine without custom properties drops the calc and keeps the old behaviour.
+   The 3-class selector + !important still overrides the global
+   ".homeSectionsContainer .card.overflowBackdropCard { min-width: 320px }". */
 .nf-genre-section .card.nf-card {
     flex: 0 0 auto;
     width: clamp(165px, 15.2vw, 285px) !important;
+    width: var(--nf-tile) !important;
     min-width: 0 !important;
     margin: 0;
 }
@@ -1717,16 +2007,32 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 /* =============================================
    TOP NAV TABS (built by headerButton.js) — replaces Custom Tabs
    ============================================= */
-.nf-nav-tabs { display: flex; gap: 20px; align-items: center; margin-left: 26px; }
+/* Bounded and scrollable, never pushing: .headerLeft is a flex row and the tabs
+   are nowrap, so once one link per library exceeded the free space the whole left
+   group grew and shoved .headerRight (search + avatar) toward the viewport edge.
+   min-width:0 lets the strip shrink; the logo is pinned so the shrink lands here. */
+.nf-nav-tabs {
+    display: flex; gap: 18px; align-items: center; margin-left: 25px;
+    min-width: 0; overflow-x: auto;
+    scrollbar-width: none; -ms-overflow-style: none;
+}
+.nf-nav-tabs::-webkit-scrollbar { display: none; }
+.headerLeft { min-width: 0 !important; }
+.nf-logo { flex: 0 0 auto; }
+/* State lives in COLOUR only. Encoding it in opacity AND colour made rest (#bdbdbd
+   composited) and hover (#b3b3b3) ~10 grey levels apart — the hover was invisible. */
 .nf-nav-tab {
     color: #e5e5e5; font-family: var(--font-netflix);
-    font-size: 0.95rem; font-weight: 500; text-decoration: none;
-    opacity: 0.82; white-space: nowrap;
-    transition: opacity 0.2s ease, color 0.2s ease;
+    font-size: 0.875rem; font-weight: 400; text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.25s var(--nf-ease-fade);
 }
-.nf-nav-tab:hover { opacity: 1; color: var(--text-muted); }
-.nf-nav-tab.active { color: var(--text-main); font-weight: 700; opacity: 1; }
-@media (max-width: 768px) { .nf-nav-tabs { display: none; } }
+.nf-nav-tab:hover { color: #b3b3b3; }
+.nf-nav-tab.active { color: var(--text-main); font-weight: 500; }
+@media (max-width: 1100px) {
+    .nf-nav-tabs { gap: 14px; margin-left: 14px; }
+    .nf-nav-tab { font-size: 0.88rem; }
+}
 
 /* =============================================
    SELF-ENFORCING HERO — neutralize a co-installed Media Bar
@@ -1750,7 +2056,10 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     overflow: hidden;
     background: #181818;
     font-family: var(--font-netflix);
-    opacity: 0; transform: scale(0.92); transform-origin: center bottom;
+    /* Grows outward from the tile's centre (headerButton.js centres it on the
+       card), so the tile reads as expanding in place. Scaling from `bottom`
+       looked like a panel dropping down over the row underneath. */
+    opacity: 0; transform: scale(0.92); transform-origin: center center;
     transition: opacity 0.22s var(--nf-ease-out), transform 0.22s var(--nf-ease-out);
 }
 .nf-pop.show { opacity: 1; transform: scale(1); }
@@ -1767,7 +2076,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 /* Netflix's mini-modal buttons are 32px circles */
 .nf-pop-btn {
     width: 32px; height: 32px; border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.5); background: rgba(42,42,42,0.6); color: #fff;
+    border: var(--nf-ring); background: var(--nf-ring-fill); color: #fff;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -1787,7 +2096,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     transition: opacity 0.4s ease;
 }
 .nf-pop-media.clip-on .nf-pop-media-title { opacity: 0; }
-.nf-pop-meta { display: flex; align-items: center; gap: 9px; font-size: 0.9rem; color: var(--nf-text-2); margin-bottom: 7px; flex-wrap: wrap; }
+.nf-pop-meta { display: flex; align-items: center; gap: 9px; font-size: var(--nf-t-meta); color: var(--nf-text-2); margin-bottom: 7px; flex-wrap: wrap; }
 .nf-pop-match { color: #46d369; font-weight: 700; }
 .nf-pop-rating { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.72rem; }
 .nf-pop-hd { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.66rem; color: var(--nf-text-3); }
@@ -1805,21 +2114,39 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .homeSectionsContainer.nf-owned > *:not(.nf-hero):not(.nf-cw-section):not(.nf-genre-section) { display: none !important; }
 html.nf-home .skinHeader .headerTabs { display: none !important; }
 
-/* Continue Watching row — own sharp landscape cards with progress (no blurhash) */
-.nf-cw-section { margin: 0 0 2.6vw; position: relative; z-index: 3; }
-.nf-cw-section .sectionTitle { display: flex; align-items: center; padding-left: var(--nf-gutter); padding-right: var(--nf-gutter); font-size: clamp(1.1rem, 1.4vw, 1.45rem); font-weight: 700; color: var(--nf-text-2) !important; letter-spacing: normal; margin: 0 0 0.5em; transition: color var(--nf-dur) var(--nf-ease-in); }
-.nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 6px var(--nf-gutter) 22px; }
+/* Continue Watching row — own sharp landscape cards with progress (no blurhash).
+   Title styling is shared with .nf-genre-section .sectionTitle further up. */
+.nf-cw-section { position: relative; z-index: 3; }
+.nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 22px var(--nf-gutter) 22px; padding: var(--nf-zoom-pad) var(--nf-gutter) var(--nf-zoom-pad); }
 .nf-cw-scroll::-webkit-scrollbar { display: none; }
-.nf-cw-track { display: flex; gap: 4px; gap: max(4px, 0.4vw); align-items: flex-start; }
-/* Same tile size as every other row — Netflix never sizes Continue Watching differently */
-.nf-cw-card { flex: 0 0 auto; width: clamp(165px, 15.2vw, 285px); text-decoration: none; }
+.nf-cw-track { display: flex; gap: var(--nf-tile-gap); align-items: flex-start; }
+/* Same tile as every other row — off the one ladder, so Continue Watching can
+   never drift to a different scale from the shelf directly under it. */
+.nf-cw-card {
+    flex: 0 0 auto; text-decoration: none; position: relative;
+    width: clamp(165px, 15.2vw, 285px);
+    width: var(--nf-tile);
+}
 .nf-cw-thumb {
     position: relative; width: 100%; aspect-ratio: 16 / 9;
     border-radius: var(--card-radius); overflow: hidden;
     background: var(--nf-surface) center / cover no-repeat;
-    transition: outline 0.15s ease;   /* flat at rest — Netflix tiles carry no resting shadow */
+    /* flat at rest — Netflix tiles carry no resting shadow */
+    transition: transform var(--nf-dur) var(--nf-ease-in), box-shadow var(--nf-dur) var(--nf-ease-in);
 }
-.nf-cw-card:hover .nf-cw-thumb { outline: 2px solid #fff; }
+/* ONE hover language on the home page. Continue Watching used to answer a hover
+   with a flat white outline while every other row zoomed and opened a preview
+   card — two vocabularies on one screen. It now zooms exactly like a .card;
+   headerButton.js also matches .nf-cw-card for the preview popup. */
+@media (hover: hover) {
+    .nf-cw-card:hover { z-index: 60; }
+    .nf-cw-card:hover .nf-cw-thumb { transform: scale(1.2); box-shadow: var(--e-2); }
+    .nf-cw-track > .nf-cw-card:first-child:hover .nf-cw-thumb { transform-origin: left center; }
+    .nf-cw-track > .nf-cw-card:last-child:hover .nf-cw-thumb { transform-origin: right center; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nf-cw-card:hover .nf-cw-thumb { transform: none; }
+}
 .nf-cw-play {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: 46px; height: 46px; border-radius: 50%;
@@ -1832,9 +2159,10 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 .nf-cw-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,0.3); }
 .nf-cw-prog > i { display: block; height: 100%; background: var(--accent-red, #E50914); }
 /* Netflix's Continue Watching tiles are clean boxart — no text under the card.
-   Title/episode/time live in the hover popup like every other row. */
+   Title/episode/time live in the hover popup like every other row.
+   (On phones there IS no popup, so the phone block further down puts the text
+   back on the tile — otherwise the whole row is anonymous thumbnails.) */
 .nf-cw-title { display: none; }
-@media (max-width: 768px) { .nf-cw-card { width: 60vw; } }
 
 /* =============================================
    NETFLIX-STYLE LOADING ANIMATION (self-contained, CSS only)
@@ -1915,10 +2243,9 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
 .nf-hero-btn, .nf-pop-btn {
     transition: background-color .2s ease, border-color .2s ease;
 }
-/* Slightly glassy genre/trend section headers */
-.nf-genre-section .sectionTitle, .nf-cw-section .sectionTitle {
-    letter-spacing: .2px;
-}
+/* (Row-header tracking is set once with the rest of the .sectionTitle spec in the
+   CURATED GENRE ROWS block — the +0.2px that used to live here read loose and
+   webby on Inter and silently overrode it.) */
 
 /* =============================================
    ROW SCROLL ARROWS (built by headerButton.js) — hidden scrollbars need a way
@@ -1928,16 +2255,25 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
 /* Netflix's row handles are flat translucent strips spanning the row height,
    with a large chevron — not gradient fades. */
 .nf-row-arrow {
-    position: absolute; top: 6px; bottom: 22px; width: 4%; min-width: 36px;
+    /* Flush with the card tops: matches .nf-row-scroll's 22px padding.
+       min-width 40px + overflow:hidden because the chevron glyph is 40px wide and
+       grows to 50px on hover: inside the old 36px box (4% is under 40px on any
+       viewport below 1000px) it stuck 2px out of the last row and gave the whole
+       PAGE a horizontal scrollbar. The clip is invisible — the chevron occupies
+       only the middle ~60% of its em box. */
+    position: absolute; top: 22px; bottom: 22px; width: 4%; min-width: 40px;
+    top: var(--nf-zoom-pad); bottom: var(--nf-zoom-pad);
     z-index: 6; border: none; padding: 0; color: #fff; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
     opacity: 0; transition: opacity 0.2s ease, background 0.2s ease;
     background: rgba(20,20,20,0.5);
 }
 .nf-row-arrow-back { left: 0; border-radius: 0 var(--card-radius) var(--card-radius) 0; }
 .nf-row-arrow-fwd { right: 0; border-radius: var(--card-radius) 0 0 var(--card-radius); }
 .nf-row-arrow:hover { background: rgba(20,20,20,0.7); }
-.nf-row-wrap:hover .nf-row-arrow, .nf-row-arrow:focus-visible { opacity: 1; }
+.nf-row-wrap:hover .nf-row-arrow { opacity: 1; }
+.nf-row-arrow:focus-visible { opacity: 1; }   /* standalone — see the note above */
 .nf-at-start .nf-row-arrow-back, .nf-at-end .nf-row-arrow-fwd { visibility: hidden; }
 .nf-row-arrow .material-icons { font-size: 40px; transition: transform 0.15s ease; }
 .nf-row-arrow:hover .material-icons { transform: scale(1.25); }
@@ -1976,7 +2312,8 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
     opacity: 0; transition: opacity 0.2s ease, background 0.2s ease;
 }
 .nf-cw-remove .material-icons { font-size: 18px; }
-.nf-cw-card:hover .nf-cw-remove, .nf-cw-remove:focus-visible { opacity: 1; }
+.nf-cw-card:hover .nf-cw-remove { opacity: 1; }
+.nf-cw-remove:focus-visible { opacity: 1; }
 .nf-cw-remove:hover { background: rgba(0,0,0,0.9); border-color: #fff; }
 /* Touch devices have no hover — keep it reachable. */
 @media (hover: none) { .nf-cw-remove { opacity: 1; } }
@@ -2008,29 +2345,10 @@ html.nf-playing .actionSheetTitle {
     font-size: 1.3rem !important; font-weight: 700 !important;
     text-transform: none !important; color: #fff !important;
 }
-html.transparentDocument .actionSheetMenuItem,
-html.nf-playing .actionSheetMenuItem {
-    border-radius: 0 !important; padding: 0.65em 1.2em !important;
-    border-inline-start: 3px solid transparent !important;
-}
-html.transparentDocument .actionSheetMenuItem:hover,
-html.nf-playing .actionSheetMenuItem:hover { background: rgba(255,255,255,0.08) !important; }
-/* Selected track: Netflix marks it with a red bar rather than a tick.
-   NOTE: jellyfin gives EVERY item a .listItemIcon.check span for alignment and
-   hides the unselected ones with an inline visibility:hidden — so the selected
-   one is the only check that is not inline-hidden. */
-html.transparentDocument .actionSheetMenuItem .listItemIcon.check,
-html.nf-playing .actionSheetMenuItem .listItemIcon.check { color: transparent !important; width: 0 !important; margin: 0 !important; }
-html.transparentDocument .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden"])) {
-    border-inline-start-color: var(--accent-red) !important;
-    background: rgba(255,255,255,0.05) !important;
-    font-weight: 600 !important;
-}
-html.nf-playing .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden"])) {
-    border-inline-start-color: var(--accent-red) !important;
-    background: rgba(255,255,255,0.05) !important;
-    font-weight: 600 !important;
-}
+/* The row metrics and the red selected-track bar are now GLOBAL (see the ONE
+   action-sheet spec in the menus block above), so the playback-scoped copies of
+   those rules are gone — ~20 lines of duplicated selector matching removed from
+   the hot playback path. Only the surface treatment stays scoped here. */
 
 /* =============================================
    LEGACY ENGINE FALLBACKS — TVs / old WebViews without aspect-ratio keep
@@ -2040,6 +2358,14 @@ html.nf-playing .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden
     .personCard .cardPadder { padding-bottom: 100% !important; }
     .nf-cw-thumb { height: 0; padding-top: 56.25%; }
     .nf-pop-media { height: 0; padding-top: 56.25%; }
+    /* Without this the whole episode list on a season page renders as a row of
+       INVISIBLE cards on JMP's old Chromium and old TV WebViews — title and
+       runtime floating with nothing above them (the same failure that once
+       collapsed the cast circles). Percentage padding is honoured everywhere. */
+    .itemDetailPage #listChildrenCollapsible .listItem .listItemImage {
+        height: 0 !important;
+        padding-top: 56.25% !important;
+    }
 }
 
 /* =============================================
@@ -2182,13 +2508,28 @@ html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !impo
    (10.11 markup: #similarCollapsible > .emby-scroller > .scrollSlider.similarContent) */
 #similarCollapsible .emby-scroller { overflow: visible !important; }
 #similarCollapsible .emby-scrollbuttons { display: none !important; }
+/* The column count tracks the row tile ladder, so the jawbone grid reads as the
+   same system as the shelves. A fixed 150px minimum gave 4 columns at 834px but
+   TEN at 1920px — 162px posters next to 287px row tiles. */
+/* State the COUNT, not a vw minimum. auto-fill with a vw-derived track is
+   scrollbar-sensitive: the grid container is a percentage of the page width
+   (which EXCLUDES the scrollbar) while vw INCLUDES it, so on any desktop with a
+   classic 15-17px scrollbar the ladder dropped a whole column and each poster
+   jumped ~40% wider than the row tiles it is supposed to match. Explicit counts
+   are exact at every width. */
 #similarCollapsible .scrollSlider {
     display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));   /* legacy fallback */
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 14px !important;
     white-space: normal !important;
     transform: none !important;
 }
+@media (min-width: 1900px) { #similarCollapsible .scrollSlider { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+@media (max-width: 1399px) { #similarCollapsible .scrollSlider { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 1099px) { #similarCollapsible .scrollSlider { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width:  799px) { #similarCollapsible .scrollSlider { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px !important; } }
+@media (max-width:  499px) { #similarCollapsible .scrollSlider { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; } }
 #similarCollapsible .scrollSlider > .card { width: auto !important; min-width: 0 !important; }
 
 /* ===== EPISODE & SEASON OVERVIEWS as full-width Netflix card rows =====
@@ -2219,7 +2560,12 @@ html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !impo
 .itemDetailPage .detailPagePrimaryContent #childrenCollapsible {
     width: 92vw !important;
     max-width: none !important;
-    margin-left: -4% !important;
+    /* margin was -4% to cancel .detailSection's 4%; that padding is now zeroed
+       inside the primary column (see the ONE-rail rule above), so the strip
+       starts exactly on the page's 4% rail — the same rail as the cast and
+       "More Like This" rows below it. margin-inline-start keeps RTL correct. */
+    margin-left: 0 !important;
+    margin-inline-start: 0 !important;
     box-sizing: border-box !important;
 }
 
@@ -2231,7 +2577,8 @@ html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !impo
     flex-flow: row nowrap !important;
     overflow-x: auto !important;
     overflow-y: visible !important;
-    gap: 6px !important;
+    align-items: stretch !important;
+    gap: var(--nf-tile-gap) !important;
     padding: 6px 0 24px !important;
     scrollbar-width: none !important;
 }
@@ -2247,12 +2594,20 @@ html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !impo
     margin: 0 !important;
 }
 
-/* (c) Episode `.listItem` -> landscape card (thumbnail on top, title below).
-   Card width matches the home Continue-Watching cards (clamp 220–340). */
+/* (c) Episode `.listItem` -> landscape INFO CARD: artwork on a #181818 panel that
+   carries title, runtime and two lines of synopsis. This is the theme's own
+   established shape (see #similarCollapsible) rather than a second style — the
+   previous treatment was a bare thumb plus one truncated grey line floating on
+   the page background, which read as unfinished rather than minimal.
+   Width comes off the shared tile ladder, so an episode card is exactly the same
+   size as a home-row card: navigating Home -> Series -> Season no longer changes
+   the tile scale twice. */
 .itemDetailPage #listChildrenCollapsible .listItem {
     flex: 0 0 auto !important;
     width: clamp(220px, 19vw, 340px) !important;
+    width: var(--nf-tile) !important;
     display: block !important;
+    align-self: stretch !important;
     border-bottom: none !important;
     padding: 0 !important;
     background: transparent !important;
@@ -2262,53 +2617,69 @@ html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !impo
     display: flex !important;
     flex-flow: column nowrap !important;
     align-items: stretch !important;
-    gap: 7px !important;
+    gap: 0 !important;
     width: 100% !important;
+    height: 100% !important;
+    background: var(--nf-surface) !important;
+    border-radius: var(--card-radius) !important;
+    overflow: hidden !important;
+    transition: background 0.2s ease !important;
 }
+.itemDetailPage #listChildrenCollapsible .listItem:hover .listItem-content { background: var(--nf-surface-hi) !important; }
 .itemDetailPage #listChildrenCollapsible .listItem .listItemImage {
     width: 100% !important;
     aspect-ratio: 16 / 9 !important;
     height: auto !important;
-    border-radius: var(--card-radius) !important;
+    border-radius: 0 !important;
     overflow: hidden !important;
     margin: 0 !important;
-    transition: filter 0.2s ease, box-shadow 0.2s ease !important;
-}
-/* Hover matches the home cards' response (brighten + lift), not a white ring */
-.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImage {
-    filter: brightness(1.12) !important;
-    box-shadow: var(--e-2) !important;
+    flex: 0 0 auto !important;
 }
 /* The stock play circle sits on every thumb at rest — Netflix reveals it on hover */
 .itemDetailPage #listChildrenCollapsible .listItem .listItemImageButton {
     opacity: 0 !important;
     transition: opacity 0.2s ease !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImageButton,
+.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImageButton {
+    opacity: 1 !important;
+}
 .itemDetailPage #listChildrenCollapsible .listItem .listItemImageButton:focus-visible {
     opacity: 1 !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem .listItemBody { padding: 0 !important; }
+.itemDetailPage #listChildrenCollapsible .listItem .listItemBody { padding: 10px 12px 13px !important; }
 .itemDetailPage #listChildrenCollapsible .listItem .listItemBody > .listItemBodyText:first-child {
-    white-space: nowrap !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    margin: 0 !important;
-    font-size: 0.85rem !important;
-    color: var(--nf-text-2) !important;
-    font-weight: 400 !important;
+    white-space: normal !important;
+    margin: 0 0 3px !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25 !important;
+    color: #fff !important;
 }
-/* hide the synopsis and button strip for a clean card; the media-info line
-   stays as a quiet runtime row (Netflix's episode cards show duration) */
-.itemDetailPage #listChildrenCollapsible .listItem .listItem-overview,
 .itemDetailPage #listChildrenCollapsible .listItem .listViewUserDataButtons {
     display: none !important;
+}
+/* Netflix's episode rows carry the synopsis — brought back, clamped to 2 lines. */
+.itemDetailPage #listChildrenCollapsible .listItem .listItem-overview {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden !important;
+    margin: 7px 0 0 !important;
+    padding: 0 !important;
+    font-size: 0.8rem !important;
+    line-height: 1.35 !important;
+    color: var(--nf-text-3) !important;
 }
 .itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo {
     padding: 0 !important;
     margin: 0 !important;
-    font-size: 0.75rem !important;
-    color: var(--nf-text-4) !important;
+    font-size: 0.78rem !important;
+    /* was --nf-text-4, which this sheet reserves for DISABLED */
+    color: var(--nf-text-3) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -2344,6 +2715,65 @@ html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !impo
 .dialog a[is=emby-linkbutton]:not(.button-accent) { color: #fff !important; }
 .dialog .button-flat:not(.button-submit):not(.button-accent):hover { color: var(--text-muted) !important; }
 
+/* ONE action-sheet spec, not just during playback. The "..." menu on a card kept
+   stock Jellyfin's padding and tick column while the identical component in the
+   player had Netflix's tighter rows and a red selected bar — two treatments for
+   one control, and the browse-side one was the stock-looking half. */
+.actionSheetMenuItem {
+    border-radius: 0 !important;
+    padding: 0.65em 1.2em !important;
+    border-inline-start: 3px solid transparent !important;
+}
+/* The red bar REPLACES the tick, so only swap them where :has() can draw the bar.
+   Engines without :has() keep the stock tick rather than losing every marker.
+   (Jellyfin gives EVERY item a .listItemIcon.check for alignment and hides the
+   unselected ones with an inline visibility:hidden, so the selected one is the
+   only check that is not inline-hidden.) */
+@supports selector(:has(*)) {
+    .actionSheetMenuItem .listItemIcon.check {
+        color: transparent !important;
+        width: 0 !important;
+        margin: 0 !important;
+    }
+    .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden"])) {
+        border-inline-start-color: var(--accent-red) !important;
+        background: rgba(255,255,255,0.05) !important;
+        font-weight: 600 !important;
+    }
+}
+
+/* --- Empty / no-results states. Netflix centres a short line in the dead space;
+   these used to fall straight back to raw stock text at the top of a blank page —
+   the moment the theme most obviously stopped existing, and the first thing a
+   new user sees on an empty server. --- */
+.noItemsMessage, .centerMessage, .emptyMessage {
+    font-family: var(--font-netflix) !important;
+    text-align: center !important;
+    color: var(--nf-text-3) !important;
+    padding: 14vh 4% 10vh !important;
+    max-width: 520px !important;
+    margin-inline-start: auto !important;
+    margin-inline-end: auto !important;
+}
+.noItemsMessage h1, .centerMessage h1, .emptyMessage h1 {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: var(--text-main) !important;
+    margin: 0 0 10px !important;
+    line-height: 1.2 !important;
+}
+.noItemsMessage p, .centerMessage p, .emptyMessage p {
+    font-size: 0.95rem !important;
+    line-height: 1.45 !important;
+    color: var(--nf-text-3) !important;
+    margin: 0 !important;
+}
+.noItemsMessage .material-icons, .centerMessage .material-icons {
+    font-size: 46px !important;
+    color: var(--nf-surface-hi) !important;
+    margin-bottom: 14px !important;
+}
+
 
 /* =============================================================================
    STUNNING PASS (v2.5.52) — cinematic depth that stays in-world.
@@ -2357,12 +2787,21 @@ html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !impo
     inherits: true;
     initial-value: transparent;
 }
-:root { transition: --nf-ambient-glow 1.2s ease; }
-/* Snap (don't cross-fade) the glow on mobile: transitioning a <color> inside a
-   gradient repaints a viewport-sized background each frame — too costly for the
-   app WebViews. The fallbacks below keep the opaque #181818 layer alive where
-   @property is unsupported (iOS < 16.4, frozen WebViews) or before JS samples. */
-html.layout-mobile { transition: none; }
+/* The transition lives on the ONE element that paints the gradient, not on :root.
+   --nf-ambient-glow is registered `inherits: true`, so animating it at the root
+   changed the computed value of every element in the document — a full-tree style
+   recalc at 60fps for 1.2s on EVERY hero rotation (every 20s, forever, on an idle
+   home page). .backgroundContainer is an empty leaf div in jellyfin-web's
+   index.html, so the cross-fade is identical and the restyle is one element.
+   Desktop-only: a viewport-sized gradient repaint per frame is too costly for the
+   app WebViews, which now simply snap to the new hue.
+   .detailPageSecondaryContainer deliberately keeps NO transition — its glow only
+   changes on navigation (a snap is invisible) and it has a large subtree. */
+@media (hover: hover) and (pointer: fine) {
+    html:not(.layout-tv):not(.layout-mobile) .backgroundContainer {
+        transition: --nf-ambient-glow 1.2s ease;
+    }
+}
 /* The glow hugs the hero seam only — Netflix's browse canvas is flat #141414,
    so the tint must read as light spilling from the billboard, not a wash. */
 .backgroundContainer:not(.withBackdrop) {
@@ -2446,16 +2885,17 @@ html:has(.videoPlayerContainer) .backgroundContainer:not(.withBackdrop) { backgr
 .nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
 [dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
 [dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
+/* The fades assume a flat --bg-dark page. On a detail page the row sits over the
+   backdrop art, where they paint two opaque dark bars across the picture. */
+.itemDetailPage .nf-row-wrap::before,
+.itemDetailPage .nf-row-wrap::after { display: none !important; }
 
-/* --- 4. Staggered hover reveal: the preview card's metadata unfolds top-to-bottom
-   instead of appearing all at once. --- */
-@keyframes nf-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: no-preference) {
-    .nf-pop.show .nf-pop-info > * { animation: nf-rise 0.32s var(--nf-ease-out) both; }
-    .nf-pop.show .nf-pop-info > *:nth-child(2) { animation-delay: 0.05s; }
-    .nf-pop.show .nf-pop-info > *:nth-child(3) { animation-delay: 0.10s; }
-    .nf-pop.show .nf-pop-info > *:nth-child(4) { animation-delay: 0.15s; }
-}
+/* --- 4. (The preview card's contents no longer animate in.) Netflix's mini-modal
+   scales up as ONE solid unit — its contents are already there. Staggering the
+   info block's children at 0/50/100/150ms with a 320ms duration meant that after
+   the 300ms hover delay plus a fetch plus an image decode, you then watched the
+   panel assemble itself for another 470ms. The card's own opacity/transform
+   transition (.nf-pop, above) is the whole animation Netflix uses. --- */
 
 /* --- 5. Hero choreography: when the trailer starts, the title logo shrinks toward
    the corner and the synopsis fades — Netflix's exact move. Restored on the next
@@ -2505,8 +2945,246 @@ body { font-optical-sizing: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    :root { transition: none; }
+    /* !important, not specificity: the ambient cross-fade now lives on
+       `html:not(.layout-tv):not(.layout-mobile) .backgroundContainer` (0,3,1), so a
+       bare .backgroundContainer reset (0,1,0) would silently lose to it. */
+    .backgroundContainer { transition: none !important; }
     .nf-hero-logo, .nf-hero-title, .nf-hero-overview { transition: none; }
 }
+
+/* =============================================
+   RESPONSIVE LAYERS — placed at the END of the sheet on purpose: media queries
+   add NO specificity, so a breakpoint override only wins over the base rule it
+   is overriding if it comes later in the cascade.
+   ============================================= */
+
+/* --- TABLET / SMALL DESKTOP (769–1200px) -------------------------------------
+   The sheet used to jump straight from a phone block to full desktop, so this
+   whole band ran the desktop billboard: a flat 680px copy block that overlapped
+   the 383px the controls + maturity plate claim at the right of the same strip.
+   Below ~1063px the two boxes intersect, and below ~850px the mute circle sat
+   ON TOP of the "+ My List" button — and it wins the click, being z-index 6 to
+   the actions' 3. iPad portrait (834px) and landscape phones live in here. */
+@media (min-width: 769px) and (max-width: 1200px) {
+    .nf-hero { height: 70vh; min-height: 420px; }
+    /* min() is dropped whole on pre-2020 WebViews, which then keep the 680px
+       first declaration — fail-to-status-quo, never fail-to-broken. */
+    .nf-hero-content { max-width: 680px; max-width: min(680px, 100% - 400px); }
+    .nf-hero-actions { flex-wrap: wrap; row-gap: 10px; }
+    .nf-hero-logo { max-height: 150px; max-height: min(18vh, 150px); }
+    .nf-hero-overview { -webkit-line-clamp: 2; }
+    .nf-hero-btn { font-size: 1rem; padding: 10px 22px; }
+    .nf-hero-btn .material-icons { font-size: 1.4rem; }
+    .nf-hero-list { width: 44px; height: 44px; }
+}
+
+/* --- PHONE (≤768px) ---------------------------------------------------------- */
+@media (max-width: 768px) {
+    /* Netflix's phone bar is ~56px, not 68. --nav-height is consumed by
+       .skinHeader, .headerTop, .headerTabs.sectionTabs, .mainDrawer-scrollContainer
+       and the hero's negative margin, so one token keeps all five in lockstep. */
+    :root { --nav-height: 56px; }
+
+    /* ---- Header: the theme's own nav used to be display:none here, which left a
+       phone with NO in-header navigation at all (the section tabs are hidden on
+       home too) — browse was reachable only through the hamburger drawer. Netflix
+       never buries browse behind a drawer. Bounded + scrollable instead. */
+    .nf-nav-tabs {
+        display: flex;
+        margin-left: 10px; margin-right: 10px; gap: 16px;
+        max-width: 100%; min-width: 0; flex: 1 1 auto;
+        overflow-x: auto; overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        /* A hard clip mid-word reads as broken; fade the last 18px so the strip
+           visibly continues instead. Dropped whole on engines without mask —
+           they keep the plain clip, which is the current behaviour. */
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent 100%);
+        mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent 100%);
+    }
+    .nf-nav-tab { font-size: 0.88rem; min-height: 40px; display: flex; align-items: center; }
+    /* The right cluster must never be pushed or shrunk by the nav. */
+    .headerRight { flex: 0 0 auto; gap: 10px !important; }
+
+    /* Library section tabs: the theme forces overflow:visible on Jellyfin's tab
+       scroller, which is harmless on desktop but on a 390px phone made every tab
+       past the viewport edge (Collections, Genres…) permanently unreachable. */
+    /* 44px, not 40: the touch block below gives every tab a 44px minimum hit box,
+       and a 40px row would clip it. Chrome still drops from 112px to 100px. */
+    .headerTabs.sectionTabs { height: 44px !important; padding-inline-start: 0 !important; }
+    .tabs-viewmenubar.emby-tabs {
+        overflow-x: auto !important; overflow-y: hidden !important;
+        max-width: 100%; -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; -ms-overflow-style: none;
+        overscroll-behavior-x: contain;
+    }
+    .tabs-viewmenubar.emby-tabs::-webkit-scrollbar { display: none; }
+    .emby-tabs-slider { padding-inline: var(--nf-gutter) !important; }
+    .headerTabs .emby-tab-button { min-height: 44px !important; display: inline-flex !important; align-items: center !important; }
+    /* Stock's 7.5em top padding is 105px with FontSize=small — less than the
+       chrome above it, so the first grid row hid under the tab strip. Pin it to
+       the real chrome height. :not(.homePage) because Jellyfin puts homePage and
+       libraryPage on the SAME element, and the hero needs its zero padding. */
+    html:not(.nf-home) .page.libraryPage:not(.homePage) { padding-top: calc(var(--nav-height) + 52px) !important; }
+
+    /* ---- Hero. Netflix's phone billboard carries NO carousel chrome, and the
+       mute button is inert here anyway (nfCheapMode skips preview clips on
+       touch). Removing it is also the only way the copy and the controls stop
+       occupying the same 42px band — they used to be drawn straight through the
+       Play / More Info buttons, with the maturity plate floating 26px above. */
+    .nf-hero { height: 62vh; min-height: 360px; }
+    .nf-hero-controls { display: none; }
+    .nf-hero-maturity { display: none; }
+    .nf-hero-content { padding-bottom: var(--nf-hero-baseline); max-width: 100%; }
+    .nf-hero-logo { max-height: 110px; }
+    .nf-hero-overview { -webkit-line-clamp: 2; }
+    .nf-hero-btn { font-size: 0.92rem; padding: 9px 16px; white-space: nowrap; }
+    .nf-hero-list { padding: 0; width: 44px; height: 44px; }
+
+    /* ---- Rows. There is no hover popup below 769px (.nf-pop is display:none and
+       the touch handler bails), so the tile has to carry its own label —
+       otherwise the entire home page is untitled artwork. */
+    .nf-cw-title {
+        display: block; margin-top: 6px;
+        font-size: 0.8rem; line-height: 1.25; font-weight: 500;
+        color: var(--nf-text-2);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .nf-cw-sub {
+        display: block; margin-top: 2px;
+        font-size: 0.72rem; line-height: 1.2; color: var(--nf-text-3);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .nf-genre-section .nf-card .cardText-first {
+        display: block !important;
+        margin-top: 6px; padding: 0;
+        font-size: 0.8rem; line-height: 1.25; font-weight: 500;
+        color: var(--nf-text-2) !important; text-align: start;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* A permanently-visible 30px ✕ on every Continue Watching tile is one mistap
+       from clearing a resume point with no undo, and Netflix mobile removes a
+       title through the long-press menu instead. */
+    .nf-cw-remove { display: none; }
+
+    /* ---- Detail page */
+    .itemName { font-size: 1.8rem !important; }
+    .detailPagePrimaryContent { max-width: 100% !important; }
+    .detailPageWrapperContainer { padding-top: 20vh !important; }
+    .mainDetailButtons { gap: 8px !important; }
+    .btnPlay, .btnResume, .btnReplay { height: 40px !important; font-size: 1rem !important; padding: 8px 20px 8px 16px !important; }
+    /* Keep touch targets at 40px minimum on phones */
+    .mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, .mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands { width: 40px !important; height: 40px !important; min-width: 40px !important; }
+    #similarCollapsible .cardText { padding: 2px 6px !important; font-size: 0.72rem !important; }
+    #similarCollapsible .cardText-first { padding-top: 6px !important; }
+
+    /* ---- Login: 112px of a 390px screen went on horizontal padding alone. */
+    #loginPage form, .loginPage form {
+        background: transparent !important;
+        padding: 24px 20px 40px !important;
+        margin: 4vh auto 0 !important;
+        max-width: 100% !important;
+    }
+    .visual-card { padding: 28px 22px !important; max-width: none !important; }
+    #loginPage .inputContainer input, #loginPage .emby-input { min-height: 44px !important; }
+}
+
+/* --- SHORT VIEWPORT (landscape phone, split-screen tablet, resized window) ----
+   Neither block above catches a landscape phone: it is 844–932px WIDE. The hero's
+   480px floor then makes the billboard taller than the whole screen, and because
+   the copy is anchored to the hero's BOTTOM, the title, synopsis, buttons and
+   controls all land below the fold — one cropped backdrop and nothing else.
+   112px of fixed chrome is also 29% of a 390px-tall viewport. */
+@media (max-height: 600px) {
+    :root { --nav-height: 52px; }
+    .headerTabs.sectionTabs { height: 36px !important; }
+    .headerTabs .emby-tab-button { padding: 5px 10px !important; font-size: 0.8rem !important; }
+    .libraryPage { padding-top: 5.6em !important; }
+
+    .nf-hero { height: 82vh !important; min-height: 0 !important; }
+    .nf-hero-content { padding-bottom: 5vh !important; max-width: 92% !important; }
+    .nf-hero-logo { max-height: 20vh !important; margin-bottom: 10px !important; }
+    .nf-hero-title { font-size: clamp(1.5rem, 3.4vw, 2.4rem) !important; margin-bottom: 8px !important; }
+    .nf-hero-meta { margin-bottom: 8px !important; }
+    .nf-hero-overview { display: none !important; }
+    .nf-hero-btn { font-size: 0.95rem !important; padding: 8px 18px !important; }
+    .nf-hero-list { width: 40px !important; height: 40px !important; }
+    .nf-hero-controls { bottom: 5vh !important; }
+    .nf-hero-maturity { bottom: 5vh !important; min-height: 34px !important; }
+}
+
+/* --- TOUCH: no hover, and :hover STICKS ---------------------------------------
+   On touch WebViews :hover latches onto the last tapped element and stays until
+   you tap somewhere else. CssGenerator's Netflix hover block is correctly wrapped
+   in @media (hover: hover), which means the BASE sheet's hover rules are the ones
+   a phone tap fires: the tile jumps to scale(1.09) translateY(-6px) at z-index 60
+   with a drop shadow and will-change pinning a GPU layer — and stays there,
+   overlapping its neighbours, for the rest of the session.
+   Every selector below is standalone (never comma-joined with a :has()), and the
+   `html ` prefixes raise specificity just enough to beat the same selectors
+   re-declared by CssGenerator, which is appended after this sheet. */
+@media (hover: none) {
+    html .card:hover { transform: none !important; box-shadow: none !important; z-index: auto !important; will-change: auto !important; }
+    .card:hover .cardScalable { transform: none !important; box-shadow: none !important; }
+    .card:hover .cardImageContainer { filter: none !important; }
+    html .card:hover .cardOverlayContainer { opacity: 0 !important; }
+    .personCard:hover { transform: none !important; }
+    .nf-cw-card:hover .nf-cw-thumb { transform: none !important; box-shadow: none !important; }
+    html .listItem:hover { background: transparent !important; }
+    .itemDetailPage #listChildrenCollapsible .listItem:hover .listItem-content { background: var(--nf-surface) !important; }
+    #similarCollapsible .card:hover .cardBox { outline: none !important; }
+    .alphaPicker-letter:hover { transform: none !important; }
+    /* No hover means no play affordance — Netflix's phone tiles show it at rest. */
+    .nf-cw-play { opacity: 1 !important; }
+    /* The tab row is 40–48px tall; let the buttons actually fill it. */
+    .headerTabs .emby-tab-button {
+        min-height: 44px !important; padding: 0 14px !important; font-size: 0.9rem !important;
+        display: inline-flex !important; align-items: center !important;
+    }
+}
+/* Later than the touch block above and therefore wins at equal specificity: a
+   landscape phone matches BOTH (max-height: 600px) and (hover: none), and the
+   touch block's 44px tab buttons would otherwise stand 4px proud of the
+   short-viewport block's 36px tab bar (the header has contain:none, so they
+   would not even be clipped). */
+@media (hover: none) and (max-height: 600px) {
+    .headerTabs .emby-tab-button { min-height: 34px !important; padding: 0 10px !important; font-size: 0.8rem !important; }
+}
+
+/* TVs report hover:hover with a pointer device, but focus-follow must not zoom. */
+html.layout-tv .card:hover { transform: none !important; }
+
+/* --- SAFE AREAS ---------------------------------------------------------------
+   Only the player OSD honoured env() insets. In landscape on a notched phone the
+   4% rail is ~34px against a 59px inset, so the logo, the first nav tab and the
+   first card of every row sat under the cutout; in portrait the last row ran
+   under the home indicator. Each env() value is a SECOND declaration, so an
+   engine without env()/max() simply keeps the working first one.
+   NOT on .skinHeader itself — its `padding: 0 !important` is load-bearing for the
+   68px box; the insets belong on its two flex children. */
+.headerLeft {
+    padding-inline-start: 4% !important;
+    padding-inline-start: max(4%, env(safe-area-inset-left, 0px)) !important;
+}
+.headerRight {
+    padding-inline-end: 4% !important;
+    padding-inline-end: max(4%, env(safe-area-inset-right, 0px)) !important;
+}
+@media (orientation: landscape) and (max-width: 1024px) {
+    .nf-row-scroll, .nf-cw-scroll {
+        padding-left: var(--nf-gutter);
+        padding-left: max(var(--nf-gutter), env(safe-area-inset-left, 0px));
+        padding-right: var(--nf-gutter);
+        padding-right: max(var(--nf-gutter), env(safe-area-inset-right, 0px));
+    }
+    .nf-genre-section .sectionTitle, .nf-cw-section .sectionTitle {
+        padding-left: var(--nf-gutter);
+        padding-left: max(var(--nf-gutter), env(safe-area-inset-left, 0px));
+    }
+}
+.homeSectionsContainer, .itemDetailPage {
+    padding-bottom: 24px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */

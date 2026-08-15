@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "2.5.69.0",
+        "changelog": "v2.5.69 - Mobile overhaul, whole-tile rows and a performance pass. MOBILE: real breakpoints instead of one 768px block - a tablet/small-desktop band, a phone band, a short-viewport band (landscape phones, where the whole billboard used to sit below the fold) and a touch band. The hero carousel controls no longer paint on top of the Play/More Info buttons (they overlapped from ~1063px down); phones get the theme's nav back in the header as a scrollable strip, a 56px bar, reachable library tabs, labelled Continue Watching tiles, safe-area insets for notches and home indicators, and no more sticky :hover after a tap. ROWS: one tile ladder divides every row (home, continue-watching, episode strip) into a whole number of tiles per breakpoint, so no row ends in a sliced card and Continue Watching is no longer a different size from the shelf under it. Netflix's 12px/48px row rhythm now actually applies (both values were silently overridden), and the hover zoom is no longer clipped. DETAIL: the synopsis, genres, links and episode strip were indented 28px past the title - one rail now. Episode cards became info panels with title, runtime and synopsis; the strip got scroll chevrons and an old-engine fallback. PERF: the ambient glow no longer restyles the whole document 60x/s on every hero rotation; the per-frame path lost three whole-document walks and a forced layout read; artwork is requested at the size the tile actually renders (a 149px phone tile was fetching an 800px image); the hero backdrop is no longer upscaled on portrait screens; the image-rescue rescan is no longer O(n^2). POLISH: drawn Netflix N instead of a stretched Inter glyph, one ring/pagination spec, Inter-tuned type ramp, themed search field, login, empty states, action sheets and player OSD, and keyboard focus rings on checkboxes and toggles.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.69/custom-theme-v2.5.69.zip",
+        "checksum": "",
+        "timestamp": "2026-08-15T10:30:00Z"
+      },
+      {
         "version": "2.5.68.0",
         "changelog": "Netflix fidelity design pass: one bold row-header voice, red reserved for function, real clickable N logo, library section tabs on their own row (fixes the header collision), right-edge maturity badge on the billboard, popup with duration/HD badge and bottom clamp, unified 3px red progress bars (fixes blue library bars/badges), eased detail-page backdrop fade, single-arc red spinner, pure-fade transitions. Perf: hero stops streaming offscreen/during playback, hero interval/clip leaks fixed via nfKillVideo, cheaper mutation-frame scans. Fixes: header no longer paints over the video in the JMP playback state, nav-tabs cache keyed by user, fail-open CleanHome, SpoilerMode scoped to detail pages.",
         "targetAbi": "10.11.0.0",

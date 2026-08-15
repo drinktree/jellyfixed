@@ -5,19 +5,25 @@
     <style>
         .ct-wrap { max-width: 760px; }
         .ct-intro { color: #888; margin-bottom: 20px; }
-        .ct-section { margin-bottom: 20px; padding: 16px 18px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+        /* Every var() carries a literal fallback: this page also renders before the
+           branding CSS has loaded, and it must follow the admin's chosen accent. */
+        .ct-section { margin-bottom: 20px; padding: 16px 18px; background: rgba(255,255,255,0.03); border-radius: 6px; }
         .ct-section h3 { margin: 0 0 8px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #999; }
         .ct-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; min-height: 40px; border-bottom: 1px solid rgba(255,255,255,0.04); }
         .ct-row:last-child { border-bottom: none; }
         .ct-row label.ct-label { font-size: 0.95rem; }
-        .ct-row select, .ct-row input[type="text"] { background: #292929; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 7px 10px; font-size: 0.85rem; min-width: 180px; }
-        .ct-row input[type="color"] { width: 44px; height: 30px; border: 2px solid #555; border-radius: 4px; cursor: pointer; padding: 0; background: none; }
-        .ct-row input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; accent-color: #E50914; }
+        /* #333 + a 0.15 white hairline is the theme's one input treatment (login,
+           settings drawer); #292929 with a solid #555 border was a fourth style. */
+        .ct-row select, .ct-row input[type="text"] { background: #333; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 7px 10px; font-size: 0.85rem; min-width: 180px; font-family: var(--font-netflix, inherit); }
+        .ct-row input[type="color"] { width: 44px; height: 30px; border: 2px solid rgba(255,255,255,0.15); border-radius: 4px; cursor: pointer; padding: 0; background: none; }
+        .ct-row input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; accent-color: var(--accent-red, #E50914); }
         .ct-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
-        .ct-save { background: #E50914; color: #fff; border: none; padding: 12px 32px; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; }
-        .ct-save:hover { background: #ff0a16; }
-        .ct-reset { background: transparent; color: #aaa; border: 1px solid #555; padding: 12px 24px; border-radius: 4px; font-size: 0.9rem; cursor: pointer; }
-        .ct-reset:hover { border-color: #E50914; color: #fff; }
+        .ct-save { background: var(--accent-red, #E50914); color: #fff; border: none; padding: 12px 32px; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; font-family: var(--font-netflix, inherit); }
+        /* Netflix's red DARKENS on hover — lightening it is the tell this project's
+           own source calls out, and the admin page was the last place still doing it. */
+        .ct-save:hover { background: var(--accent-red-hover, #C11119); }
+        .ct-reset { background: transparent; color: #aaa; border: 1px solid rgba(255,255,255,0.15); padding: 12px 24px; border-radius: 4px; font-size: 0.9rem; cursor: pointer; font-family: var(--font-netflix, inherit); }
+        .ct-reset:hover { border-color: var(--accent-red, #E50914); color: #fff; }
         .ct-status { margin-top: 14px; padding: 10px 14px; border-radius: 4px; display: none; }
         .ct-status.success { display: block; background: rgba(70,211,105,0.15); color: #46d369; }
         .ct-status.error { display: block; background: rgba(229,9,20,0.15); color: #E50914; }

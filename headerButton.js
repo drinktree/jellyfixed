@@ -35,8 +35,21 @@
         r.setProperty('--ct-tip-more', "'" + l.tipMore + "'");
     }
 
+    // matchMedia() parses the query and allocates a fresh MediaQueryList on EVERY
+    // call, and applyDynamic runs once per DOM-mutation frame — the guards below
+    // were burning ~180 throwaway objects/sec on pages that then bailed anyway.
+    // Cache the LIST objects, not the answers: .matches stays live, so a late
+    // layout-tv/layout-mobile class or a viewport change is still honoured.
+    var nfMQ = {};
+    function nfMM(q) {
+        try {
+            if (!nfMQ[q]) nfMQ[q] = window.matchMedia(q);
+            return !!nfMQ[q].matches;
+        } catch (e) { return false; }
+    }
+
     function nfReducedMotion() {
-        try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+        return nfMM('(prefers-reduced-motion: reduce)');
     }
 
     // ---- Ambient color: sample the dominant hue of the hero backdrop / detail
@@ -108,15 +121,50 @@
     }
     // Detail pages: sample the backdrop image the client already painted (cached),
     // so a detail page glows in the film's palette. Runs even when clips are off.
+    var nfDetailAmbLast = 0;
     function setupDetailAmbient() {
         try {
             if (!/#\/details/i.test(location.hash)) return;
             var bd = document.querySelector('.backdropImage') || document.querySelector('#itemBackdrop');
             if (!bd) return;
+            // getComputedStyle() flushes style for the WHOLE document, and applyDynamic
+            // runs on every mutation frame while a detail page streams in its cast,
+            // similar and episode rows — so this was a forced style recalc per frame
+            // for a value that changes once per item. ~4x/sec is imperceptible for a
+            // glow that cross-fades over 1.2s, and nfSampleAmbient still dedupes by
+            // URL, so a reused #itemBackdrop with a new film re-samples.
+            var now = Date.now();
+            if (now - nfDetailAmbLast < 250) return;
+            nfDetailAmbLast = now;
             var bg = getComputedStyle(bd).backgroundImage;
             var m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
             if (!m || !m[1] || m[1] === 'none') return;
-            nfSampleAmbient(m[1]);   // dedupes by URL, so a reused #itemBackdrop with a new film re-samples
+            nfSampleAmbient(m[1]);
+        } catch (e) {}
+    }
+
+    // Detail-page episode / season strips are hidden-scrollbar horizontal rows
+    // exactly like the home rows, but they never got the chevrons — and a mouse
+    // wheel does not scroll a horizontal-only container in Chromium, so on
+    // Jellyfin Media Player or any mouse-only desktop episode 5 onward was simply
+    // unreachable. Throttled because scrollWidth/clientWidth are forced-layout
+    // reads and applyDynamic runs on every body-mutation frame.
+    function setupDetailRowNav() {
+        try {
+            if (!/#\/details/i.test(location.hash)) return;
+            var now = Date.now();
+            if (now - nfLastDetailNav < 1000) return;
+            nfLastDetailNav = now;
+            document.querySelectorAll('.itemDetailPage .detailPagePrimaryContent #listChildrenCollapsible, .itemDetailPage .detailPagePrimaryContent #childrenCollapsible').forEach(function (sec) {
+                var strip = sec.querySelector('.itemsContainer');
+                if (!strip || strip._nfNav) return;
+                if (strip.scrollWidth <= strip.clientWidth + 4) return;   // nothing to page
+                strip._nfNav = true;
+                // The strip IS the flex track: cardStep() reads track.firstElementChild
+                // and pageCount() reads track.children.length, which are the cards
+                // only when track === the flex container.
+                nfRowNav(sec, strip, strip);
+            });
         } catch (e) {}
     }
 
@@ -127,8 +175,7 @@
     // class is honoured; matchMedia/connection reads are cheap.
     function nfCheapMode() {
         try {
-            var mm = window.matchMedia;
-            if (mm && (mm('(hover: none)').matches || mm('(prefers-reduced-data: reduce)').matches)) return true;
+            if (nfMM('(hover: none)') || nfMM('(prefers-reduced-data: reduce)')) return true;
             var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
             if (conn && (conn.saveData === true || /(^|[^0-9])(2g|slow-2g)/.test(conn.effectiveType || ''))) return true;
             var c = document.documentElement.classList;
@@ -188,6 +235,37 @@
         return ApiClient.getScaledImageUrl(id, { type: type, tag: tag, maxWidth: nfW(cssPx) });
     }
 
+    // ---- The size a row tile ACTUALLY renders at. This used to be a hardcoded 340
+    // ("widest a landscape row card reaches") — the DESKTOP maximum — so a 149px
+    // phone tile pulled the 800px ladder rung: 4x the pixels and ~3x the bytes on
+    // every one of ~120 lazily-loaded tiles per home build, plus the decode cost of
+    // an 800x450 bitmap into a 149x84 box on a low-end WebView.
+    // netflix.css divides the row into N whole tiles (--nf-tile); mirror that ladder
+    // here. The CardSize/CardStyle branches mirror CssGenerator.cs, whose width
+    // rules are !important and appended AFTER netflix.css — a mirror that only knew
+    // the defaults would UNDER-request on "large" and make those tiles soft.
+    function nfTilesAcross() {
+        var vw = window.innerWidth || 1280;
+        var narrow = vw <= 559;
+        var n = narrow ? 2.35 : vw <= 799 ? 3 : vw <= 1099 ? 4 : vw <= 1399 ? 5 : vw >= 1900 ? 7 : 6;
+        var d = 0;
+        var size = cfg('CardSize', 'normal');
+        if (size === 'small') d += 1;
+        else if (size === 'large') d -= 1;
+        if (cfg('CardStyle', 'mixed') === 'portrait') d += 2;   // 2:3 tiles are much narrower
+        // The phone rung caps the delta at +1, exactly like CssGenerator.AppendTileLadder.
+        n += narrow ? Math.min(d, 1) : d;
+        // Sum FIRST, then floor at the same 1.6 CssGenerator.TileExpr uses. Flooring
+        // mid-expression (at 2) made the mirror disagree with the CSS on
+        // CardSize=large, and it under-requested artwork exactly where the presets
+        // stretch the ladder — the thing this mirror exists to prevent.
+        return Math.max(1.6, n);
+    }
+    function nfTileCssWidth() {
+        var vw = window.innerWidth || 1280;
+        return Math.ceil((vw * 0.92) / nfTilesAcross());
+    }
+
     // ---- Lazy row artwork: a home build used to fire ~120 thumbnail requests at
     // once. Cards carry data-nf-bg; one shared observer fills them near-viewport,
     // decoding BEFORE the swap so tiles cross-fade in instead of popping.
@@ -206,6 +284,12 @@
                 el.style.backgroundImage = "url('" + u + "')";
                 el.removeAttribute('data-nf-bg');
                 el.classList.add('nf-img-in');
+                // Done with it — drop it from the tracking array. A JS reference to
+                // any node in a detached tree retains the ENTIRE tree in Blink, so
+                // one stale card here pinned a whole home container (hero + 8-10
+                // rows + ~150 cards) for as long as the user browsed elsewhere.
+                var oi = nfObserved.indexOf(el);
+                if (oi !== -1) nfObserved.splice(oi, 1);
             };
             pre.onload = pre.onerror = swap;
             // A request that neither loads nor errors (busy server) would otherwise
@@ -231,33 +315,39 @@
         el.setAttribute('data-nf-initial', (name.charAt(0) || '?').toUpperCase());
     }
 
+    function nfArmRescue(el) {
+        if (el._nfImgTimer) return;
+        el._nfImgTimer = setTimeout(function () {
+            el._nfImgTimer = null;
+            if (!document.body.contains(el)) return;
+            // Loaded in the meantime? Jellyfin drops both on success.
+            if (!el.classList.contains('lazy-hidden')) return;
+            var src = el.getAttribute('data-src');
+            if (!src) return;
+            var tries = (el._nfTries || 0) + 1;
+            el._nfTries = tries;
+            var probe = new Image();
+            probe.onload = function () {
+                el.style.backgroundImage = "url('" + src + "')";
+                el.removeAttribute('data-src');
+                el.classList.remove('lazy-hidden');
+                el.classList.add('lazy-image-fadein');
+            };
+            probe.onerror = function () {
+                // Re-arm THIS element only. Recursing into the full scanner meant a
+                // burst of N failures fired N whole-document attribute-selector
+                // queries — O(n^2), on a page that is already struggling, which is
+                // the exact condition this rescue exists for.
+                if (tries < 2) { nfArmRescue(el); return; }
+                nfInitialFallback(el);
+            };
+            probe.src = src;
+        }, 5000 * (el._nfTries ? 2 : 1));
+    }
+
     function nfRescueStuckImages() {
         try {
-            document.querySelectorAll('.cardImageContainer.lazy-hidden[data-src]').forEach(function (el) {
-                if (el._nfImgTimer) return;
-                el._nfImgTimer = setTimeout(function () {
-                    el._nfImgTimer = null;
-                    if (!document.body.contains(el)) return;
-                    // Loaded in the meantime? Jellyfin drops both on success.
-                    if (!el.classList.contains('lazy-hidden')) return;
-                    var src = el.getAttribute('data-src');
-                    if (!src) return;
-                    var tries = (el._nfTries || 0) + 1;
-                    el._nfTries = tries;
-                    var probe = new Image();
-                    probe.onload = function () {
-                        el.style.backgroundImage = "url('" + src + "')";
-                        el.removeAttribute('data-src');
-                        el.classList.remove('lazy-hidden');
-                        el.classList.add('lazy-image-fadein');
-                    };
-                    probe.onerror = function () {
-                        if (tries < 2) { nfRescueStuckImages(); return; }
-                        nfInitialFallback(el);
-                    };
-                    probe.src = src;
-                }, 5000 * (el._nfTries ? 2 : 1));
-            });
+            document.querySelectorAll('.cardImageContainer.lazy-hidden[data-src]').forEach(nfArmRescue);
         } catch (e) {}
     }
 
@@ -452,6 +542,9 @@
 
         document.body.appendChild(bg);
         document.body.appendChild(panel);
+        // Scroll-lock the page: without it, scrolling past the panel's own end chains
+        // to the document and the home page slides around underneath the open drawer.
+        document.body.style.overflow = 'hidden';
         document.addEventListener('keydown', ctPanelKeydown);
         panel.querySelector('.ct-close').addEventListener('click', closePanel);
         panel.querySelector('.ct-close').focus();
@@ -462,6 +555,7 @@
 
     function closePanel() {
         document.removeEventListener('keydown', ctPanelKeydown);
+        document.body.style.overflow = '';
         var panel = document.querySelector('.ct-overlay');
         var bg = document.querySelector('.ct-overlay-bg');
         if (panel) { panel.classList.remove('open'); setTimeout(function () { panel.remove(); }, 300); }
@@ -539,6 +633,7 @@
     var navViews = null;
     var navViewsUid = null;   // the user the cached views were fetched for
     var navFetching = false;
+    var nfNavHash = null;
 
     // Mirrors appRouter.getRouteUrl in jellyfin-web 10.11 exactly. The old
     // ".html" legacy paths (movies.html, list.html, …) no longer exist as
@@ -576,11 +671,19 @@
 
         var existing = anchor.querySelector('.nf-nav-tabs');
         if (existing) {
+            // navIsActive() is a getAttribute + toLowerCase + replace + split +
+            // indexOf plus a regex, PER TAB — and the answer depends only on
+            // location.hash, yet this ran on every mutation frame forever.
+            // renderNavTabs is already re-called on hashchange, so the memo cannot
+            // go stale.
+            if (nfNavHash === location.hash) return;
+            nfNavHash = location.hash;
             existing.querySelectorAll('.nf-nav-tab').forEach(function (a) {
                 a.classList.toggle('active', navIsActive(a.getAttribute('href')));
             });
             return;
         }
+        nfNavHash = location.hash;
 
         var tabs = [[nfL().home, '#/home']];
         navViews.forEach(function (v) { tabs.push([v.Name, navRouteFor(v)]); });
@@ -772,7 +875,18 @@
     }
 
     function heroSlideHtml(item, active) {
-        var bg = nfImg(item.Id, 'Backdrop', item.BackdropImageTags[0], Math.round(window.innerWidth * 1.12));
+        // Cover-fit is HEIGHT-driven whenever the box is taller than 9/16 of its
+        // width — i.e. on every portrait viewport. Sizing from window.innerWidth
+        // alone asked for a 1920px image where an iPad portrait crop needs ~3060
+        // device px, so the single largest, most-looked-at image in the theme was
+        // visibly soft on exactly the devices that needed the most work.
+        // Phones stay one rung lower: 1600 covers their ~1860px need at 1.16x,
+        // visually indistinguishable, at roughly a third of the bytes.
+        var nfVw = window.innerWidth, nfNarrow = nfVw <= 768;
+        var nfHeroH = Math.min(Math.max(window.innerHeight * (nfNarrow ? 0.62 : 0.80), nfNarrow ? 360 : 480), 860);
+        var nfDpr = Math.min(window.devicePixelRatio || 1, 2);
+        var nfHeroPx = Math.min(Math.round(Math.max(nfVw, nfHeroH * 16 / 9) * 1.12), (nfNarrow ? 1600 : 2560) / nfDpr);
+        var bg = nfImg(item.Id, 'Backdrop', item.BackdropImageTags[0], nfHeroPx);
         var serverId = item.ServerId || (ApiClient.serverId && ApiClient.serverId());
         var detailUrl = '#/details?id=' + item.Id + (serverId ? '&serverId=' + serverId : '');
 
@@ -1007,15 +1121,29 @@
     // Netflix-style hover chevrons for our hidden-scrollbar rows: without them,
     // desktop users without a horizontal-scroll gesture can't reach off-screen
     // cards at all. Wraps the row scroller and adds two keyboard-reachable buttons.
-    function nfRowNav(sec) {
-        var scroller = sec.querySelector('.nf-row-scroll, .nf-cw-scroll');
+    function nfRowNav(sec, scroller, track) {
+        scroller = scroller || sec.querySelector('.nf-row-scroll, .nf-cw-scroll');
         if (!scroller || (scroller.parentNode && scroller.parentNode.classList.contains('nf-row-wrap'))) return;
         var wrap = document.createElement('div');
         wrap.className = 'nf-row-wrap nf-at-start';
         scroller.parentNode.insertBefore(wrap, scroller);
         wrap.appendChild(scroller);
 
-        var track = scroller.firstElementChild;
+        track = track || scroller.firstElementChild;
+
+        // The arrows and page dots are display:none under
+        // (max-width:768px),(hover:none) — and the scroll handler below writes two
+        // classes and then reads clientWidth/scrollWidth, which forces a style
+        // recalc + layout flush PER ROW PER FRAME during a fling (up to eight a
+        // frame on a home page, on exactly the WebViews least able to absorb it).
+        // So skip the WORK there — but keep building the DOM, and re-check the
+        // query live: an early return here would bake the answer in at row-build
+        // time, and a desktop window opened narrow and then maximised would be
+        // left with no chevrons, no dots, no scrollbar and no wheel scrolling.
+        var narrowMQ = (function () {
+            try { return window.matchMedia('(max-width: 768px), (hover: none)'); }
+            catch (e) { return { matches: false }; }
+        })();
 
         // Netflix paginates by whole screens and always lands on a card boundary —
         // never a sliced card. Step = card width + gap, page = as many whole cards
@@ -1041,7 +1169,7 @@
         // They only change on resize, so measure once there and reuse the cached product on
         // every scroll frame instead of doing ~4 forced reads per frame during a touch fling.
         var mStep = 0, mPerPage = 0;
-        function measure() { mStep = cardStep(); mPerPage = perPage(); }
+        function measure() { if (narrowMQ.matches) return; mStep = cardStep(); mPerPage = perPage(); }
         function pageCount() {
             var n = track ? track.children.length : 0;
             return Math.max(1, Math.ceil(n / (mPerPage || perPage())));
@@ -1069,6 +1197,7 @@
         }
 
         function upd() {
+            if (narrowMQ.matches) return;   // arrows + dots are display:none here
             wrap.classList.toggle('nf-at-start', scroller.scrollLeft <= 4);
             wrap.classList.toggle('nf-at-end', scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 4);
             renderDots();
@@ -1139,7 +1268,7 @@
     function nfCardImage(item) {
         if (cfg('CardStyle', 'mixed') === 'portrait') {
             var t = item.ImageTags || {};
-            if (t.Primary) return nfImg(item.Id, 'Primary', t.Primary, 260);
+            if (t.Primary) return nfImg(item.Id, 'Primary', t.Primary, nfTileCssWidth());
         }
         return cwImage(item);
     }
@@ -1424,7 +1553,7 @@
         // Prefer the Thumb image: it's the landscape asset WITH title art (Netflix boxart
         // style). Backdrops are textless by design (TMDB/fanart guidelines), so they only
         // serve as fallback. For episodes, the series' Thumb (ParentThumb) comes next.
-        var w = 340;   // widest CSS size a landscape row card reaches
+        var w = nfTileCssWidth();   // the tile's REAL width at this viewport + card size
         if (t.Thumb) return nfImg(item.Id, 'Thumb', t.Thumb, w);
         if (item.ParentThumbItemId && item.ParentThumbImageTag) return nfImg(item.ParentThumbItemId, 'Thumb', item.ParentThumbImageTag, w);
         if (item.BackdropImageTags && item.BackdropImageTags.length) return nfImg(item.Id, 'Backdrop', item.BackdropImageTags[0], w);
@@ -1473,7 +1602,14 @@
                     var name = item.Type === 'Episode' ? (item.SeriesName || item.Name) : item.Name;
                     var href = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
                     var sub = cwSubtitle(item);
-                    return '<a class="nf-cw-card" href="' + href + '" data-id="' + item.Id + '">' +
+                    // data-* mirrors the card contract so the shared preview popup
+                    // and eligibleCard() work on these tiles; aria-label because the
+                    // tile's only text nodes are display:none on desktop, so screen
+                    // readers announced an empty link.
+                    return '<a class="nf-cw-card" href="' + href + '" data-id="' + item.Id + '"' +
+                        ' data-serverid="' + (sid || '') + '" data-type="' + (item.Type || '') + '"' +
+                        ' data-mediatype="Video" data-isfolder="false"' +
+                        ' aria-label="' + esc(name || '') + (sub ? ' — ' + esc(sub) : '') + '">' +
                         '<div class="nf-cw-thumb" data-nf-bg="' + esc(cwImage(item)) + '">' +
                             '<div class="nf-cw-play"><span class="material-icons" aria-hidden="true">play_arrow</span></div>' +
                             '<button type="button" class="nf-cw-remove" title="' + nfL().removeRow + '" aria-label="' + nfL().removeRow + '"><span class="material-icons" aria-hidden="true">close</span></button>' +
@@ -1954,15 +2090,55 @@
                 });
             }
 
+            // Continue Watching tiles carry a ✕ that this popup now covers: .nf-pop is
+            // fixed at z-index 10010 and centred ON the tile, and moving the pointer
+            // toward the ✕ enters the popup (whose mouseenter cancels the hide timer),
+            // so with a mouse the button became unreachable the moment CW tiles joined
+            // the preview. Surface the same action inside the popup instead.
+            if (card.classList && card.classList.contains('nf-cw-card') && ApiClient.markUnplayed) {
+                var rmBtn = document.createElement('button');
+                rmBtn.type = 'button';
+                rmBtn.className = 'nf-pop-btn nf-pop-remove';
+                rmBtn.title = nfL().removeRow;
+                rmBtn.setAttribute('aria-label', nfL().removeRow);
+                rmBtn.innerHTML = '<span class="material-icons" aria-hidden="true">close</span>';
+                rmBtn.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    if (!uid) return;
+                    ApiClient.markUnplayed(uid, item.Id, new Date()).then(function () {
+                        var cwSec = card.closest && card.closest('.nf-cw-section');
+                        if (card.parentNode) { card.parentNode.removeChild(card); }
+                        // Evict just this title so the rest of the row still paints
+                        // instantly from cache on the next visit (mirrors wireCwRemove).
+                        var keep = (nfCacheGet('cw', 30 * 60 * 1000) || []).filter(function (i) { return i.Id !== item.Id; });
+                        nfCacheSet('cw', keep, uid);
+                        clearPreview();
+                        if (cwSec) {
+                            var tr = cwSec.querySelector('.nf-cw-track');
+                            if (tr && !tr.children.length) { cwSec.remove(); }
+                            else if (cwSec._nfUpd) { cwSec._nfUpd(); }
+                        }
+                    }).catch(function () {});
+                });
+                var acts = pop.querySelector('.nf-pop-actions');
+                var moreBtn = acts && acts.querySelector('.nf-pop-btn.more');
+                if (acts) { acts.insertBefore(rmBtn, moreBtn || null); }
+            }
+
             destroyPopEl();
             popEl = pop;
             document.body.appendChild(pop);
-            // Bottom-viewport clamp (mirrors the horizontal clamp above): the height
-            // is only measurable once the content is in the DOM — shift the popup up
-            // so it never runs off the bottom edge, and never above the 8px gutter.
+            // Centre it ON the tile, then clamp. The height is only measurable once
+            // the content is in the DOM. Anchoring the TOP 36px above the card meant
+            // a popup ~2.5x the card's height extended ~184px BELOW it, so the reveal
+            // read as a panel dropping down over the row underneath rather than the
+            // tile expanding in place (Netflix's mini-modal grows from the centre).
             var popH = pop.offsetHeight;
-            if (popH && top + popH > window.innerHeight - 8) {
-                top = Math.max(8, window.innerHeight - 8 - popH);
+            if (popH) {
+                top = Math.round(cr.top + cr.height / 2 - popH / 2);
+                top = Math.min(top, window.innerHeight - 8 - popH);
+                top = Math.max(top, 76);                        // clear the fixed header
+                if (popH > window.innerHeight - 84) { top = 8; } // taller than the viewport
                 pop.style.top = top + 'px';
             }
 
@@ -1991,7 +2167,7 @@
         // (hover: none) alone misfires on VMs / RDP / headless setups, which would
         // silently disable the desktop hover popup. Real touch devices (iPad, phone)
         // report a coarse pointer too, so require both.
-        try { return !!(window.matchMedia && window.matchMedia('(hover: none)').matches && window.matchMedia('(any-pointer: coarse)').matches); } catch (e) { return false; }
+        return nfMM('(hover: none)') && nfMM('(any-pointer: coarse)');
     }
 
     // Touch devices (iPad / phone) have no hover. Netflix-on-touch: the FIRST tap on a card
@@ -2002,9 +2178,12 @@
             if (cfg('HoverPreviewCard', true) === false) return;
             // The popup is display:none below 769px — intercepting the tap there
             // would swallow every first tap with nothing to show. Let phones navigate.
-            if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) return;
+            if (nfMM('(max-width: 768px)')) return;
             if (popEl && popEl.contains(e.target)) return;            // inside popup -> let its links act
-            var card = e.target.closest && e.target.closest('.card');
+            // This listener is CAPTURE phase, so its stopPropagation() would fire
+            // before .nf-cw-remove's own bubble handler and swallow the first tap.
+            if (e.target.closest && e.target.closest('.nf-cw-remove')) return;
+            var card = e.target.closest && e.target.closest('.card, .nf-cw-card');
             if (!card || !eligibleCard(card)) { if (popEl) { clearPreview(); } return; }
             if (card === popCard && popEl) return;                    // second tap on same card -> navigate
             e.preventDefault();                                       // first tap -> preview only
@@ -2021,7 +2200,11 @@
         document.body.addEventListener('mouseover', function (e) {
             if (cfg('HoverPreviewCard', true) === false) return;
             if (popEl && popEl.contains(e.target)) return; // inside the popup
-            var card = e.target.closest && e.target.closest('.card');
+            // .nf-cw-card is a bare <a> with no `card` class, so the preview popup
+            // never fired for Continue Watching — that whole row was unlabelled
+            // thumbnails with no way to learn what any of them was. Plain comma
+            // list, no :has(), so it is safe on old engines.
+            var card = e.target.closest && e.target.closest('.card, .nf-cw-card');
             if (!card || card === popCard) return;
             if (!eligibleCard(card)) return;
             if (popHideTimer) { clearTimeout(popHideTimer); popHideTimer = null; }
@@ -2031,7 +2214,7 @@
             popTimer = setTimeout(function () { if (popCard === card) buildPop(card); }, POP_DELAY);
         });
         document.body.addEventListener('mouseout', function (e) {
-            var card = e.target.closest && e.target.closest('.card');
+            var card = e.target.closest && e.target.closest('.card, .nf-cw-card');
             var inPop = popEl && popEl.contains(e.target);
             if (!card && !inPop) return;
             var to = e.relatedTarget;
@@ -2082,19 +2265,46 @@
     }
 
     // ============ Green "x% Match" rating ============
+    var nfLastMatchScan = 0;
     function setupMatchScore() {
         try {
             if (cfg('MatchScore', true) !== true) return;
+            // A selector LIST defeats the engine's single-class bucket fast path, so
+            // this walks the whole tree — and it ran unthrottled on every mutation
+            // frame (a 100-card library grid is ~2500 elements). The generated CSS
+            // fail-opens after 2.5s, so a 250ms floor is invisible.
+            var now = Date.now();
+            if (now - nfLastMatchScan < 250) return;
+            nfLastMatchScan = now;
             // .starRatingValue is the classic markup; detail pages render the value
             // directly inside .starRatingContainer (verified live on 10.11).
             document.querySelectorAll('.starRatingValue, .starRatingContainer').forEach(function (el) {
                 if (el.dataset.ctMatch) return;
-                var n = parseFloat((el.textContent || '').replace(',', '.'));
+                // A container that WRAPS a .starRatingValue is handled by that child.
+                if (el.classList.contains('starRatingContainer') && el.querySelector('.starRatingValue')) {
+                    el.dataset.ctMatch = '1';
+                    return;
+                }
+                // 10.11 detail pages render <span class="starIcon">star</span>7.8 directly
+                // inside .starRatingContainer, so textContent was "star7.8" and parseFloat
+                // returned NaN — the score was marked invalid and the raw "7.8" stayed on
+                // screen instead of "78% Match", i.e. the feature silently did nothing
+                // exactly where Netflix shows it most. Pull the first NUMBER out instead.
+                var mm = (el.textContent || '').replace(',', '.').match(/\d+(?:\.\d+)?/);
+                var n = mm ? parseFloat(mm[0]) : NaN;
                 // Mark even invalid values: unmarked elements are visibility-hidden
                 // by the generated CSS to stop the "7.8 -> 78% Match" text flicker.
                 if (isNaN(n) || n < 0 || n > 10) { el.dataset.ctMatch = '0'; return; }
                 el.dataset.ctMatch = '1';
-                el.textContent = Math.round(n * 10) + '% Match';
+                var label = Math.round(n * 10) + '% Match';
+                // Rewrite the numeric TEXT NODE, not textContent: textContent deletes
+                // the .starIcon child, and that childList mutation re-fires our own
+                // MutationObserver — a free extra applyDynamic pass per rating element.
+                var tn = null;
+                for (var k = el.childNodes.length - 1; k >= 0; k--) {
+                    if (el.childNodes[k].nodeType === 3 && /\d/.test(el.childNodes[k].nodeValue)) { tn = el.childNodes[k]; break; }
+                }
+                if (tn) { tn.nodeValue = label; } else { el.textContent = label; }
                 // The match score leads the metadata row via CSS (flex `order` on
                 // .starRatingContainer in netflix.css) — no DOM reordering needed here.
             });
@@ -2107,9 +2317,12 @@
     // SPA recreates the header on navigation — the existence check re-adds it there
     // without ever duplicating) and delegate to Jellyfin's own home button.
     // netflix.css owns all styling of .nf-logo.
-    function setupLogoHome() {
+    function setupLogoHome(hdr) {
         try {
-            var left = document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
+            // '.skinHeader .headerLeft' is a DESCENDANT selector — no single-compound
+            // fast path, so it traversed the whole document on every mutation frame.
+            // applyDynamic already has the header element; scope the lookup to it.
+            var left = (hdr && hdr.querySelector('.headerLeft')) || document.querySelector('.headerLeft');
             if (!left || left.querySelector('.nf-logo')) return;
             var a = document.createElement('a');
             a.className = 'nf-logo';
@@ -2140,9 +2353,12 @@
     }
     function setupDetailClip() {
         try {
+            // Route test FIRST — it is a regex over a string. The two capability
+            // probes below used to run on every non-detail mutation frame before
+            // this line rejected the pass anyway.
+            if (!/#\/details/i.test(location.hash)) return;
             if (cfg('PreviewClips', true) === false) return;
             if (nfReducedMotion() || nfCheapMode()) return;
-            if (!/#\/details/i.test(location.hash)) return;
             if (typeof ApiClient === 'undefined' || !ApiClient.getItem || !ApiClient.getCurrentUserId) return;
             // Attach into the FULL-VIEWPORT fixed backdrop container (the element the
             // theme uses as the detail backdrop). The page's own #itemBackdrop is only
@@ -2255,9 +2471,18 @@
     // very top, solid #141414 once you scroll. Jellyfin's .skinHeader-withBackground
     // only marks "this view has a backdrop" — it is NOT scroll-driven — so we drive
     // the solid state ourselves with a .nf-scrolled class toggled on window scroll.
-    function syncHeaderScrolled() {
-        var h = document.querySelector('.skinHeader');
-        if (!h) return;
+    var nfHdrScrollEl = null;
+    function syncHeaderScrolled(hdr, force) {
+        var h = hdr || document.querySelector('.skinHeader');
+        if (!h) { nfHdrScrollEl = null; return; }
+        // Reading pageYOffset forces a style + layout flush. applyDynamic runs on
+        // every DOM-mutation frame, so calling this unconditionally turned each of
+        // Jellyfin's mutation bursts (virtual list, lazy image loader) into a
+        // synchronous reflow of the whole grid. The passive rAF-throttled scroll
+        // listener below already keeps the class current — from applyDynamic we
+        // only need to re-sync when the SPA has handed us a NEW header element.
+        if (!force && h === nfHdrScrollEl) return;
+        nfHdrScrollEl = h;
         var y = window.pageYOffset || document.documentElement.scrollTop || 0;
         h.classList.toggle('nf-scrolled', y > 8);   // Netflix goes solid almost immediately
     }
@@ -2268,13 +2493,15 @@
         window.addEventListener('scroll', function () {
             if (ticking) return;
             ticking = true;
-            requestAnimationFrame(function () { ticking = false; syncHeaderScrolled(); });
+            requestAnimationFrame(function () { ticking = false; syncHeaderScrolled(null, true); });
         }, { passive: true });
-        syncHeaderScrolled();
+        syncHeaderScrolled(null, true);
     }
 
     var nfLastHeroVisible = null;
     var nfLastRescue = 0;
+    var nfLastPrune = 0;
+    var nfLastDetailNav = 0;
     function applyDynamic() {
         nfPassId++;   // new pass — invalidates the activeHomeContainer memo
         // Jellyfin's boot assigns html.className wholesale, wiping the early
@@ -2307,8 +2534,19 @@
         // recomposited over the seek-preview thumbnail every frame. .videoPlayerContainer is present
         // the whole time a video plays and gone when idle (verified: absent on Home, and audio
         // playback uses a different container, so no false positives).
+        // ONE .skinHeader read per pass (it used to be queried twice), and the probe
+        // is split into single-compound queries: querySelector only takes the
+        // engine's class/id bucket fast path for a SINGLE compound selector — a
+        // comma LIST falls back to walking every element under the document, and
+        // this one ran on every mutation frame including during playback.
+        // All four signals are unchanged, and .videoPlayerContainer (the universal
+        // one) is still checked first.
+        var nfHdr = document.querySelector('.skinHeader');
+        var nfOsd = document.getElementById('videoOsdPage');
         var playing = document.documentElement.classList.contains('transparentDocument')
-            || !!document.querySelector('.skinHeader.osdHeader, #videoOsdPage:not(.hide), .videoPlayerContainer');
+            || !!document.querySelector('.videoPlayerContainer')
+            || !!(nfOsd && !nfOsd.classList.contains('hide'))
+            || !!(nfHdr && nfHdr.classList.contains('osdHeader'));
         document.documentElement.classList.toggle('nf-playing', playing);
         if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();
@@ -2317,8 +2555,8 @@
         applyCssLabels();
         updateAdmin();
         addButton();
-        setupLogoHome();
-        syncHeaderScrolled();
+        setupLogoHome(nfHdr);
+        syncHeaderScrolled(nfHdr);
         // Config-gated builders must wait for CT_CONFIG: before it loads, cfg()
         // returns defaults (mostly true), so a disabled row (e.g. a home row the
         // user turned off) would be built on first paint and never removed —
@@ -2346,11 +2584,24 @@
         setupMatchScore();
         setupDetailClip();
         setupDetailAmbient();
+        setupDetailRowNav();
         // nfRescueStuckImages does a full-document querySelectorAll; it's a slow-path rescue
         // for images the lazy-loader dropped, not a per-frame concern — throttle it to ~1s so
         // it doesn't scan the whole document on every single mutation frame during scrolling.
         var nfNow = Date.now();
         if (nfNow - nfLastRescue > 1000) { nfLastRescue = nfNow; nfRescueStuckImages(); }
+        // nfObserved is a module-level GC root and one stale card pins the whole
+        // detached home container. The prune used to run ONLY when a new row was
+        // built, so navigating away and staying away kept a full home page in
+        // memory — which matters on the 1-2GB Android TV boxes this theme targets.
+        if (nfNow - nfLastPrune > 5000 && nfImgIO) {
+            nfLastPrune = nfNow;
+            nfObserved = nfObserved.filter(function (el) {
+                if (el.isConnected) return true;
+                nfImgIO.unobserve(el);
+                return false;
+            });
+        }
         // ---- Home billboard top-bleed fix ----
         // The home page keeps jellyfin's stock .libraryPage padding-top:7.5em, which
         // pushes .nf-hero ~120px down so it no longer bleeds under the header (a tall
@@ -2367,7 +2618,7 @@
         // Toggle the root classes only when the value CHANGES or the header lost its class
         // (Jellyfin recreates .skinHeader on client-side navigation) — so a settled home
         // page doesn't rewrite classes every frame, but a fresh header is still re-synced.
-        var hdr = document.querySelector('.skinHeader');
+        var hdr = nfHdr;   // hoisted at the top of this pass
         if (heroVisible !== nfLastHeroVisible || (hdr && hdr.classList.contains('nf-hero-header') !== heroVisible)) {
             nfLastHeroVisible = heroVisible;
             document.documentElement.classList.toggle('nf-hero-top', heroVisible);
