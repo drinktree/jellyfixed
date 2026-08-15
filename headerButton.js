@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '2.5.73';
+    var NF_JS_VERSION = '2.5.74';
 
     // Fail-open marker: the generated CSS keys its instant-hide rules on html.nf-js,
     // so a missing/broken script can never blank the home page again.
@@ -1864,7 +1864,8 @@
     // Called on the false->true EDGE of nf-playing (see applyDynamic).
     function nfStopAllPreviewMedia() {
         try {
-            document.querySelectorAll('.nf-hero-video, .nf-detail-video, .nf-pop video').forEach(nfKillVideo);
+            document.querySelectorAll('video[data-nf-preview], .nf-hero-video, .nf-detail-video, .nf-pop video')
+                .forEach(nfKillVideo);
             nfActiveVideo = null;
             clearPreview();   // also drops the hover popup that may own one
         } catch (e) {}
@@ -1874,6 +1875,11 @@
     function nfNewClipVideo(className) {
         var v = document.createElement('video');
         if (className) v.className = className;
+        // Marks EVERY clip the theme creates, whatever it is for. nfStopAllPreviewMedia
+        // kills by this attribute as well as by class, so a future clip type cannot be
+        // left decoding under the player just because someone forgot to add its
+        // selector to the teardown list.
+        v.setAttribute('data-nf-preview', '');
         v.muted = true; v.defaultMuted = true; v.autoplay = true;
         v.setAttribute('playsinline', ''); v.setAttribute('preload', 'auto');
         return v;
@@ -2554,6 +2560,52 @@
     }
 
     var nfWasPlaying = false;
+    // ---- PLAYBACK QUIESCE ---------------------------------------------------
+    // While a video plays the theme does NOTHING. Previously it stayed fully wired
+    // and simply bailed out early on each pass — which still meant a callback, a
+    // rAF and four DOM queries for every OSD mutation, forever. On Jellyfin Media
+    // Player the web UI is composited over an mpv surface, so main-thread work
+    // there competes directly with presenting video frames.
+    // The observer is disconnected outright and replaced by one cheap poll whose
+    // ONLY job is to notice that playback ended and wire everything back up.
+    var nfObserver = null;
+    var nfSuspended = false;
+    var nfResumePoll = null;
+    function nfObserveBody() {
+        try { if (nfObserver) nfObserver.observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+    }
+    function nfPlaybackActive() {
+        var osd = document.getElementById('videoOsdPage');
+        return document.documentElement.classList.contains('transparentDocument')
+            || !!document.querySelector('.videoPlayerContainer')
+            || !!(osd && !osd.classList.contains('hide'))
+            || !!document.querySelector('.skinHeader.osdHeader');
+    }
+    function nfSuspendForPlayback() {
+        if (nfSuspended) return;
+        nfSuspended = true;
+        nfStopAllPreviewMedia();
+        try { if (nfObserver) nfObserver.disconnect(); } catch (e) {}
+        // 750ms: the resume is not latency-critical, and this is the ONLY theme
+        // code that runs for the whole duration of a film.
+        if (!nfResumePoll) {
+            nfResumePoll = setInterval(function () {
+                // Belt and braces: if anything managed to start a preview clip while
+                // suspended, this kills it. Costs nothing when there is none.
+                nfStopAllPreviewMedia();
+                if (!nfPlaybackActive()) nfResumeAfterPlayback();
+            }, 750);
+        }
+    }
+    function nfResumeAfterPlayback() {
+        if (!nfSuspended) return;
+        nfSuspended = false;
+        if (nfResumePoll) { clearInterval(nfResumePoll); nfResumePoll = null; }
+        nfWasPlaying = false;
+        try { document.documentElement.classList.remove('nf-playing'); } catch (e) {}
+        nfObserveBody();
+        applyDynamic();   // rebuild whatever the browse page needs
+    }
     var nfLastHeroVisible = null;
     var nfLastRescue = 0;
     var nfLastPrune = 0;
@@ -2612,6 +2664,8 @@
         nfWasPlaying = playing;
         if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();
+            // …and then go quiet entirely until playback ends.
+            nfSuspendForPlayback();
             return;
         }
         applyCssLabels();
@@ -2707,7 +2761,8 @@
             dynScheduled = true;
             requestAnimationFrame(function () { dynScheduled = false; applyDynamic(); });
         }
-        new MutationObserver(scheduleDynamic).observe(document.body, { childList: true, subtree: true });
+        nfObserver = new MutationObserver(scheduleDynamic);
+        nfObserveBody();
 
         // SPA-survival (learned from jellyfin-plugin-custom-tabs): Jellyfin recreates the
         // header/home on client-side navigation, which can drop our button/tabs/takeover.

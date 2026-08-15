@@ -2737,6 +2737,7 @@ html:has(.videoPlayerContainer) .nf-pop { display: none !important; }
    CssGenerator's (0,1,0) regardless of source order. */
 html.nf-playing .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 html:has(.videoPlayerContainer) .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+html.transparentDocument .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
 /* Same for every OTHER surface the Glass Effect option blurs. A backdrop-filter
    forces its own render surface plus a framebuffer read-back and blur pass — over
@@ -2760,6 +2761,51 @@ html.nf-playing .mainDrawer { background-color: #101010 !important; }
 html:has(.videoPlayerContainer) .actionSheet { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 html:has(.videoPlayerContainer) .dialog { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 html:has(.videoPlayerContainer) .mainDrawer { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* --- THIRD GATE: .transparentDocument -------------------------------------------
+   The two gates above each carry a precondition that Jellyfin Media Player can fail.
+   `html.nf-playing` needs this theme's JS to be live; JMP loads its own web bundle in
+   some configurations, and a client script the server injected into index.html then
+   never runs. `html:has(...)` needs Chromium 105+; JMP is QtWebEngine, which trails
+   well behind that on the Qt5 builds — and an unsupported :has() drops the rule
+   outright. So in JMP both gates can be dead at once, and the blur that these rules
+   exist to kill keeps running over the picture.
+   .transparentDocument is the client's OWN playback flag (see the block header at the
+   top of this section) — a plain class on <html>, parsed by every engine ever shipped,
+   set without any help from us. In JMP it is not merely likely but structural: the web
+   layer HAS to be transparent for mpv's video surface to be visible underneath it.
+   A backdrop-filter over that layer is the worst case there is — the compositor
+   re-reads and re-blurs the framebuffer behind the element, and behind it is a video
+   surface producing new frames continuously. That work happens per frame while playing
+   and exactly zero times while paused, which is the shape of the reported stutter.
+   These are additive: no gate is removed, and each stands alone so none can invalidate
+   another's selector list (gotcha 11). */
+html.transparentDocument .actionSheet,
+html.transparentDocument .dialog,
+html.transparentDocument .formDialog,
+html.transparentDocument .ct-overlay,
+html.transparentDocument .mainDrawer {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+html.transparentDocument .dialog,
+html.transparentDocument .formDialog { background-color: #181818 !important; }
+html.transparentDocument .mainDrawer { background-color: #101010 !important; }
+/* Same reasoning for the theme's own infinite animations and the retained backdrop
+   bitmap: a running animation keeps the compositor producing frames even when nothing
+   it draws is visible, and that is the same frame budget the trickplay preview needs. */
+html.transparentDocument .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
+html.transparentDocument .nf-hero-skel::after { animation: none !important; }
+html.transparentDocument .docspinner::after,
+html.transparentDocument .loadingSpinner::after,
+html.transparentDocument .mainAnimatedPages > .loading::after { animation: none !important; }
+/* Deliberately NOT hiding .nf-hero / .nf-genre-section / .nf-nav-tabs on this gate.
+   .transparentDocument covers BACKDROP-level transparency too (theme media and
+   trailers playing behind a browse page that the user is still looking at — see the
+   .withBackdrop rule above), and blanking the hero there would empty the page mid-
+   browse. Removing a blur or pausing an animation is unobservable in that state;
+   hiding content is not. Those stay on the nf-playing / :has() gates, which only
+   fire for real full-player playback. */
 
 /* Stock .hide-s .backdropContainer at both transparency levels, but neither level is
    reached during State-A — leaving a fixed 100vh cover-fit backdrop bitmap retained
@@ -3130,10 +3176,16 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
         width: 0 !important;
         margin: 0 !important;
     }
+    /* Selection is marked by the red bar and the tint — NOT by a weight change.
+       Bolding one row in a list of 400-weight rows shifts every glyph's advance
+       width, and on a family with no 600 cut (or when the webfont has not loaded
+       — likely in Jellyfin Media Player) the browser SYNTHESISES the weight,
+       which smears the outline. That is why the audio/subtitle menu looked wrong
+       only on the highlighted or selected row. Colour carries it instead. */
     .actionSheetMenuItem:has(.listItemIcon.check:not([style*="hidden"])) {
         border-inline-start-color: var(--accent-red) !important;
         background: rgba(255,255,255,0.05) !important;
-        font-weight: var(--nf-w-semi) !important;
+        color: #fff !important;
     }
 }
 
