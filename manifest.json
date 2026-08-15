@@ -13,7 +13,7 @@
         "changelog": "v2.5.73 - The black bar, found properly this time, plus a way to tell whether an update is actually live. BLACK BAR: `.headerTabs.sectionTabs { display: flex !important }` is specificity (0,2,0); Jellyfin hides that strip on pages with no section tabs - detail pages, the player - using `.hide`, which is (0,1,0). Both are !important, so the theme won and FORCE-SHOWED a strip Jellyfin had hidden: a solid #141414, full-width, 44px bar absolutely positioned at top:68px with z-index 10, sitting across the top of the detail page's backdrop banner (and as an opaque layer over the video during playback, which on Jellyfin Media Player is composited over the mpv surface every frame). It now carries :not(.hide), with a higher-specificity re-assertion of .hide so no future rule can resurrect it the same way. The same guard was applied to individual tab buttons. My two previous attempts at this bar fixed a real but unrelated defect (a stale .nf-scrolled) and left the actual cause untouched. VERSION VISIBILITY: the generated stylesheet is now stamped with the build that produced it, both as a header comment and as `--nf-version`, and the injected script sets `data-nf-js` on <html>. The theme's own settings drawer shows both, and flags a MISMATCH when the two halves disagree - which is what a stale server-side branding CSS or a cached client script looks like. If a fix appears not to work, this is the first thing to check.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.73/custom-theme-v2.5.73.zip",
-        "checksum": "",
+        "checksum": "39d9a3f2c0b771f80587122f8001d77e",
         "timestamp": "2026-08-15T17:00:00Z"
       },
       {
