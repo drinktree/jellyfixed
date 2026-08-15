@@ -13,7 +13,7 @@
         "changelog": "v2.5.72 - Reverts the change that brought the Jellyfin Media Player seek-preview stutter back. The app is not a browser: JMP renders video natively with mpv and composites the web UI OVER it on QtWebEngine's much weaker compositor, so anything the theme PAINTS on the OSD costs per frame while mpv drives frames - and nothing while paused. That is exactly the reported symptom, and it is why browser measurements looked clean. v2.5.69 was the first release to touch the player OSD, and it did two things to the surfaces that repaint during a scrub: it gave .sliderBubble - the preview thumbnail that translates on every single mouse-move - a border and a border-radius (a radius forces a rounded-corner clip on each of those repaints; the border changes its box), and it changed the parent .videoOsdBottom scrim from a 2-stop gradient to a 9-stop one, losing Skia's fast path for evenly-spaced 2-stop gradients so every dirty rect from the moving bubble re-rasterizes more expensively. The rule's own comment warned that this is the exact surface behind the JMP seek-lag regression. Both are reverted: the scrim is 2 stops again and the bubble carries NO paint-affecting properties at all - text properties only, which change glyph rasterisation rather than composited geometry. Also: the theme's own hero and rows are now dropped from the compositing tree during playback, for the JMP state where the home route stays alive under the player.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.72/custom-theme-v2.5.72.zip",
-        "checksum": "",
+        "checksum": "ce0b9d46abd6aa16e21a4e4805eeb7d8",
         "timestamp": "2026-08-15T16:00:00Z"
       },
       {
