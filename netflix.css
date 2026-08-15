@@ -1717,44 +1717,40 @@ html:not(.transparentDocument):not(.nf-playing) body:has(.mainDrawer.drawer-open
    PLAYBACK & VIDEO PLAYER
    ============================================= */
 
-/* Eased 9-stop scrim. This was the last 2-stop gradient in a sheet that uses
-   9–13 eased stops everywhere else, and it banded visibly over dark footage. */
+/* TWO stops, deliberately — do not "improve" this to a multi-stop ramp again.
+   Skia has a fast path for a 2-stop evenly-spaced gradient that a 9-stop
+   non-even one loses, and this element is the PARENT of the scrub bubble: every
+   mouse-move during a seek dirties a rect here and re-rasterizes that band.
+   Invisible on desktop Chrome; not on Jellyfin Media Player, which composites
+   the web UI over an mpv surface on QtWebEngine's much weaker compositor.
+   v2.5.69 made it 9 stops and the seek-preview stutter came back with it. */
 .videoOsdBottom {
-    background: linear-gradient(to top,
-        rgba(0,0,0,.92) 0%, rgba(0,0,0,.88) 12%, rgba(0,0,0,.78) 24%,
-        rgba(0,0,0,.62) 38%, rgba(0,0,0,.44) 52%, rgba(0,0,0,.26) 66%,
-        rgba(0,0,0,.12) 80%, rgba(0,0,0,.04) 90%, transparent 100%) !important;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%) !important;
 }
 
 .osdTimeText {
     font-family: var(--font-netflix) !important;
 }
 
-/* Scrub preview — the single thing you look at most while seeking, and it was
-   still stock. Flat white frame only: NO box-shadow / overflow / padding
-   overrides here. This element repaints on every mouse-move during a seek and
-   it is the exact surface behind the JMP seek-lag regression, so it must stay
-   cheap to composite. */
-.videoOsdBottom .sliderBubble {
-    background: #000 !important;
-    border: 2px solid rgba(255,255,255,0.9) !important;
-    border-radius: var(--r-art) !important;
-}
+/* SCRUB PREVIEW — the moving bubble. NOTHING that affects how it is PAINTED may
+   be declared here: no background, no border, no border-radius, no shadow, no
+   filter, no overflow, no padding. It translates on every single mouse-move
+   during a seek, and a border-radius forces a rounded-corner clip on each of
+   those repaints while a border changes its box. v2.5.69 added a border AND a
+   radius here — against the warning this very comment used to carry — and that
+   is when the stutter returned on Jellyfin Media Player.
+   TEXT properties only: they change glyph rasterisation, not the composited
+   geometry, so they are free.
+   (.sliderBubbleText is the no-trickplay fallback; .chapterThumbText below is
+   what actually shows when trickplay images exist.) */
 .videoOsdBottom .sliderBubbleText {
-    display: block !important;
     font-family: var(--font-netflix) !important;
     font-weight: var(--nf-w-bold) !important;
     font-size: 0.78rem !important;
     letter-spacing: 0.02em !important;
-    background: #000 !important;
     color: #fff !important;
-    text-align: center !important;
 }
-/* …and the one that actually shows when trickplay images EXIST. Jellyfin builds the
-   real scrub preview from .chapterThumb* (updateTrickplayBubbleHtml); .sliderBubbleText
-   above is only the no-trickplay fallback, so the timestamp under the preview
-   thumbnail was still stock. Text properties ONLY — no clip, shadow or padding on
-   this surface (see the note above: it repaints on every mouse-move during a seek). */
+/* Text properties ONLY here too — same surface, same rule. */
 .videoOsdBottom .chapterThumbText {
     font-family: var(--font-netflix) !important;
     font-weight: var(--nf-w-bold) !important;
@@ -2696,6 +2692,24 @@ html.nf-playing .nf-cw-thumb { transition: none !important; }
 html:has(.videoPlayerContainer) .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
 html:has(.videoPlayerContainer) .nf-hero-skel::after { animation: none !important; }
 html:has(.videoPlayerContainer) .view-transition { animation: none !important; }
+
+/* Jellyfin's own router hides the browse page during playback in the BROWSER
+   (verified live: #indexPage and #itemDetailPage both go display:none). Jellyfin
+   Media Player has a documented state where the home route stays alive under the
+   player instead — and there the hero's six full-viewport backdrops and ~160 card
+   bitmaps are still in the compositing tree while mpv drives frames underneath.
+   These are the theme's OWN elements and are never part of the player UI, so
+   dropping them is always safe. visibility first: content-visibility is
+   Chromium 85+ and JMP's QtWebEngine is older, where it would be ignored. */
+html.nf-playing .nf-hero,
+html.nf-playing .nf-genre-section,
+html.nf-playing .nf-cw-section {
+    visibility: hidden !important;
+    content-visibility: hidden;
+}
+html:has(.videoPlayerContainer) .nf-hero { visibility: hidden !important; }
+html:has(.videoPlayerContainer) .nf-genre-section { visibility: hidden !important; }
+html:has(.videoPlayerContainer) .nf-cw-section { visibility: hidden !important; }
 
 /* The hover preview and the page-enter fade are dropped on .transparentDocument
    (netflix.css above), but State-A never sets it — and State-A is the ONE playback
