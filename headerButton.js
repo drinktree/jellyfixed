@@ -1,9 +1,19 @@
 (function () {
     'use strict';
 
+    // Bumped with meta.json at every release. The CSS carries its own stamp in
+    // --nf-version; if the two disagree, one of the halves is being served from a
+    // cache and that — not the stylesheet — is why a fix "did not work".
+    // Declared FIRST: `var` hoists the declaration but not the assignment, so the
+    // marker below would write "undefined" if this sat under it.
+    var NF_JS_VERSION = '2.5.73';
+
     // Fail-open marker: the generated CSS keys its instant-hide rules on html.nf-js,
     // so a missing/broken script can never blank the home page again.
-    try { document.documentElement.classList.add('nf-js'); } catch (e) {}
+    try {
+        document.documentElement.classList.add('nf-js');
+        document.documentElement.setAttribute('data-nf-js', NF_JS_VERSION);
+    } catch (e) {}
 
     var PLUGIN_ID = '78b7b285-8d9e-4e4c-8e4d-7a71f76d4e2a';
     var CT_CONFIG = null;
@@ -537,7 +547,17 @@
         panel.setAttribute('role', 'dialog');
         panel.setAttribute('aria-modal', 'true');
         panel.setAttribute('aria-label', nfL().themeSettings);
-        panel.innerHTML = '<div class="ct-header"><h2>Theme Settings</h2><button type="button" class="ct-close" aria-label="Close">&times;</button></div>'
+        var cssVer = '';
+        try {
+            cssVer = (getComputedStyle(document.documentElement).getPropertyValue('--nf-version') || '')
+                .trim().replace(/^["']|["']$/g, '');
+        } catch (e) {}
+        // Shown so "is the update actually live?" is answerable without devtools.
+        // A mismatch means one half is cached: CSS comes from the server's branding
+        // stylesheet, JS from the injected script.
+        var verLine = 'v' + NF_JS_VERSION + (cssVer && cssVer !== NF_JS_VERSION ? ' · CSS v' + cssVer + ' (MISMATCH)' : '');
+        panel.innerHTML = '<div class="ct-header"><h2>Theme Settings<span class="ct-ver">' + esc(verLine) + '</span></h2>'
+            + '<button type="button" class="ct-close" aria-label="Close">&times;</button></div>'
             + '<div class="ct-body"><p style="color:#888">Loading…</p></div>';
 
         document.body.appendChild(bg);

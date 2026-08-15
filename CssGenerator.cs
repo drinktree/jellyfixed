@@ -162,8 +162,16 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.Append(baseCss);
             sb.AppendLine();
             sb.AppendLine();
+            var asmVersion = typeof(CssGenerator).Assembly.GetName().Version;
+            var stamp = asmVersion == null
+                ? "unknown"
+                : string.Create(CultureInfo.InvariantCulture, $"{asmVersion.Major}.{asmVersion.Minor}.{asmVersion.Build}");
             sb.AppendLine("/* ============================================");
             sb.AppendLine("   GENERATED FROM PLUGIN SETTINGS");
+            sb.AppendLine($"   Custom Theme v{stamp}");
+            sb.AppendLine("   If this version is not the one you just installed, the SERVER has not");
+            sb.AppendLine("   regenerated its branding CSS (restart Jellyfin) or the CLIENT is serving");
+            sb.AppendLine("   a cached copy (hard-refresh / clear the app cache).");
             sb.AppendLine("   ============================================ */");
 
             // --- Variable overrides (win by cascade order) ---
@@ -176,6 +184,9 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.AppendLine($"    --card-radius: {config.CardRadius}px;");
             sb.AppendLine($"    --font-netflix: {font};");
             sb.AppendLine($"    --progress-color: {progress};");
+            // Readable from the client: getComputedStyle(document.documentElement)
+            //   .getPropertyValue('--nf-version')
+            sb.AppendLine($"    --nf-version: \"{stamp}\";");
             // Weight + display-tracking guard for the selected family (see the two
             // dictionaries above). Inter and the other full-range faces fall through.
             if (SingleWeightFonts.Contains(config.FontFamily))
@@ -700,7 +711,8 @@ namespace Jellyfin.Plugin.CustomTheme
 .ct-overlay { position: fixed; top: 0; right: -440px; width: 400px; max-width: 92vw; height: 100vh; height: 100dvh; background: var(--nf-surface, #181818); color: #fff; z-index: 999999; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; transition: right 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow: -5px 0 30px rgba(0,0,0,0.5); font-family: var(--font-netflix); }
 .ct-overlay.open { right: 0; }
 .ct-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--nf-hairline, rgba(255,255,255,0.15)); position: sticky; top: 0; background: var(--nf-surface, #181818); z-index: 1; }
-.ct-header h2 { margin: 0; font-size: 1.2rem; }
+.ct-header h2 { margin: 0; font-size: 1.2rem; display: flex; align-items: baseline; gap: 10px; }
+.ct-ver { font-size: 0.68rem; font-weight: 400; letter-spacing: 0.06em; color: #777; text-transform: uppercase; }
 .ct-close { background: none; border: none; color: #aaa; font-size: 28px; line-height: 1; cursor: pointer; padding: 0 4px; min-width: 40px; min-height: 40px; }
 .ct-close:hover { color: #fff; }
 .ct-body { padding: 12px 20px 48px; padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
