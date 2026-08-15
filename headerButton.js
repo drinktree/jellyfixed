@@ -1825,6 +1825,31 @@
         try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
         try { v.remove(); } catch (e) {}
     }
+    // Tear down EVERY preview clip in the document, wherever it lives.
+    //
+    // Every other nf-playing guard in this file is an ENTRY guard: it stops a NEW clip
+    // starting. Nothing stopped one already in flight, and none of the five paths that
+    // normally end a clip can fire once playback begins:
+    //   * stopClip() <- go() <- the hero setInterval — the interval body early-returns
+    //     on nf-playing;
+    //   * stopClip() <- the hero IntersectionObserver — IO reports INTERSECTION, not
+    //     OCCLUSION, so a full-screen video leaves the hero 100% intersecting and
+    //     heroInView stays true;
+    //   * removeHero() <- setupHero() <- applyDynamic — the fast path returns first;
+    //   * nfClaim() eviction — only runs when a new clip starts, which is blocked;
+    //   * v._stopTimer — the ONLY one, and it is up to PREVIEW_SECONDS (30s) away.
+    // So pressing Play within ~30s of a slide activating left a second <video> decoding
+    // AND streaming a server-side remux underneath the movie, which is exactly why the
+    // seek-bar trickplay preview stuttered while playing and was smooth while paused.
+    // Called on the false->true EDGE of nf-playing (see applyDynamic).
+    function nfStopAllPreviewMedia() {
+        try {
+            document.querySelectorAll('.nf-hero-video, .nf-detail-video, .nf-pop video').forEach(nfKillVideo);
+            nfActiveVideo = null;
+            clearPreview();   // also drops the hover popup that may own one
+        } catch (e) {}
+    }
+
     // One muted, inline-autoplay clip element — shared by hero, hover popup and detail.
     function nfNewClipVideo(className) {
         var v = document.createElement('video');
@@ -2498,6 +2523,7 @@
         syncHeaderScrolled(null, true);
     }
 
+    var nfWasPlaying = false;
     var nfLastHeroVisible = null;
     var nfLastRescue = 0;
     var nfLastPrune = 0;
@@ -2548,6 +2574,12 @@
             || !!(nfOsd && !nfOsd.classList.contains('hide'))
             || !!(nfHdr && nfHdr.classList.contains('osdHeader'));
         document.documentElement.classList.toggle('nf-playing', playing);
+        // EDGE-triggered teardown. Everything else here is an entry guard, which only
+        // stops the NEXT clip — an in-flight one kept decoding and streaming under the
+        // player for up to 30s. .videoPlayerContainer being inserted is itself a body
+        // childList mutation, so this observer always fires on the transition.
+        if (playing && !nfWasPlaying) { nfStopAllPreviewMedia(); }
+        nfWasPlaying = playing;
         if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();
             return;

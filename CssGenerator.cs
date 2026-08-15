@@ -64,6 +64,34 @@ namespace Jellyfin.Plugin.CustomTheme
             ["righteous"] = "Righteous"
         };
 
+        /// <summary>Families with a single (or near-single) weight cut. Asking them for
+        /// 700/900 makes the browser synthesise faux bold — a smeared outline, worst at
+        /// the small sizes this theme uses most.</summary>
+        private static readonly HashSet<string> SingleWeightFonts = new()
+        {
+            "bebas", "righteous"
+        };
+
+        /// <summary>Families whose 600 cut is not imported: their --nf-w-semi must round
+        /// to a weight that actually exists rather than being synthesised.</summary>
+        private static readonly HashSet<string> NoSemiBoldFonts = new()
+        {
+            "roboto", "lato", "ubuntu", "quicksand", "playfair", "bebas", "righteous"
+        };
+
+        /// <summary>Display tracking per family. -0.022em is correct for Inter, which is
+        /// airy at display sizes; on an already-condensed, geometric or serif face the
+        /// same value closes the counters.</summary>
+        private static readonly Dictionary<string, string> DisplayTracking = new()
+        {
+            ["oswald"] = "0",
+            ["bebas"] = "0.01em",
+            ["righteous"] = "0",
+            ["playfair"] = "-0.005em",
+            ["comfortaa"] = "-0.005em",
+            ["quicksand"] = "-0.008em"
+        };
+
         private static readonly Dictionary<string, string> Fonts = new()
         {
             ["inter"] = "'Inter', 'Helvetica Neue', 'Segoe UI', Roboto, Ubuntu, sans-serif",
@@ -148,6 +176,26 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.AppendLine($"    --card-radius: {config.CardRadius}px;");
             sb.AppendLine($"    --font-netflix: {font};");
             sb.AppendLine($"    --progress-color: {progress};");
+            // Weight + display-tracking guard for the selected family (see the two
+            // dictionaries above). Inter and the other full-range faces fall through.
+            if (SingleWeightFonts.Contains(config.FontFamily))
+            {
+                sb.AppendLine("    --nf-w-display: 400;");
+                sb.AppendLine("    --nf-w-bold: 400;");
+                sb.AppendLine("    --nf-w-semi: 400;");
+                sb.AppendLine("    --nf-w-med: 400;");
+            }
+            else if (NoSemiBoldFonts.Contains(config.FontFamily))
+            {
+                sb.AppendLine("    --nf-w-semi: 700;");
+            }
+
+            if (DisplayTracking.TryGetValue(config.FontFamily, out var tracking))
+            {
+                sb.AppendLine($"    --nf-track-display: {tracking};");
+                sb.AppendLine($"    --nf-track-head: {tracking};");
+            }
+
             sb.AppendLine("}");
 
             // --- Always-on extras (moved out of the base theme) ---
@@ -155,7 +203,10 @@ namespace Jellyfin.Plugin.CustomTheme
             // Hide the generic person icon only when an avatar image is actually present —
             // unconditional hiding left avatar-less accounts with an invisible button.
             // (Engines without :has() show icon + avatar together, which still works.)
-            sb.AppendLine(".headerUserButton:has(img) .headerButton-icon { display: none !important; }");
+            // 10.11 replaces the button's innerHTML with a background-image DIV when an
+            // avatar exists — there is no <img> and no .headerButton-icon, so the old
+            // :has(img) rule matched nothing. Round the real element instead.
+            sb.AppendLine(".headerUserButtonRound div { border-radius: 4px !important; overflow: hidden !important; }");
             sb.AppendLine(".headerUserButton { overflow: hidden !important; border-radius: 4px !important; }");
 
             AppendLogo(sb, config);
@@ -238,7 +289,7 @@ namespace Jellyfin.Plugin.CustomTheme
 
             if (!config.ShowDescription)
             {
-                sb.AppendLine(".overview-text, .itemOverview { display: none !important; }");
+                sb.AppendLine(".overview-text, .itemOverview, .detailSectionContent .overview { display: none !important; }");
             }
 
             if (!config.ShowTags)
@@ -268,8 +319,8 @@ namespace Jellyfin.Plugin.CustomTheme
             {
                 // Scoped to detail pages and non-person cards: the old unscoped rule
                 // blurred cast faces, library tiles and collection folders too.
-                sb.AppendLine(@".overview-text, .itemOverview { filter: blur(8px) !important; cursor: pointer !important; transition: filter 0.3s ease !important; }
-.overview-text:hover, .itemOverview:hover { filter: none !important; }
+                sb.AppendLine(@".overview-text, .itemOverview, .detailSectionContent .overview { filter: blur(8px) !important; cursor: pointer !important; transition: filter 0.3s ease !important; }
+.overview-text:hover, .itemOverview:hover, .detailSectionContent .overview:hover { filter: none !important; }
 .itemDetailPage .card:not(:has(.indicatorIcon)):not(.personCard) .cardImageContainer { filter: blur(10px) brightness(0.6) !important; transition: filter 0.3s ease !important; }
 .itemDetailPage .card:not(:has(.indicatorIcon)):not(.personCard) .cardImageContainer:hover { filter: none !important; }
 .itemDetailPage #listChildrenCollapsible .listItem:not(:has(.indicatorIcon)) .listItemImage { filter: blur(10px) brightness(0.6) !important; transition: filter 0.3s ease !important; }
@@ -299,13 +350,16 @@ namespace Jellyfin.Plugin.CustomTheme
         private static void AppendLayout(StringBuilder sb, PluginConfiguration config)
         {
             // Font size
+            // Must be the ROOT, not body: `rem` resolves against <html>, and ~90 of the
+            // theme's font sizes are rem — so setting body did nothing to the theme at all.
+            // Percentages keep the user's own browser default as the base.
             if (config.FontSize == "small")
             {
-                sb.AppendLine("body { font-size: 14px !important; }");
+                sb.AppendLine("html { font-size: 87.5% !important; }");
             }
             else if (config.FontSize == "large")
             {
-                sb.AppendLine("body { font-size: 18px !important; }");
+                sb.AppendLine("html { font-size: 112.5% !important; }");
             }
 
             // Title size. The unscoped rule would also override the base sheet's
@@ -379,8 +433,7 @@ namespace Jellyfin.Plugin.CustomTheme
             if (config.CardInfoOverlay)
             {
                 sb.AppendLine(@".cardOverlayContainer { display: flex !important; flex-direction: column !important; justify-content: flex-end !important; padding: 10px 12px !important; }
-.card:hover .cardOverlayContainer { opacity: 1 !important; }
-.cardOverlayContainer .cardOverlayButtonContainer { margin-top: auto !important; }");
+.card:hover .cardOverlayContainer { opacity: 1 !important; }");
             }
 
             // Gradient strength
@@ -450,16 +503,24 @@ namespace Jellyfin.Plugin.CustomTheme
         private static void AppendTileLadder(StringBuilder sb, int delta)
         {
             // Base counts mirror netflix.css: 6 default, 7 wide, then 5 / 4 / 3 / 2.35.
-            sb.AppendLine($":root {{ --nf-tile: {TileExpr(6 + delta)}; }}");
-            sb.AppendLine($"@media (min-width: 1900px) {{ :root {{ --nf-tile: {TileExpr(7 + delta)}; }} }}");
-            sb.AppendLine($"@media (max-width: 1399px) {{ :root {{ --nf-tile: {TileExpr(5 + delta)}; }} }}");
-            sb.AppendLine($"@media (max-width: 1099px) {{ :root {{ --nf-tile: {TileExpr(4 + delta)}; }} }}");
-            sb.AppendLine($"@media (max-width: 799px) {{ :root {{ --nf-tile: {TileExpr(3 + delta)}; }} }}");
+            sb.AppendLine($":root {{ --nf-tile: {TileExpr(6 + delta)}; --nf-cols: {ColCount(6 + delta)}; }}");
+            sb.AppendLine($"@media (min-width: 1900px) {{ :root {{ --nf-tile: {TileExpr(7 + delta)}; --nf-cols: {ColCount(7 + delta)}; }} }}");
+            sb.AppendLine($"@media (max-width: 1399px) {{ :root {{ --nf-tile: {TileExpr(5 + delta)}; --nf-cols: {ColCount(5 + delta)}; }} }}");
+            sb.AppendLine($"@media (max-width: 1099px) {{ :root {{ --nf-tile: {TileExpr(4 + delta)}; --nf-cols: {ColCount(4 + delta)}; }} }}");
+            sb.AppendLine($"@media (max-width: 799px) {{ :root {{ --nf-tile: {TileExpr(3 + delta)}; --nf-cols: {ColCount(3 + delta)}; }} }}");
             // Phones keep the fractional peek that stands in for the hidden row arrows,
             // and the delta is capped at +1 there: a full +2 for portrait boxart would
             // put 4.35 posters on a 390px screen (79px wide), which is denser than
             // Netflix mobile and denser than the width this preset used to produce.
-            sb.AppendLine($"@media (max-width: 559px) {{ :root {{ --nf-tile: {TileExpr(2.35 + System.Math.Min(delta, 1))}; }} }}");
+            sb.AppendLine($"@media (max-width: 559px) {{ :root {{ --nf-tile: {TileExpr(2.35 + System.Math.Min(delta, 1))}; --nf-cols: 3; }} }}");
+        }
+
+        /// <summary>Whole-column count for the STATIC More-Like-This grid: the same rung
+        /// the tile ladder divides by, floored at 2 so no preset can produce a one-up grid.</summary>
+        private static string ColCount(double tiles)
+        {
+            return System.Math.Max(2, (int)System.Math.Round(tiles))
+                .ToString(CultureInfo.InvariantCulture);
         }
 
         /// <summary>One rung of the tile ladder, floored at 1.6 tiles so an extreme
@@ -484,7 +545,7 @@ namespace Jellyfin.Plugin.CustomTheme
             if (!config.AmbientColor)
             {
                 sb.AppendLine(".backgroundContainer:not(.withBackdrop) { background-image: none !important; }");
-                sb.AppendLine(".detailPageSecondaryContainer { background-image: linear-gradient(to bottom, var(--bg-dark) 0%, #181818 100%) !important; }");
+                sb.AppendLine(".detailPageSecondaryContainer { background-image: linear-gradient(to bottom, var(--bg-dark) 0%, #181818 14%, #181818 86%, var(--bg-dark) 100%) !important; }");
             }
 
             if (config.CleanHome && config.GenreRows)
@@ -586,7 +647,7 @@ namespace Jellyfin.Plugin.CustomTheme
             {
                 // Styling for rank numbers injected by headerButton.js. The card is
                 // made the positioning context explicitly — nothing else guarantees it.
-                sb.AppendLine(@".ct-rank { position: absolute; inset-inline-start: -6px; bottom: -6px; z-index: 1; font-family: 'Bebas Neue', var(--font-netflix); font-size: 5.5rem; font-weight: 900; line-height: 0.8; color: #1a1a1a; -webkit-text-stroke: 3px var(--text-muted); pointer-events: none; }
+                sb.AppendLine(@".ct-rank { position: absolute; inset-inline-start: -6px; bottom: -6px; z-index: 1; font-family: 'Bebas Neue', var(--font-netflix); font-size: 5.5rem; font-weight: 400; line-height: 0.8; color: #1a1a1a; -webkit-text-stroke: 3px var(--text-muted); pointer-events: none; }
 .ct-rank-card { display: flex !important; align-items: flex-end !important; position: relative !important; }
 .ct-rank-card .cardScalable { margin-inline-start: 42% !important; }");
             }
@@ -608,7 +669,7 @@ namespace Jellyfin.Plugin.CustomTheme
             }
 
             // Detail page polish (always on — lightweight). Covers series: seasons + episode list.
-            sb.AppendLine(@".detailPagePrimaryContent .sectionTitle { font-size: 1.3rem !important; font-weight: 700 !important; }
+            sb.AppendLine(@".detailPagePrimaryContent .sectionTitle { font-size: var(--nf-t-row) !important; font-weight: 700 !important; }
 #castContent .card, .peopleCards .card { --card-radius: 50%; }
 /* Episode list rows — same 4px shape and hover tint as the base sheet */
 .listItem { border-radius: 4px !important; padding: 10px 12px !important; transition: background 0.2s ease !important; }
@@ -645,7 +706,7 @@ namespace Jellyfin.Plugin.CustomTheme
 .ct-body { padding: 12px 20px 48px; padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
 @media (max-width: 768px) { .ct-overlay { width: 100%; max-width: 100%; right: -100%; } }
 .ct-sec { margin-bottom: 18px; }
-.ct-sec-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #2a2a2a; }
+.ct-sec-title { font-size: var(--nf-t-micro, 0.75rem); text-transform: uppercase; letter-spacing: var(--nf-track-caps, 0.08em); font-weight: var(--nf-w-semi, 600); color: var(--nf-text-3, #b3b3b3); margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #2a2a2a; }
 .ct-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 0.9rem; color: #ddd; }
 .ct-row select { background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 5px 8px; font-size: 0.8rem; max-width: 55%; }
 .ct-row input[type=text] { background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 5px 8px; font-size: 0.8rem; max-width: 55%; }
