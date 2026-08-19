@@ -494,10 +494,14 @@ namespace Jellyfin.Plugin.CustomTheme
 .sidebarHeader { display: none !important; }");
             }
 
-            // Ambient glow
+            // Ambient glow. Touch-gated like the film grain: a full-viewport fixed
+            // layer must be re-blended every frame of a touch fling — the exact
+            // "no full-viewport fixed blend layers on mobile" ban. body::after is
+            // only emitted by this option, so the display:none release is safe.
             if (config.AmbientGlow)
             {
                 sb.AppendLine("body::after { content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse at 50% 0%, rgba(229,9,20,0.06) 0%, transparent 60%), radial-gradient(ellipse at 80% 50%, rgba(229,9,20,0.03) 0%, transparent 50%); pointer-events: none; z-index: 0; }");
+                sb.AppendLine("@media (hover: none) { body::after { display: none !important; } }");
             }
         }
 
@@ -661,6 +665,15 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine(@".ct-rank { position: absolute; inset-inline-start: -6px; bottom: -6px; z-index: 1; font-family: 'Bebas Neue', var(--font-netflix); font-size: 5.5rem; font-weight: 400; line-height: 0.8; color: #1a1a1a; -webkit-text-stroke: 3px var(--text-muted); pointer-events: none; }
 .ct-rank-card { display: flex !important; align-items: flex-end !important; position: relative !important; }
 .ct-rank-card .cardScalable { margin-inline-start: 42% !important; }");
+                // Phone scaling must live HERE, not netflix.css: generated CSS is
+                // appended after the base sheet, so a base override at equal
+                // specificity would lose. An 88px numeral with a 42% offset left
+                // ~90px of artwork on a 160px phone tile, and the 3px stroke
+                // turned to mush at that size.
+                sb.AppendLine(@"@media (max-width: 768px) {
+.ct-rank { font-size: 3.2rem; -webkit-text-stroke: 2px var(--text-muted); }
+.ct-rank-card .cardScalable { margin-inline-start: 32% !important; }
+}");
             }
 
             if (config.GlassEffect)
@@ -669,8 +682,13 @@ namespace Jellyfin.Plugin.CustomTheme
 .dialog, .formDialog, .actionSheet, .ct-overlay { backdrop-filter: blur(20px) saturate(160%) !important; -webkit-backdrop-filter: blur(20px) saturate(160%) !important; background: rgba(26,26,26,0.78) !important; }
 .mainDrawer { backdrop-filter: blur(18px) !important; -webkit-backdrop-filter: blur(18px) !important; background: rgba(10,10,10,0.6) !important; }");
                 // The fixed header's glass re-blurs the framebuffer every scroll frame; on touch
-                // drop it to a flat opaque bar (the dialog/drawer blurs are transient, left as-is).
+                // drop it to a flat opaque bar. The drawer/dialog blurs go too: blur(18-20px)
+                // behind a transform-animated surface re-samples the framebuffer per frame of
+                // the open/close animation, on exactly the WebViews least able to afford it —
+                // and the drawer is the PRIMARY navigation on phones.
                 sb.AppendLine("@media (hover: none) { .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(10,10,10,0.92) !important; } }");
+                sb.AppendLine("@media (hover: none) { .dialog, .formDialog, .actionSheet, .ct-overlay { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(26,26,26,0.96) !important; } }");
+                sb.AppendLine("@media (hover: none) { .mainDrawer { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(10,10,10,0.96) !important; } }");
             }
 
             if (config.OledBlack)

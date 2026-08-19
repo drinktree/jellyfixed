@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '2.5.74';
+    var NF_JS_VERSION = '2.5.75';
 
     // Fail-open marker: the generated CSS keys its instant-hide rules on html.nf-js,
     // so a missing/broken script can never blank the home page again.
@@ -82,6 +82,9 @@
     }
     function nfSampleAmbient(url) {
         if (!url || cfg('AmbientColor', true) === false) return;
+        // Phones/TVs: a 64px fetch + canvas readback per hero rotation for a
+        // 0.05-alpha glow that is near-invisible on those panels. Skip it.
+        if (nfCheapMode()) return;
         if (url === nfLastAmbientUrl) return;   // same image (incl. a reused backdrop element) — skip
         if (nfAmbientTries[url] >= 2) return;   // failed twice — stop retrying this image
         nfLastAmbientUrl = url;
@@ -135,6 +138,7 @@
     function setupDetailAmbient() {
         try {
             if (!/#\/details/i.test(location.hash)) return;
+            if (nfCheapMode()) return;   // getComputedStyle probe ~4x/sec — not on phones
             var bd = document.querySelector('.backdropImage') || document.querySelector('#itemBackdrop');
             if (!bd) return;
             // getComputedStyle() flushes style for the WHOLE document, and applyDynamic
@@ -185,11 +189,36 @@
     // class is honoured; matchMedia/connection reads are cheap.
     function nfCheapMode() {
         try {
+            // The official mobile apps inject window.NativeShell before jellyfin-web
+            // boots — but so does Jellyfin Media Player / Jellyfin Desktop (it is how
+            // jellyfin-web loads mpv), so bare presence is NOT a mobile signal.
+            // Exclude JMP by its own globals (jmpInfo / Qt webchannel) and by
+            // AppHost.appName ("Jellyfin Media Player" / "Jellyfin Desktop"), then
+            // trust the prong for the real mobile shells.
+            if (window.NativeShell && !window.jmpInfo && !(window.qt && window.qt.webChannelTransport)) {
+                var nfShellApp = '';
+                try { nfShellApp = String((window.NativeShell.AppHost && window.NativeShell.AppHost.appName && window.NativeShell.AppHost.appName()) || ''); } catch (eApp) {}
+                if (!/media player|desktop/i.test(nfShellApp)) return true;
+            }
             if (nfMM('(hover: none)') || nfMM('(prefers-reduced-data: reduce)')) return true;
+            // Samsung Android devices (phones AND tablets, browsers AND WebViews)
+            // misreport (hover: hover) — the firmware registers the touchscreen as
+            // a touchpad (crbug 41445959, unfixed since ~2015). Catch touch-first
+            // hardware positively: touch points + a mobile UA. Touch LAPTOPS have
+            // maxTouchPoints > 0 too but no mobile token, so they stay desktop.
+            var nfUa = navigator.userAgent || '';
+            if (navigator.maxTouchPoints > 0 && /android|iphone|ipad|ipod|mobile|silk/i.test(nfUa)) return true;
+            // iPadOS 13+ masquerades as macOS; the touch points give it away.
+            if (navigator.maxTouchPoints > 1 && /macintosh/i.test(nfUa)) return true;
             var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
             if (conn && (conn.saveData === true || /(^|[^0-9])(2g|slow-2g)/.test(conn.effectiveType || ''))) return true;
+            // Check BOTH roots: jellyfin's layoutManager has moved the layout
+            // class between <html> and <body> across versions — a wrong guess
+            // here silently re-enables every clip stream on phones.
             var c = document.documentElement.classList;
-            return c.contains('layout-tv') || c.contains('layout-mobile');
+            var b = document.body ? document.body.classList : c;
+            return c.contains('layout-tv') || c.contains('layout-mobile')
+                || b.contains('layout-tv') || b.contains('layout-mobile');
         } catch (e) { return false; }
     }
 
@@ -936,7 +965,12 @@
             '<div class="nf-hero-bg"' + (active ? ' style="background-image:url(\'' + bg + '\')"' : ' data-nf-hero-bg="' + bg + '"') + '></div>' +
             '<div class="nf-hero-content">' + titleHtml + meta + overview +
                 '<div class="nf-hero-actions">' +
-                    '<a class="nf-hero-btn nf-hero-play" href="' + detailUrl + '"><span class="material-icons" aria-hidden="true">play_arrow</span> ' + nfL().play + '</a>' +
+                    // nf-autoplay: the delegated handler in init() stamps a short-lived
+                    // sessionStorage flag; the detail page consumes it by clicking the
+                    // STOCK Play button — so ▶ actually starts playback through the
+                    // client's own stack (works in browsers, JMP and the mobile apps'
+                    // native players alike), with the detail page as graceful fallback.
+                    '<a class="nf-hero-btn nf-hero-play nf-autoplay" data-id="' + item.Id + '" href="' + detailUrl + '"><span class="material-icons" aria-hidden="true">play_arrow</span> ' + nfL().play + '</a>' +
                     '<a class="nf-hero-btn nf-hero-info" href="' + detailUrl + '"><span class="material-icons" aria-hidden="true">info</span> ' + nfL().moreInfo + '</a>' +
                     '<button type="button" class="nf-hero-btn nf-hero-list' + (fav ? ' active' : '') + '" data-id="' + item.Id + '" title="' + nfL().myList + '" aria-label="' + nfL().myList + '"><span class="material-icons" aria-hidden="true">' + (fav ? 'check' : 'add') + '</span></button>' +
                 '</div>' +
@@ -1056,7 +1090,12 @@
             scheduleClip();
         }
 
-        if (slideEls.length > 1) {
+        // Netflix's mobile billboard is STATIC. On cheap-mode devices every 20s
+        // rotation cross-fades two 62vh layers and fetches a ~1600px backdrop —
+        // pure battery/data drain, with the pause control hidden by the phone CSS
+        // anyway. Dots stay wired for manual browsing where they are visible.
+        var nfStaticHero = nfCheapMode();
+        if (slideEls.length > 1 && !nfStaticHero) {
             hero._timer = setInterval(function () {
                 // The SPA can drop the whole home container — removeHero only reaches
                 // ATTACHED heroes (document.querySelectorAll), so a detached hero must
@@ -1080,6 +1119,13 @@
                 paused = !paused;
                 this.querySelector('.material-icons').textContent = paused ? 'play_arrow' : 'pause';
             });
+        } else if (slideEls.length > 1) {
+            // Static multi-slide hero: manual navigation only — nothing to pause.
+            dotEls.forEach(function (el) {
+                el.addEventListener('click', function () { go(+el.getAttribute('data-idx')); });
+            });
+            var psStatic = hero.querySelector('.nf-hero-pause');
+            if (psStatic) psStatic.style.display = 'none';
         } else {
             var ctrlsSingle = hero.querySelector('.nf-hero-controls');
             // keep the mute button even with one slide; only hide pause/dots
@@ -1864,6 +1910,14 @@
     // Called on the false->true EDGE of nf-playing (see applyDynamic).
     function nfStopAllPreviewMedia() {
         try {
+            // A PENDING detail clip counts as preview media: attachNow used to fire
+            // its 2.5s timer INTO real playback (stillHere() passes whenever the
+            // hash never changed — JMP State-A, casting from the detail page) and
+            // start a fresh stream under the movie. cleanupDetailClip clears that
+            // timer AND the data-nf-clip marker — without the marker sweep, a
+            // visibility/pagehide kill left the detail clip permanently disabled
+            // for that page (the id-match early return never re-armed it).
+            cleanupDetailClip();
             document.querySelectorAll('video[data-nf-preview], .nf-hero-video, .nf-detail-video, .nf-pop video')
                 .forEach(nfKillVideo);
             nfActiveVideo = null;
@@ -2092,7 +2146,9 @@
                 '<a class="nf-pop-media" href="' + detailUrl + '"' + (media ? ' style="background-image:url(\'' + media + '\')"' : '') + '><div class="nf-pop-fade"></div><span class="nf-pop-media-title">' + esc(item.Name || '') + '</span></a>' +
                 '<div class="nf-pop-info">' +
                     '<div class="nf-pop-actions">' +
-                        '<a class="nf-pop-btn play" href="' + detailUrl + '" title="' + nfL().play + '" aria-label="' + nfL().play + '"><span class="material-icons" aria-hidden="true">play_arrow</span></a>' +
+                        // nf-autoplay: ▶ used to be a second More-Info link — it now
+                        // routes through the detail page's STOCK Play button (see init).
+                        '<a class="nf-pop-btn play nf-autoplay" data-id="' + item.Id + '" href="' + detailUrl + '" title="' + nfL().play + '" aria-label="' + nfL().play + '"><span class="material-icons" aria-hidden="true">play_arrow</span></a>' +
                         '<button type="button" class="nf-pop-btn nf-pop-list" title="' + nfL().myList + '" aria-label="' + nfL().myList + '"><span class="material-icons" aria-hidden="true">add</span></button>' +
                         '<button type="button" class="nf-pop-btn nf-pop-like" title="' + nfL().like + '" aria-label="' + nfL().like + '"><span class="material-icons" aria-hidden="true">thumb_up_off_alt</span></button>' +
                         '<a class="nf-pop-btn more" href="' + detailUrl + '" title="' + nfL().moreInfo + '" aria-label="' + nfL().moreInfo + '"><span class="material-icons" aria-hidden="true">expand_more</span></a>' +
@@ -2229,14 +2285,25 @@
             if (cfg('HoverPreviewCard', true) === false) return;
             // The popup is display:none below 769px — intercepting the tap there
             // would swallow every first tap with nothing to show. Let phones navigate.
-            if (nfMM('(max-width: 768px)')) return;
+            // (max-height too: a LANDSCAPE phone is 844+px wide but ~390px tall —
+            // the width gate alone armed the intercept on a screen with no room
+            // for the popup. Mirrored by the CSS gate at the end of netflix.css.)
+            if (nfMM('(max-width: 768px)') || nfMM('(max-height: 500px)')) return;
             if (popEl && popEl.contains(e.target)) return;            // inside popup -> let its links act
             // This listener is CAPTURE phase, so its stopPropagation() would fire
             // before .nf-cw-remove's own bubble handler and swallow the first tap.
-            if (e.target.closest && e.target.closest('.nf-cw-remove')) return;
+            // Explicit play controls act on the FIRST tap too — converting a tap
+            // on a visible ▶ into "open a preview" reads as a broken button.
+            if (e.target.closest && e.target.closest('.nf-cw-remove, .cardOverlayButton, [data-action="resume"], [data-action="play"], .nf-autoplay, .nf-pop-btn')) return;
             var card = e.target.closest && e.target.closest('.card, .nf-cw-card');
-            if (!card || !eligibleCard(card)) { if (popEl) { clearPreview(); } return; }
-            if (card === popCard && popEl) return;                    // second tap on same card -> navigate
+            // Reset unconditionally on a non-card tap: skipping it when popEl was
+            // null left popCard poisoned after a failed buildPop.
+            if (!card || !eligibleCard(card)) { clearPreview(); return; }
+            // Second tap on the same card navigates WHETHER OR NOT the popup
+            // materialized. Requiring popEl here meant every buildPop failure
+            // (getItem rejection, deleted item, zero-width rect) re-swallowed the
+            // tap forever — the title became un-openable on tablets.
+            if (card === popCard) return;
             e.preventDefault();                                       // first tap -> preview only
             e.stopPropagation();
             clearPreview();
@@ -2244,6 +2311,70 @@
             buildPop(card);
         }, true);
         window.addEventListener('scroll', function () { clearPreview(); }, true);
+    }
+
+    // Phones hide the Continue Watching ✕ (one mistap from clearing a resume
+    // point), which left NO remove path at all below 769px. Netflix mobile uses a
+    // long-press: a ~550ms hold (or the long-press contextmenu on Android) adds
+    // .nf-lp to the tile, revealing the ✕ for a few seconds — removal stays a
+    // deliberate two-step. Passive listeners only; a >10px drift cancels the hold
+    // so flings never trigger it.
+    function setupCwLongPress() {
+        if (window.__nfCwLp) return;
+        window.__nfCwLp = true;
+        var lpTimer = null, sx = 0, sy = 0;
+        function reveal(card) {
+            card.classList.add('nf-lp');
+            // Stamped so the dismiss handler can tell the synthesized click iOS
+            // fires ON RELEASE of the hold apart from a real second tap — without
+            // this the ✕ vanished the instant the finger lifted.
+            card._nfLpAt = Date.now();
+            if (card._nfLpT) { clearTimeout(card._nfLpT); }   // re-reveal resets the window
+            card._nfLpT = setTimeout(function () { card._nfLpT = null; card.classList.remove('nf-lp'); }, 3500);
+        }
+        function cancel() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }
+        document.body.addEventListener('touchstart', function (e) {
+            var card = e.target && e.target.closest && e.target.closest('.nf-cw-card');
+            if (!card) return;
+            var t = e.touches && e.touches[0];
+            if (!t) return;
+            sx = t.clientX; sy = t.clientY;
+            cancel();
+            lpTimer = setTimeout(function () { lpTimer = null; reveal(card); }, 550);
+        }, { passive: true });
+        document.body.addEventListener('touchmove', function (e) {
+            if (!lpTimer) return;
+            var t = e.touches && e.touches[0];
+            if (t && (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10)) cancel();
+        }, { passive: true });
+        document.body.addEventListener('touchend', cancel, { passive: true });
+        document.body.addEventListener('touchcancel', cancel, { passive: true });
+        // Android fires contextmenu on a long-press over the <a>: claim it as the
+        // gesture instead of showing the browser menu. Touch layouts only —
+        // nfCheapMode covers Samsung WebViews whose hover MQ misreports, while a
+        // desktop right-click keeps its normal context menu.
+        document.body.addEventListener('contextmenu', function (e) {
+            if (!nfMM('(hover: none)') && !nfCheapMode()) return;
+            var card = e.target && e.target.closest && e.target.closest('.nf-cw-card');
+            if (!card) return;
+            e.preventDefault();
+            reveal(card);
+        });
+        // While the ✕ is revealed, a tap on the tile BODY dismisses the reveal
+        // instead of navigating — otherwise the hold flows straight into the
+        // click and opens the title under the user's finger. Clicks landing
+        // within 700ms of the reveal are the HOLD's own release (iOS synthesizes
+        // one) — swallow them but keep the ✕ up.
+        document.body.addEventListener('click', function (e) {
+            var card = e.target && e.target.closest && e.target.closest('.nf-cw-card.nf-lp');
+            if (!card) return;
+            if (e.target.closest('.nf-cw-remove')) return;   // let the remove act
+            e.preventDefault();
+            e.stopPropagation();
+            if (Date.now() - (card._nfLpAt || 0) < 700) return;   // release-click: keep the reveal
+            if (card._nfLpT) { clearTimeout(card._nfLpT); card._nfLpT = null; }
+            card.classList.remove('nf-lp');
+        }, true);
     }
 
     function setupCardPreviews() {
@@ -2389,6 +2520,51 @@
         } catch (e) {}
     }
 
+    // ============ Real Play-button wiring ============
+    // The theme's ▶ buttons (hero billboard, hover/touch popup) are anchors to the
+    // detail page — the theme has no access to jellyfin's playbackManager module.
+    // Instead of faking playback, the click stamps a short-lived sessionStorage
+    // flag and the DETAIL page consumes it by clicking the STOCK Play button,
+    // which routes through the client's own playback stack — correct in browsers,
+    // JMP AND the mobile apps' native players. TTL + id match + remove-before-
+    // click keep it single-shot; if the button never appears (permissions, error)
+    // the flag simply expires.
+    // The detail page visible AT STAMP TIME. jellyfin-web keeps the OLD detail
+    // view un-hidden until the new one mounts, so a ▶ pressed on page A's
+    // More-Like-This card for title B could match A's still-visible .btnPlay and
+    // start the WRONG title — the matched button's page must not be this one.
+    var nfAutoplayAvoid = null;
+    function nfPendingAutoplay() {
+        try {
+            var raw = sessionStorage.getItem('nf-autoplay');
+            if (!raw) return null;
+            var sep = raw.lastIndexOf(':');
+            var id = raw.slice(0, sep);
+            var ts = parseInt(raw.slice(sep + 1), 10) || 0;
+            if (Date.now() - ts > 15000) { sessionStorage.removeItem('nf-autoplay'); nfAutoplayAvoid = null; return null; }
+            return id;
+        } catch (e) { return null; }
+    }
+    function setupAutoPlay() {
+        try {
+            var id = nfPendingAutoplay();
+            if (!id) return;
+            if (!/#\/details/i.test(location.hash) || location.hash.indexOf(id) === -1) return;
+            // :not(.hide) on the page AND the button — the view manager caches
+            // detail pages, and a resumable title keeps .btnPlay as its resume
+            // control (gotcha J: there is no .btnResume in 10.11).
+            var btn = document.querySelector('#itemDetailPage:not(.hide) .mainDetailButtons .btnPlay:not(.hide)');
+            if (!btn) return;   // page still streaming in — applyDynamic retries on the next mutation frame
+            // Still the pre-navigation page: wait for it to hide and the target's
+            // own view to mount (retried on every mutation frame; 15s TTL bounds it).
+            var page = btn.closest && btn.closest('#itemDetailPage');
+            if (page && page === nfAutoplayAvoid) return;
+            try { sessionStorage.removeItem('nf-autoplay'); } catch (e2) {}
+            nfAutoplayAvoid = null;
+            btn.click();
+        } catch (e) {}
+    }
+
     // ============ Init ============
     // ============ Detail page ("Mehr Infos") — autoplay clip over the backdrop ============
     // When a detail page is open, play a muted, looping cut of the title (past the intro)
@@ -2410,6 +2586,11 @@
             if (!/#\/details/i.test(location.hash)) return;
             if (cfg('PreviewClips', true) === false) return;
             if (nfReducedMotion() || nfCheapMode()) return;
+            // The user came here by pressing ▶ — they asked for the MOVIE. Starting
+            // the ambient clip in that window is exactly the reported "I pressed
+            // Play and got the preview clip" experience (and its stream competes
+            // with the movie's own spin-up on small servers).
+            if (nfPendingAutoplay()) return;
             if (typeof ApiClient === 'undefined' || !ApiClient.getItem || !ApiClient.getCurrentUserId) return;
             // Attach into the FULL-VIEWPORT fixed backdrop container (the element the
             // theme uses as the detail backdrop). The page's own #itemBackdrop is only
@@ -2442,6 +2623,13 @@
                 }, 2500);
             }
             function attachNow(playId, ms, ticks) {
+                // Playback guard, mirroring the hero's: this fires 2.5s after the
+                // page opened, and stillHere() passes whenever the hash never
+                // changed (JMP State-A keeps the URL on the browse route; casting
+                // from the detail page never changes it) — so without this, a
+                // fresh clip stream started UNDER the just-started movie.
+                if (nfSuspended || document.documentElement.classList.contains('nf-playing') || nfPlaybackActive()) return;
+                if (document.hidden) return;   // covered WebView (external/native player)
                 if (!stillHere() || backdrop.querySelector('.nf-detail-video')) return;
                 var v = nfNewClipVideo('nf-detail-video');
                 v.addEventListener('playing', function () { v.classList.add('show'); });
@@ -2589,13 +2777,84 @@
         // 750ms: the resume is not latency-critical, and this is the ONLY theme
         // code that runs for the whole duration of a film.
         if (!nfResumePoll) {
+            var nfPollTick = 0;
             nfResumePoll = setInterval(function () {
                 // Belt and braces: if anything managed to start a preview clip while
                 // suspended, this kills it. Costs nothing when there is none.
                 nfStopAllPreviewMedia();
+                // Auto-play-next starts a NEW item with no fresh suspend edge — re-
+                // check the warm every ~30s (the completed-item guard makes a repeat
+                // for the same title one GET at most, and cheap mode skips entirely).
+                if (++nfPollTick % 40 === 0) nfPrefetchTrickplay();
                 if (!nfPlaybackActive()) nfResumeAfterPlayback();
             }, 750);
         }
+        // Warm the trickplay tile sheets once the movie's own buffer has had 8s
+        // to establish — never in the startup window it would compete with.
+        setTimeout(function () { if (nfSuspended) nfPrefetchTrickplay(); }, 8000);
+    }
+    // Scrubbing across a trickplay tile-sheet boundary swaps the bubble's
+    // background-image to a not-yet-fetched multi-megapixel JPEG; on JMP the
+    // fetch+decode lands as a visible hitch mid-hover. A film has only a handful
+    // of sheets (~8 at server defaults), all static pre-generated files — warm
+    // them SEQUENTIALLY (one request in flight) so the hover path hits cache.
+    var nfTrickplayFor = null;    // stamped only when a warm COMPLETES, so an aborted run retries
+    var nfTrickplayBusy = false;  // one chain in flight at a time
+    function nfPrefetchTrickplay() {
+        try {
+            if (nfCheapMode()) return;   // phones: no scrub-hover, don't burn data
+            if (nfTrickplayBusy) return;
+            if (typeof ApiClient === 'undefined' || !ApiClient.getSessions || !ApiClient.deviceId
+                || !ApiClient.getCurrentUserId || !ApiClient.getItem) return;
+            nfTrickplayBusy = true;
+            var done = function () { nfTrickplayBusy = false; };
+            ApiClient.getSessions({ deviceId: ApiClient.deviceId() }).then(function (sessions) {
+                var s = sessions && sessions[0];
+                var np = s && s.NowPlayingItem;
+                if (!np || !np.Id || nfTrickplayFor === np.Id) { done(); return; }
+                // The cache only helps if OUR URL byte-matches the OSD's. The OSD
+                // requires a MediaSourceId — no msId, no warm (a guessed URL is 16
+                // uncacheable downloads, strictly worse than skipping).
+                var msId = (s.PlayState && s.PlayState.MediaSourceId) || '';
+                var uid = ApiClient.getCurrentUserId();
+                if (!msId || !uid) { done(); return; }
+                ApiClient.getItem(uid, np.Id).then(function (item) {
+                    var tp = item && item.Trickplay;
+                    var perSource = tp && tp[msId];
+                    if (!perSource) { done(); return; }
+                    var widths = Object.keys(perSource).map(Number).filter(function (n) { return n > 0; });
+                    if (!widths.length) { done(); return; }
+                    // Mirror jellyfin-web's OSD selection EXACTLY (videoosd picks the
+                    // highest width <= 20% of screen width x dpr, else the smallest) —
+                    // warming any other width is a guaranteed cache miss.
+                    var target = ((window.screen && window.screen.width) || 1280) * (window.devicePixelRatio || 1) * 0.2;
+                    var w = null, smallest = null;
+                    for (var k = 0; k < widths.length; k++) {
+                        if (smallest === null || widths[k] < smallest) smallest = widths[k];
+                        if (widths[k] <= target && (w === null || widths[k] > w)) w = widths[k];
+                    }
+                    if (w === null) w = smallest;
+                    var info = perSource[String(w)] || perSource[w];
+                    if (!info || !info.TileWidth || !info.TileHeight || !info.ThumbnailCount) { done(); return; }
+                    var sheets = Math.min(Math.ceil(info.ThumbnailCount / (info.TileWidth * info.TileHeight)), 16);
+                    var base = ApiClient.serverAddress() + '/Videos/' + np.Id + '/Trickplay/' + w + '/';
+                    // Param NAME + ORDER byte-match the OSD's getUrl output
+                    // (ApiKey first, MediaSourceId second) — api_key authenticated
+                    // fine but never hit the cache entry the OSD looks up.
+                    var tail = '.jpg?ApiKey=' + ApiClient.accessToken() + '&MediaSourceId=' + msId;
+                    var i = 0;
+                    (function next() {
+                        if (!nfSuspended) { done(); return; }         // playback ended mid-warm: retry next time
+                        if (i >= sheets) { nfTrickplayFor = np.Id; done(); return; }
+                        var img = new Image();
+                        img.onload = next;
+                        img.onerror = next;
+                        img.src = base + i + tail;
+                        i++;
+                    })();
+                }).catch(done);
+            }).catch(done);
+        } catch (e) { nfTrickplayBusy = false; }
     }
     function nfResumeAfterPlayback() {
         if (!nfSuspended) return;
@@ -2673,6 +2932,8 @@
         addButton();
         setupLogoHome(nfHdr);
         syncHeaderScrolled(nfHdr);
+        // Before the CT_CONFIG gate: a pending ▶ must fire even on first paint.
+        setupAutoPlay();
         // Config-gated builders must wait for CT_CONFIG: before it loads, cfg()
         // returns defaults (mostly true), so a disabled row (e.g. a home row the
         // user turned off) would be built on first paint and never removed —
@@ -2748,9 +3009,53 @@
 
     function init() {
         setupCardPreviews();
+        setupCwLongPress();
         setupHeaderScroll();
         applyDynamic();
-        window.addEventListener('hashchange', function () { clearPreview(); cleanupDetailClip(); setupHero(); renderNavTabs(); });
+        window.addEventListener('hashchange', function () {
+            clearPreview(); cleanupDetailClip(); setupHero(); renderNavTabs();
+            // An abandoned ▶ press must not autoplay a LATER manual visit to the
+            // same title: drop the flag as soon as the route leaves its detail page.
+            try {
+                var pend = nfPendingAutoplay();
+                if (pend && location.hash.indexOf(pend) === -1) {
+                    sessionStorage.removeItem('nf-autoplay');
+                    nfAutoplayAvoid = null;
+                }
+            } catch (e) {}
+        });
+
+        // ---- Playback-intent teardown (capture phase, never prevents anything).
+        // The nf-playing EDGE kill only fires once the player's DOM appears — and
+        // in the mobile apps' NATIVE players (ExoPlayer/AVPlayer) it never appears
+        // at all, so an in-flight clip kept its server stream running under the
+        // movie and could starve the transcoder ("preview plays, movie won't").
+        // Killing synchronously on the tap that MEANS "play" closes that window on
+        // every client, and stamps the autoplay flag for the theme's own ▶ links.
+        document.addEventListener('click', function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            var ap = t.closest('.nf-autoplay');
+            if (ap) {
+                var apId = ap.getAttribute('data-id');
+                if (apId) {
+                    try { sessionStorage.setItem('nf-autoplay', apId + ':' + Date.now()); } catch (err) {}
+                    // Remember which detail page (if any) was visible when ▶ was
+                    // pressed — setupAutoPlay must never click THAT page's button.
+                    nfAutoplayAvoid = document.querySelector('#itemDetailPage:not(.hide)');
+                }
+            }
+            if (ap || t.closest('.btnPlay, .btnResume, .btnReplay, .cardOverlayButton, [data-action="resume"], [data-action="play"], [data-action="playallfromhere"]')) {
+                nfStopAllPreviewMedia();
+            }
+        }, true);
+        // Native playback covers the WebView -> document.hidden. Also fires on
+        // tab switches, where killing the clip streams is equally right (the hero
+        // re-arms them on its next rotation after return).
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) nfStopAllPreviewMedia();
+        });
+        window.addEventListener('pagehide', function () { nfStopAllPreviewMedia(); });
 
         // Coalesce the SPA's mutation bursts into one applyDynamic per frame so
         // EVERY feature (nav tabs, hero, genre rows, ...) gets retried as the

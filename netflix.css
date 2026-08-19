@@ -225,7 +225,9 @@ body, .mainDrawer, .dialog {
    bar — hide it in browse, but KEEP it in the player OSD where it carries the
    "Series - S1:E3 - Name" line. */
 .skinHeader .pageTitle { display: none !important; }
-.skinHeader.osdHeader .pageTitle { display: flex !important; }
+/* :not(.hide) — gotcha S: an unguarded display:<visible> !important at (0,3,0)
+   would beat jellyfin's .hide (0,1,0) if the client ever hides this title. */
+.skinHeader.osdHeader .pageTitle:not(.hide) { display: flex !important; }
 
 /* Netflix N logo — a real, clickable element (headerButton.js builds .nf-logo
    and wires it to Home; the old ::before pseudo could never receive the click). */
@@ -336,16 +338,23 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
 }
 
 .tabs-viewmenubar.emby-tabs { overflow: visible !important; width: auto !important; height: auto !important; }
-.emby-tabs-slider { display: flex !important; gap: 8px !important; }
+/* Margins, not flex gap: `gap` on a flex container parses but is IGNORED on
+   Chromium <84 (JMP's QtWebEngine 5.15 = 83, old TV/tablet WebViews), and it
+   cannot be @supports-detected (grid gap makes the probe true). Same spacing,
+   engine-proof. Applies to every converted row below. */
+.emby-tabs-slider:not(.hide) { display: flex !important; }
+.emby-tabs-slider > .emby-tab-button { margin-inline-end: 8px !important; }
+.emby-tabs-slider > .emby-tab-button:last-child { margin-inline-end: 0 !important; }
 .emby-tab-button::after, .emby-tab-button .tabButtonActive-bg { display: none !important; }
 
 /* Header right — plain white icons with Netflix's roomier spacing */
 .headerRight {
     display: flex !important;
     align-items: center !important;
-    gap: 14px !important;
     padding-inline-end: 4% !important;
 }
+.headerRight > * { margin-inline-start: 14px !important; }
+.headerRight > :first-child { margin-inline-start: 0 !important; }
 
 .headerRight .headerButton { color: var(--text-main) !important; opacity: 1; transition: opacity 0.2s ease !important; }
 .headerRight .headerButton:hover { opacity: 0.8; }
@@ -440,9 +449,14 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
 .homeSectionsContainer .scrollSlider {
     padding-bottom: 25px !important;
     margin-bottom: -25px !important;
-    gap: 4px !important;
-    gap: max(4px, 0.4vw) !important;   /* Netflix's 0.2vw-per-side tile packing; 4px floor for old engines */
 }
+/* Margins, not flex gap (ignored on Chromium <84 — tiles used to butt together
+   on JMP). The max() upgrade is a second declaration: old engines keep 4px. */
+.homeSectionsContainer .scrollSlider > .card {
+    margin-inline-end: 4px !important;
+    margin-inline-end: max(4px, 0.4vw) !important;
+}
+.homeSectionsContainer .scrollSlider > .card:last-child { margin-inline-end: 0 !important; }
 
 /* Make backdrop cards (Als Nächstes, etc.) wider to fill viewport */
 .homeSectionsContainer .card.overflowBackdropCard {
@@ -1600,8 +1614,13 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
 body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; }
 /* Gated off during playback: a filter on .mainAnimatedPages creates a containing
    block that re-anchors the fixed OSD bar away from the viewport.
-   (nf-playing too — transparentDocument alone misses one real playback state.) */
-html:not(.transparentDocument):not(.nf-playing) body:has(.mainDrawer.drawer-open) .mainAnimatedPages { filter: brightness(0.55) !important; transition: filter 0.2s ease !important; }
+   (nf-playing too — transparentDocument alone misses one real playback state.)
+   Hover-gated: animating a filter on the WHOLE page container re-rasterizes the
+   full page every frame of the drawer open/close — brutal on phone WebViews,
+   where the drawer is the primary navigation. The drawer has its own scrim. */
+@media (hover: hover) {
+    html:not(.transparentDocument):not(.nf-playing) body:has(.mainDrawer.drawer-open) .mainAnimatedPages { filter: brightness(0.55) !important; transition: filter 0.2s ease !important; }
+}
 
 /* =============================================
    MISC
@@ -1759,28 +1778,59 @@ html:not(.transparentDocument):not(.nf-playing) body:has(.mainDrawer.drawer-open
 .videoOsdBottom .sliderBubbleText {
     font-family: var(--font-netflix) !important;
     font-weight: var(--nf-w-bold) !important;
-    font-size: 0.78rem !important;
+    font-size: 0.9rem !important;
     letter-spacing: 0.02em !important;
     color: #fff !important;
+    /* The scrub time rewrites on every mousemove; tabular figures keep each
+       digit cell identical so a frame invalidates minimal glyph boxes. */
+    font-variant-numeric: tabular-nums !important;
 }
-/* Text properties ONLY here too — same surface, same rule. */
+/* Text properties ONLY here too — same surface, same rule.
+   0.92rem: the scrub timestamp is the loudest element of Netflix's preview;
+   0.78rem was caption scale. Still strictly text properties. */
 .videoOsdBottom .chapterThumbText {
     font-family: var(--font-netflix) !important;
     font-weight: var(--nf-w-bold) !important;
-    font-size: 0.78rem !important;
+    font-size: 0.92rem !important;
     letter-spacing: 0.02em !important;
     color: #fff !important;
+    font-variant-numeric: tabular-nums !important;
 }
-.videoOsdBottom .chapterThumbText-dim { font-weight: 400 !important; color: var(--nf-text-2) !important; }
+.videoOsdBottom .chapterThumbText-dim { font-weight: 400 !important; font-size: 0.78rem !important; color: var(--nf-text-2) !important; }
+/* THE TRICKPLAY-HOVER STUTTER FIX (JMP). Stock ships
+   `.chapterThumbContainer { box-shadow: 0 0 1.9vh #000 }` — a ~20px gaussian
+   blur around a ~320x180 box — and the bubble's timestamp textContent changes on
+   virtually every mousemove, which re-rasterizes the WHOLE bubble layer,
+   blur included, per frame while mpv is presenting underneath. Replacing the
+   blur with a zero-blur hairline ring removes the most expensive Skia paint in
+   the hover path AND reads more Netflix (crisp frame, no halo).
+   .chapterThumbContainer is NOT one of the two banned elements
+   (.videoOsdBottom/.sliderBubble): this is a strict paint REDUCTION on a child.
+   Do NOT "upgrade" this to a border/border-radius — a radius forces a
+   rounded-corner clip on every one of those repaints (the v2.5.69 regression). */
+.videoOsdBottom .chapterThumbContainer { box-shadow: 0 0 0 2px rgba(255,255,255,0.55) !important; }
+/* Netflix places the scrub time UNDER the preview image, not over its bottom
+   band. The strip is a plain child (banned-list-free); static positioning is a
+   one-time layout, and `contain` fences each per-move text write's layout pass
+   inside the strip (supported since Chromium 52 — fine on QtWebEngine 5.15). */
+.videoOsdBottom .chapterThumbTextContainer {
+    position: static !important;
+    padding: 0.4em 0.6em 0.45em !important;
+    text-align: center !important;
+    contain: layout style;
+}
 /* Now-playing line */
 .videoOsdBottom .osdTitle {
     font-size: 1.4rem !important; font-weight: var(--nf-w-bold) !important;
     color: #fff !important; margin-bottom: 2px !important;
 }
-.videoOsdBottom .osdMediaInfo { font-size: 0.85rem !important; color: var(--nf-text-3) !important; }
+/* --nf-text-2, not -3: this renders over live video behind only a 2-stop scrim,
+   where the page's metadata grey drops below comfortable contrast. */
+.videoOsdBottom .osdMediaInfo { font-size: 0.85rem !important; color: var(--nf-text-2) !important; }
 /* Tabular figures stop the clock jittering as the digits change. */
 .osdPositionText, .osdDurationText {
-    font-size: 0.82rem !important;
+    font-size: 0.9rem !important;
+    font-weight: var(--nf-w-med) !important;
     color: var(--nf-text-2) !important;
     font-variant-numeric: tabular-nums !important;
 }
@@ -1834,11 +1884,19 @@ select:focus-visible, [tabindex]:focus-visible {
     outline: 2px solid #fff !important;
     outline-offset: 2px !important;
 }
-input:focus, textarea:focus, .emby-input:focus {
+/* :not([type="range"]) — the bare `input` used to match the OSD seek/volume
+   sliders (input[type=range].mdl-slider): clicking the seek bar focused it and
+   painted a persistent white ring around the full-width slider box, adding
+   box-shadow to exactly the element being repainted on every drag over video. */
+input:not([type="range"]):focus, textarea:focus, .emby-input:focus {
     outline: none !important;
     border-color: rgba(255,255,255,0.9) !important;
     box-shadow: 0 0 0 1px rgba(255,255,255,0.7) !important;   /* border-like, works on borderless fields */
 }
+input[type="range"]:focus { outline: none !important; box-shadow: none !important; }
+/* Keyboard users still get a focus ring on sliders (settings, volume) —
+   :focus-visible only, standalone selector (dropped whole on Chromium 83). */
+input[type="range"]:focus-visible { outline: 2px solid #fff !important; outline-offset: 2px !important; }
 
 /* Checkboxes and switches. The rule above paints a border + shadow that a native
    checkbox — and the 0x0 input hidden behind a .ct-switch — simply cannot show,
@@ -2031,6 +2089,9 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     position: absolute; inset: 0; width: 100%; height: 100%;
     object-fit: cover; z-index: 1;
     opacity: 0; transition: opacity 1.2s ease;
+    /* Decoration, never a control — a full-area video must not eat taps/clicks
+       aimed at whatever renders behind or around it. */
+    pointer-events: none;
 }
 .nf-hero-video.show { opacity: 1; }
 /* Detail page ("Mehr Infos") backdrop clip — fills #itemBackdrop, fades in over the image. */
@@ -2040,8 +2101,22 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
        siblings every 10s — at z 0 the fresh image painted over the playing clip. */
     object-fit: cover; z-index: 1;
     opacity: 0; transition: opacity 1.2s ease;
+    pointer-events: none;
 }
 .nf-detail-video.show { opacity: 1; }
+/* LAST-LINE defense, engine-independent: a clip <video> is CONTENT, so the
+   transparentDocument rules (which strip only backgrounds) cannot hide it, and
+   the :has() backstops need Chromium 105+. If teardown is ever late, a still-
+   attached opaque clip would paint OVER natively-rendered video (JMP/mpv, app
+   players behind a transparent web layer). Plain class gates parse everywhere.
+   Only the <video> elements are hidden — hero/rows stay intact, so the
+   theme-media browsing case gotcha T protects is unaffected. */
+html.nf-playing .nf-hero-video, html.nf-playing .nf-detail-video { display: none !important; }
+html.transparentDocument .nf-hero-video, html.transparentDocument .nf-detail-video { display: none !important; }
+/* :has() backstop for the State-A window where BOTH classes are absent —
+   standalone selector, never comma-joined (gotcha 11): engines without :has()
+   drop only this rule. video[data-nf-preview] marks every clip the theme makes. */
+html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !important; }
 .nf-hero-slide::after {
     content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
     /* Solid bg-dark band at the very bottom so the hero dissolves into the page
@@ -2088,11 +2163,15 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     text-shadow: 0 2px 4px rgba(0,0,0,0.45);
 }
 .nf-hero-meta {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    display: flex; align-items: center; flex-wrap: wrap;
     margin-bottom: 14px; font-size: var(--nf-t-meta); color: var(--nf-text-2); font-weight: var(--nf-w-semi);
     letter-spacing: 0.005em;
     text-shadow: 0 2px 4px rgba(0,0,0,0.45);
 }
+/* Margins, not flex gap (ignored on Chromium <84): the meta spans carry no
+   whitespace of their own, so dropped gap ran "2024Action • Drama" together. */
+.nf-hero-meta > * { margin-inline-end: 10px; }
+.nf-hero-meta > :last-child { margin-inline-end: 0; }
 .nf-hero-match { color: #46d369; font-weight: var(--nf-w-bold); }
 /* Billboard maturity badge — Netflix pins it to the slide's right edge with a
    #dcdcdc bar (headerButton.js emits .nf-hero-maturity per slide; the old
@@ -2118,7 +2197,10 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
     text-shadow: 0 2px 4px rgba(0,0,0,0.45);
 }
-.nf-hero-actions { display: flex; gap: 12px; align-items: center; }
+.nf-hero-actions { display: flex; align-items: center; }
+/* Margins, not flex gap (ignored on Chromium <84 — the buttons touched on JMP). */
+.nf-hero-actions > * { margin-inline-end: 12px; }
+.nf-hero-actions > :last-child { margin-inline-end: 0; }
 .nf-hero-btn {
     display: inline-flex; align-items: center; gap: 9px;
     font-family: var(--font-netflix); font-weight: var(--nf-w-bold); font-size: 1.1rem;
@@ -2146,8 +2228,11 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
        at every width and for every certification string; z-index 6 keeps these
        clickable above rows tucked into the hero's bottom margin. */
     position: absolute; right: calc(9rem + 24px); bottom: var(--nf-hero-baseline); z-index: 6;
-    display: flex; align-items: center; gap: 14px;
+    display: flex; align-items: center;
 }
+/* Margins, not flex gap (ignored on Chromium <84 — the circles touched on JMP). */
+.nf-hero-controls > * { margin-inline-start: 14px; }
+.nf-hero-controls > :first-child { margin-inline-start: 0; }
 .nf-hero-ctrl {
     width: 42px; height: 42px; border-radius: 50%;
     border: var(--nf-ring); background: var(--nf-ring-fill); color: #fff;
@@ -2230,7 +2315,11 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     padding: var(--nf-zoom-pad) var(--nf-gutter) var(--nf-zoom-pad);
 }
 .nf-row-scroll::-webkit-scrollbar { display: none; }
-.nf-row-track { display: flex; gap: var(--nf-tile-gap); align-items: flex-start; }
+/* Tile spacing is margin-inline-end on the cards (see .nf-card below), not flex
+   gap — gap parses but is IGNORED on Chromium <84 (JMP), collapsing the gutters.
+   The ladder's (100% - (N-1)*gap)/N arithmetic is unchanged: the margins occupy
+   exactly the space the gap did. */
+.nf-row-track { display: flex; align-items: flex-start; }
 /* Whole-tile rows: the width is a DIVISION of the track, not a clamp, so a row
    never ends in a sliced card. The clamp stays as the first declaration — an
    engine without custom properties drops the calc and keeps the old behaviour.
@@ -2242,7 +2331,9 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
     width: var(--nf-tile) !important;
     min-width: 0 !important;
     margin: 0;
+    margin-inline-end: var(--nf-tile-gap);
 }
+.nf-row-track > .nf-card:last-child { margin-inline-end: 0 !important; }
 /* Landscape 16:9 boxart (Netflix-style) for genre-row cards */
 .nf-genre-section .cardPadder-overflowBackdrop { padding-bottom: 56.25%; }
 .nf-genre-section .nf-card .cardImageContainer {
@@ -2259,10 +2350,13 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
    group grew and shoved .headerRight (search + avatar) toward the viewport edge.
    min-width:0 lets the strip shrink; the logo is pinned so the shrink lands here. */
 .nf-nav-tabs {
-    display: flex; gap: 18px; align-items: center; margin-left: 25px;
+    display: flex; align-items: center; margin-left: 25px;
     min-width: 0; overflow-x: auto;
     scrollbar-width: none; -ms-overflow-style: none;
 }
+/* Margins, not flex gap (ignored on Chromium <84). */
+.nf-nav-tabs > * { margin-inline-end: 18px; }
+.nf-nav-tabs > :last-child { margin-inline-end: 0; }
 .nf-nav-tabs::-webkit-scrollbar { display: none; }
 .headerLeft { min-width: 0 !important; }
 .nf-logo { flex: 0 0 auto; }
@@ -2277,7 +2371,10 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .nf-nav-tab:hover { color: #b3b3b3; }
 .nf-nav-tab.active { color: var(--text-main); font-weight: var(--nf-w-med); }
 @media (max-width: 1100px) {
-    .nf-nav-tabs { gap: 14px; margin-left: 14px; }
+    /* Margins, not gap — leaving this as gap stacked 14px ON TOP of the base
+       18px child margins on gap-supporting engines (32px tabs at 769-1100px). */
+    .nf-nav-tabs { margin-left: 14px; }
+    .nf-nav-tabs > * { margin-inline-end: 14px; }
 }
 
 /* =============================================
@@ -2318,7 +2415,10 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
 .nf-pop-media video.show { opacity: 1; }
 .nf-pop-fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, #181818 2%, transparent 55%); }
 .nf-pop-info { padding: 10px 16px 16px; }
-.nf-pop-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.nf-pop-actions { display: flex; align-items: center; margin-bottom: 12px; }
+/* Margins, not flex gap (ignored on Chromium <84). */
+.nf-pop-actions > * { margin-inline-end: 8px; }
+.nf-pop-actions > :last-child { margin-inline-end: 0; }
 /* Netflix's mini-modal buttons are 32px circles */
 .nf-pop-btn {
     width: 32px; height: 32px; border-radius: 50%;
@@ -2365,13 +2465,19 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 .nf-cw-section { position: relative; z-index: 3; }
 .nf-cw-scroll { overflow-x: auto; overflow-y: visible; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 22px var(--nf-gutter) 22px; padding: var(--nf-zoom-pad) var(--nf-gutter) var(--nf-zoom-pad); }
 .nf-cw-scroll::-webkit-scrollbar { display: none; }
-.nf-cw-track { display: flex; gap: var(--nf-tile-gap); align-items: flex-start; }
+.nf-cw-track { display: flex; align-items: flex-start; }
+/* Margins, not flex gap (ignored on Chromium <84) — same ladder arithmetic. */
+.nf-cw-track > .nf-cw-card { margin-inline-end: var(--nf-tile-gap); }
+.nf-cw-track > .nf-cw-card:last-child { margin-inline-end: 0; }
 /* Same tile as every other row — off the one ladder, so Continue Watching can
    never drift to a different scale from the shelf directly under it. */
 .nf-cw-card {
     flex: 0 0 auto; text-decoration: none; position: relative;
     width: clamp(165px, 15.2vw, 285px);
     width: var(--nf-tile);
+    /* Long-press reveals the remove button on phones (headerButton.js adds
+       .nf-lp); suppress iOS's link preview so the hold reads as the gesture. */
+    -webkit-touch-callout: none;
 }
 .nf-cw-thumb {
     position: relative; width: 100%; aspect-ratio: 16 / 9;
@@ -2870,10 +2976,22 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
 .mdl-slider-background-lower { background-color: var(--accent-red) !important; }
 /* Live TV / untimed streams mark the fill "clear" — keep it clear, not red. */
 .mdl-slider-background-lower.mdl-slider-background-lower-clear { background-color: transparent !important; }
+/* -flex is the actual full-width TRACK (own it explicitly — the old rule only
+   restyled -upper, which is the BUFFERED-ranges bar, to stock's own value);
+   the OSD's buffered bar goes brighter so buffer-ahead is legible like Netflix.
+   All one-time background-color paints on non-banned elements. */
+.mdl-slider-background-flex { background: rgba(255,255,255,0.3) !important; }
 .mdl-slider-background-upper { background: rgba(255,255,255,0.4) !important; }
+.videoOsdBottom .mdl-slider-background-upper { background: rgba(255,255,255,0.55) !important; }
 .mdl-slider::-webkit-slider-thumb { background: var(--accent-red) !important; }
 .mdl-slider::-moz-range-thumb { background: var(--accent-red) !important; }
-.videoOsdBottom .sliderMarker { background: #fff !important; }
+/* Netflix's handle is a fatter red dot; stock already grows it 1.3x on hover
+   (.mdl-slider-hoverthumb). NEVER comma-join -webkit- and -moz- thumb pseudos —
+   an unrecognized vendor pseudo invalidates the whole selector list. */
+.videoOsdBottom .mdl-slider::-webkit-slider-thumb { width: 1.3em !important; height: 1.3em !important; }
+.videoOsdBottom .mdl-slider::-moz-range-thumb { width: 1.3em !important; height: 1.3em !important; }
+/* Chapter ticks: keep the function, stop them towering over the 3px track. */
+.videoOsdBottom .sliderMarker { background: #fff !important; height: 8px !important; }
 
 /* --- Player: Netflix-style controls — big glyphs that grow on hover, no
    circular hover puddle; themed title/time text. */
@@ -2886,10 +3004,27 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     transform: scale(1.18) !important;
     color: #fff !important;
 }
-.videoOsdBottom .paper-icon-button-light .material-icons { font-size: 1.6em; }
+/* !important: CssGenerator output is appended after this sheet and would
+   silently out-cascade the one un-armored declaration in this block. */
+.videoOsdBottom .paper-icon-button-light .material-icons { font-size: 1.6em !important; }
+/* The OSD header's back arrow joins the same control spec as the bottom row —
+   bare glyph, no Material hover puddle, slight grow. (The osdHeader's own
+   opacity transition is load-bearing for stock's hide logic; untouched.) */
+.skinHeader.osdHeader .paper-icon-button-light {
+    background: transparent !important;
+    transition: transform 0.15s ease !important;
+}
+.skinHeader.osdHeader .paper-icon-button-light:hover {
+    background: transparent !important;
+    transform: scale(1.18) !important;
+    color: #fff !important;
+}
+.skinHeader.osdHeader .paper-icon-button-light .material-icons { font-size: 1.5em !important; }
 .osdTitle, .osdMediaInfo, .osdTextContainer, .osdPositionText, .osdDurationText {
     font-family: var(--font-netflix) !important;
 }
+/* (The ≥769px OSD control-bar inset lives in the responsive tail at the end of
+   this sheet, per the responsive-overrides-at-END rule.) */
 
 /* --- Detail: "More Like This" as a static boxart grid, not a side-scroller.
    (10.11 markup: #similarCollapsible > .emby-scroller > .scrollSlider.similarContent) */
@@ -2982,7 +3117,6 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     overflow-x: auto !important;
     overflow-y: visible !important;
     align-items: stretch !important;
-    gap: var(--nf-tile-gap) !important;
     /* Same clearance the home rows use: overflow-y:visible computes to auto next to
        overflow-x:auto, so this strip clips the hover zoom at its padding box too.
        Literal first (gotcha 12). */
@@ -2995,11 +3129,25 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     display: none !important;
 }
 
-/* Native season / children cards just flow in the row */
+/* Native season / children cards just flow in the row. Spacing is the same
+   margin-inline-end the home rows use (the strip's gap was ignored on
+   Chromium <84 — episode tiles butted together on JMP). */
 .itemDetailPage #listChildrenCollapsible .card,
 .itemDetailPage .detailPagePrimaryContent #childrenCollapsible .card {
     flex: 0 0 auto !important;
     margin: 0 !important;
+    margin-inline-end: var(--nf-tile-gap) !important;
+}
+.itemDetailPage #listChildrenCollapsible .card:last-child,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .card:last-child {
+    margin-inline-end: 0 !important;
+}
+/* Episode info-cards (.listItem) in the same strip need the same gutter. */
+.itemDetailPage #listChildrenCollapsible .itemsContainer > .listItem {
+    margin-inline-end: var(--nf-tile-gap) !important;
+}
+.itemDetailPage #listChildrenCollapsible .itemsContainer > .listItem:last-child {
+    margin-inline-end: 0 !important;
 }
 
 /* (c) Episode `.listItem` -> landscape INFO CARD: artwork on a #181818 panel that
@@ -3438,7 +3586,7 @@ body { font-optical-sizing: auto; }
        never buries browse behind a drawer. Bounded + scrollable instead. */
     .nf-nav-tabs {
         display: flex;
-        margin-left: 10px; margin-right: 10px; gap: 16px;
+        margin-left: 10px; margin-right: 10px;
         max-width: 100%; min-width: 0; flex: 1 1 auto;
         overflow-x: auto; overscroll-behavior-x: contain;
         -webkit-overflow-scrolling: touch;
@@ -3448,9 +3596,12 @@ body { font-optical-sizing: auto; }
         -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent 100%);
         mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent 100%);
     }
-    .nf-nav-tab { min-height: 40px; display: flex; align-items: center; }
+    .nf-nav-tab { min-height: 44px; display: flex; align-items: center; }
+    .nf-nav-tabs > * { margin-inline-end: 16px; }
     /* The right cluster must never be pushed or shrunk by the nav. */
-    .headerRight { flex: 0 0 auto; gap: 10px !important; }
+    .headerRight { flex: 0 0 auto; }
+    .headerRight > * { margin-inline-start: 10px !important; }
+    .headerRight > :first-child { margin-inline-start: 0 !important; }
 
     /* Library section tabs: the theme forces overflow:visible on Jellyfin's tab
        scroller, which is harmless on desktop but on a 390px phone made every tab
@@ -3484,7 +3635,10 @@ body { font-optical-sizing: auto; }
     .nf-hero-content { padding-bottom: var(--nf-hero-baseline); max-width: 100%; }
     .nf-hero-logo { max-height: 110px; }
     .nf-hero-overview { -webkit-line-clamp: 2; }
-    .nf-hero-btn { font-size: 0.92rem; padding: 9px 16px; white-space: nowrap; }
+    /* More Info STAYS on phones: since ▶ now actually starts playback (nf-autoplay),
+       this button is the billboard's only route to the title's detail page —
+       hiding it made the billboard a dead end. All buttons at the 44px floor. */
+    .nf-hero-btn { font-size: 1rem; min-height: 44px; padding: 10px 20px; white-space: nowrap; }
     .nf-hero-list { padding: 0; width: 44px; height: 44px; }
 
     /* ---- Rows. There is no hover popup below 769px (.nf-pop is display:none and
@@ -3510,8 +3664,12 @@ body { font-optical-sizing: auto; }
     }
     /* A permanently-visible 30px ✕ on every Continue Watching tile is one mistap
        from clearing a resume point with no undo, and Netflix mobile removes a
-       title through the long-press menu instead. */
+       title through the long-press menu instead. headerButton.js implements the
+       long-press: a ~550ms hold adds .nf-lp, revealing the ✕ for a few seconds —
+       removal stays a deliberate two-step, but it EXISTS on phones now. */
     .nf-cw-remove { display: none; }
+    .nf-cw-card.nf-lp .nf-cw-remove { display: flex; opacity: 1; }
+    .nf-cw-card.nf-lp .nf-cw-thumb { outline: 2px solid rgba(255,255,255,0.7); }
 
     /* ---- Detail page */
     .itemName { font-size: 1.8rem !important; }
@@ -3519,9 +3677,10 @@ body { font-optical-sizing: auto; }
     .detailPageWrapperContainer { padding-top: 20vh !important; }
     .mainDetailButtons { gap: 0 !important; }
     .mainDetailButtons > * { margin: 0 8px 8px 0 !important; }
-    .btnPlay, .btnResume, .btnReplay { height: 40px !important; font-size: 1rem !important; padding: 8px 20px 8px 16px !important; }
-    /* Keep touch targets at 40px minimum on phones */
-    .mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, .mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands { width: 40px !important; height: 40px !important; min-width: 40px !important; }
+    /* 44px, not 40: Apple HIG asks 44pt and Material 48dp — the theme's own
+       hover:none block already holds tabs and the hero list button at 44. */
+    .btnPlay, .btnResume, .btnReplay { height: 44px !important; font-size: 1rem !important; padding: 8px 20px 8px 16px !important; }
+    .mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, .mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands { width: 44px !important; height: 44px !important; min-width: 44px !important; }
     #similarCollapsible .cardText { padding: 2px 6px !important; }
     #similarCollapsible .cardText-first { padding-top: 6px !important; }
 
@@ -3558,6 +3717,12 @@ body { font-optical-sizing: auto; }
     .nf-hero-list { width: 40px !important; height: 40px !important; }
     .nf-hero-controls { bottom: 5vh !important; }
     .nf-hero-maturity { bottom: 5vh !important; min-height: 34px !important; }
+
+    /* Landscape phones sit ABOVE the 768px phone block, so the always-visible
+       touch ✕ (the mistap hazard the phone block removes) survived here.
+       Same treatment: hidden until the long-press reveal. */
+    .nf-cw-remove { display: none; }
+    .nf-cw-card.nf-lp .nf-cw-remove { display: flex; opacity: 1; }
 }
 
 /* --- TOUCH: no hover, and :hover STICKS ---------------------------------------
@@ -3590,6 +3755,36 @@ body { font-optical-sizing: auto; }
         min-height: 44px !important; padding: 0 14px !important; font-size: 0.9rem !important;
         display: inline-flex !important; align-items: center !important;
     }
+    /* Player OSD on touch: sticky :hover otherwise leaves the last-tapped
+       control magnified at scale(1.18) — the only UI on screen during playback. */
+    html .videoOsdBottom .paper-icon-button-light:hover { transform: none !important; }
+    html .skinHeader.osdHeader .paper-icon-button-light:hover { transform: none !important; }
+    /* Netflix mobile player: big sparse controls, fat scrub hit strip. One-time
+       layout on non-banned children — the track itself stays 3px. */
+    .videoOsdBottom .paper-icon-button-light { min-width: 44px !important; min-height: 44px !important; margin: 0 2px !important; }
+    .videoOsdBottom .paper-icon-button-light .material-icons { font-size: 1.8em !important; }
+    .videoOsdBottom .mdl-slider-container { height: 2.4em !important; }
+    /* The mute circle can never do anything on touch (cheap mode skips clips). */
+    .nf-hero-mute { display: none !important; }
+    /* A fast fling starts dozens of simultaneous 0.4s tile fades on exactly the
+       GPUs least able to absorb them — halve the window, keep the softness. */
+    .nf-img-in { animation-duration: 0.2s !important; }
+}
+/* The hover popup is desktop furniture: landscape phones exceed 768px WIDE, so
+   the width gate alone let them build popups on a 390px-tall screen. Mirrors
+   the (max-height: 500px) bail in headerButton.js. */
+@media (max-height: 500px) {
+    .nf-pop { display: none !important; }
+}
+
+/* Netflix insets the player's control bar from the display edge; padding is
+   banned on .videoOsdBottom itself (per-frame scrim repaint), so the inset
+   lives on .osdControls — a plain child whose box lays out only when the OSD
+   toggles. Button rhythm via margins (no flex gap on Chromium 83). Applies to
+   every ≥769px viewport; the touch block above still wins its 44px targets. */
+@media (min-width: 769px) {
+    .videoOsdBottom .osdControls { padding: 0 2.4em 0.5em !important; }
+    .videoOsdBottom .buttons .paper-icon-button-light { margin: 0 0.3em; }
 }
 /* Later than the touch block above and therefore wins at equal specificity: a
    landscape phone matches BOTH (max-height: 600px) and (hover: none), and the
@@ -3597,7 +3792,9 @@ body { font-optical-sizing: auto; }
    short-viewport block's 36px tab bar (the header has contain:none, so they
    would not even be clipped). */
 @media (hover: none) and (max-height: 600px) {
-    .headerTabs .emby-tab-button { min-height: 34px !important; padding: 0 10px !important; font-size: 0.8rem !important; }
+    /* :not(.hide) equalizes specificity with the touch block's 44px rule above
+       (0,3,0) — without it this override LOST and the 34px never applied. */
+    .headerTabs .emby-tab-button:not(.hide) { min-height: 34px !important; padding: 0 10px !important; font-size: 0.8rem !important; }
 }
 
 /* TVs report hover:hover with a pointer device, but focus-follow must not zoom. */
