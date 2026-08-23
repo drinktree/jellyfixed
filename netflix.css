@@ -1809,15 +1809,34 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
    Do NOT "upgrade" this to a border/border-radius — a radius forces a
    rounded-corner clip on every one of those repaints (the v2.5.69 regression). */
 .videoOsdBottom .chapterThumbContainer { box-shadow: 0 0 0 2px rgba(255,255,255,0.55) !important; }
-/* Netflix places the scrub time UNDER the preview image, not over its bottom
-   band. The strip is a plain child (banned-list-free); static positioning is a
-   one-time layout, and `contain` fences each per-move text write's layout pass
-   inside the strip (supported since Chromium 52 — fine on QtWebEngine 5.15). */
+/* PER-MOVE LAYOUT TRAP — READ BEFORE TOUCHING THIS BLOCK.
+   v2.5.75 put this strip IN FLOW (`position: static`) to place the scrub time
+   under the preview image, Netflix-style. That is what made the JMP hover
+   stutter, and it is why STOCK is smooth while the theme was not:
+     - `.sliderBubble` is `position: absolute` with NO width (emby-slider.scss),
+       i.e. shrink-to-fit, so an in-flow child feeds the bubble's own sizing;
+     - jellyfin rewrites `.chapterThumbText`'s textContent on virtually every
+       mousemove, and the string's WIDTH changes with its length
+       ("9:59" -> "10:00"), so the bubble RE-LAYS-OUT and re-rasterizes per move,
+       dirtying the `.videoOsdBottom` gradient band it sits on with it;
+     - on JMP (software raster compositing over an mpv surface) that cost lands
+       every frame — the exact "hovering the seek bar stutters" report.
+   Stock is smooth despite its far more expensive `0 0 1.9vh #000` blur purely
+   because its strip is OUT OF FLOW and the bubble's box is therefore constant.
+   `contain: layout style` does NOT prevent any of this: only `contain: size`
+   decouples an element's own size from its contents.
+   v2.5.76 restores stock's geometry (absolute, pinned to the thumb's bottom).
+   Text properties stay — they re-raster glyphs, not boxes, so they are free.
+   DO NOT reintroduce `position: static` here, and do not give this strip any
+   sizing that depends on its own text. */
 .videoOsdBottom .chapterThumbTextContainer {
-    position: static !important;
-    padding: 0.4em 0.6em 0.45em !important;
+    position: absolute !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    padding: 0.25em 0.5em !important;
     text-align: center !important;
-    contain: layout style;
 }
 /* Now-playing line */
 .videoOsdBottom .osdTitle {

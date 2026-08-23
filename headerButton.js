@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '2.5.75';
+    var NF_JS_VERSION = '2.5.76';
 
     // Fail-open marker: the generated CSS keys its instant-hide rules on html.nf-js,
     // so a missing/broken script can never blank the home page again.
