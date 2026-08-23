@@ -13,7 +13,7 @@
         "changelog": "JMP seek-bar hover stutter fixed: the trickplay timestamp strip is out of flow again. v2.5.75 put it in flow (position: static) to sit under the preview image, but .sliderBubble is shrink-to-fit, so the per-mousemove timestamp rewrite resized and re-rasterized the whole preview bubble \u2014 and the OSD scrim band under it \u2014 on every move. Stock geometry restored; text styling kept.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.76/custom-theme-v2.5.76.zip",
-        "checksum": "",
+        "checksum": "6fc0366681f03cd789b6316324c67f53",
         "timestamp": "2026-08-23T21:30:00Z"
       },
       {
