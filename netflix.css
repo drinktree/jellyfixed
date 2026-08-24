@@ -977,7 +977,10 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
     height: 42px !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 6px !important;
+    /* NO flex `gap` here. The label is the ::after below — which IS a flex item —
+       and flex gap is a no-op on Chromium 83 (JMP), where this button therefore
+       read "▶Play" with the glyph flush against the word. The spacing lives as a
+       margin on the ::after instead, which every engine honours. */
 }
 
 .btnPlay:hover, .btnResume:hover, .btnReplay:hover {
@@ -1006,14 +1009,24 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
    .btnReplay, and .btnReplay's visibility is the only CSS-visible signal for it.
    Standalone :has() rule (gotcha 11) — engines without :has() keep "Play". */
 .mainDetailButtons:has(.btnReplay:not(.hide)) .btnPlay::after { content: var(--ct-label-resume, 'Resume'); }
+/* JS mirror of the rule above, for the engines that cannot parse :has() — JMP
+   included, where a half-watched title therefore said "Play". headerButton.js
+   puts .nf-resumable on .mainDetailButtons whenever .btnReplay is un-hidden.
+   STANDALONE selector: comma-joining it to the :has() rule would drop both. */
+.mainDetailButtons.nf-resumable .btnPlay::after { content: var(--ct-label-resume, 'Resume'); }
 .mainDetailButtons .btnPlay::after,
 .mainDetailButtons .btnResume::after,
 .mainDetailButtons .btnReplay::after {
+    /* 10px = the 6px flex gap (dead on Chromium 83) plus the 4px margin-left that
+       used to sit at the bottom of this block — they ADDED UP on gap-supporting
+       engines. Logical and physical margins cascade together, so keeping both
+       meant the later `margin-left: 4px` simply won and this fix did nothing.
+       One declaration, one value, same rendering everywhere. */
+    margin-inline-start: 10px !important;
     font-family: var(--font-netflix) !important;
     font-weight: var(--nf-w-bold) !important;
     font-size: 1.05rem !important;
     letter-spacing: 0.01em !important;
-    margin-left: 4px !important;
     line-height: 1 !important;
 }
 
@@ -1682,10 +1695,24 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
    SMOOTH PAGE TRANSITIONS
    ============================================= */
 
-/* Netflix page changes are pure fades — nothing slides */
-.view-transition {
+/* Netflix page changes are pure fades — nothing slides.
+   TARGET: `.mainAnimatedPage`, which viewContainer.js:58 puts on every page
+   element it creates. The old target, `.view-transition`, appears NOWHERE in
+   jellyfin-web (verified by code search across the repo) — so this fade, and the
+   AnimSpeed="off" switch that disables it, have never once run. Keep it
+   opacity-only: a transform here would make the page a containing block for the
+   position:fixed OSD bar and re-anchor it mid-playback. */
+.mainAnimatedPage {
     animation: nfFadeIn 0.4s ease !important;
 }
+
+/* …except the player. #videoOsdPage goes through the same viewContainer and so
+   now carries .mainAnimatedPage too — a 0.4s full-viewport opacity fade running
+   as mpv starts presenting is exactly the kind of cost this client cannot pay.
+   A separate rule, NOT `.mainAnimatedPage:not(#videoOsdPage)`: that would be
+   (1,1,0) and would outrank CssGenerator's `.mainAnimatedPage { animation: none }`,
+   silently re-breaking the AnimSpeed="off" switch this release just repaired. */
+#videoOsdPage { animation: none !important; }
 
 @keyframes nfFadeIn {
     from { opacity: 0; }
@@ -1797,6 +1824,14 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
     font-variant-numeric: tabular-nums !important;
 }
 .videoOsdBottom .chapterThumbText-dim { font-weight: 400 !important; font-size: 0.78rem !important; color: var(--nf-text-2) !important; }
+/* Drop stock's `text-shadow: 0 0 25px #000, 0 0 6px #000` (videoosd.scss:93): two
+   blur passes over a glyph run jellyfin rewrites on EVERY mousemove.
+   SCOPED TO THE h2 — jellyfin puts `.chapterThumbText` on TWO elements
+   (videoosd.js:1494-1500): the h2 timestamp, which the padding band below lands
+   on the bubble's opaque #282828, and a `.chapterThumbText-dim` DIV holding the
+   chapter NAME, which still sits over the still frame and needs stock's shadow
+   to stay readable on a bright shot. Do not widen this selector. */
+.videoOsdBottom h2.chapterThumbText { text-shadow: none !important; }
 /* THE TRICKPLAY-HOVER STUTTER FIX (JMP). Stock ships
    `.chapterThumbContainer { box-shadow: 0 0 1.9vh #000 }` — a ~20px gaussian
    blur around a ~320x180 box — and the bubble's timestamp textContent changes on
@@ -1808,11 +1843,24 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
    (.videoOsdBottom/.sliderBubble): this is a strict paint REDUCTION on a child.
    Do NOT "upgrade" this to a border/border-radius — a radius forces a
    rounded-corner clip on every one of those repaints (the v2.5.69 regression). */
-.videoOsdBottom .chapterThumbContainer { box-shadow: 0 0 0 2px rgba(255,255,255,0.55) !important; }
-/* PER-MOVE LAYOUT TRAP — READ BEFORE TOUCHING THIS BLOCK.
-   v2.5.75 put this strip IN FLOW (`position: static`) to place the scrub time
-   under the preview image, Netflix-style. That is what made the JMP hover
-   stutter, and it is why STOCK is smooth while the theme was not:
+.videoOsdBottom .chapterThumbContainer {
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.55) !important;
+    /* Constant band under the sprite for the timestamp strip. jellyfin sets
+       `overflow: hidden` INLINE on this element (videoosd.js:1481), and an
+       abspos child's offsets resolve against the PADDING box — so `bottom: 0`
+       on the strip lands it in this band: below the image, still inside the
+       clip. `top: 100%` would place it entirely outside that clip and the
+       timestamp would simply not render. The band is a CONSTANT, so it cannot
+       reintroduce per-move layout. rem not em: the strip's type is set in rem,
+       and an em band would drift against it at non-default root font sizes. */
+    padding-bottom: 1.75rem !important;
+}
+/* KEEP THIS STRIP OUT OF FLOW — but note it is NOT the stutter's cause.
+   v2.5.75 put it IN FLOW (`position: static`) to place the scrub time under the
+   preview image. That was worth reverting on its own merits, and here is why —
+   but v2.5.76 shipped the revert and the user confirmed the stutter was
+   UNCHANGED, and v2.5.74 carried the same symptom with no rule of any kind on
+   these elements. Mechanism real, magnitude ~2 extra dirty boxes; not the bug.
      - `.sliderBubble` is `position: absolute` with NO width (emby-slider.scss),
        i.e. shrink-to-fit, so an in-flow child feeds the bubble's own sizing;
      - jellyfin rewrites `.chapterThumbText`'s textContent on virtually every
@@ -1944,6 +1992,46 @@ input[type="radio"]:focus-visible {
     text-underline-offset: 4px !important;
     border-color: rgba(255,255,255,0.7) !important;
 }
+
+/* ---- :focus-visible FALLBACK — html.nf-kb ----
+   Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
+   :focus-visible, so EVERY focus rule above is dropped there and keyboard and
+   TV-remote users get no focus indication at all. headerButton.js adds
+   html.nf-kb while the user is navigating by keyboard and clears it on pointer
+   input, which reproduces :focus-visible's intent closely enough for a ring.
+   Each mirror is a STANDALONE selector — comma-joining one to its
+   :focus-visible original would drop BOTH on exactly the engines this is for.
+   Text fields stay excluded for the same reason as above. These sit after the
+   originals so they win on equal ground, and they are inert on engines that do
+   support :focus-visible unless the user is actually on the keyboard. */
+html.nf-kb a:focus, html.nf-kb button:focus,
+html.nf-kb select:focus, html.nf-kb [tabindex]:focus {
+    outline: 2px solid #fff !important;
+    outline-offset: 2px !important;
+}
+/* :not(.nf-playing) — nf-kb is a MODE, not a per-focus decision, and Space/arrows
+   are in its key set: pressing Space to pause after clicking the seek bar would
+   otherwise paint a persistent white ring around the full-width slider over the
+   video — precisely the regression the rule at the top of this section fixed.
+   Settings and volume sliders, which this is actually for, keep their ring. */
+html.nf-kb:not(.nf-playing) input[type="range"]:focus { outline: 2px solid #fff !important; outline-offset: 2px !important; }
+html.nf-kb input[type="checkbox"]:focus,
+html.nf-kb input[type="radio"]:focus {
+    outline: 2px solid #fff !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+}
+html.nf-kb .emby-checkbox:focus ~ .checkboxOutline { outline: 2px solid #fff !important; outline-offset: 2px !important; }
+html.nf-kb .mdl-switch__input:focus + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__thumb { outline: 2px solid #fff !important; outline-offset: 2px !important; }
+html.nf-kb .emby-tab-button:focus {
+    outline: none !important;
+    text-decoration: underline !important;
+    text-underline-offset: 4px !important;
+    border-color: rgba(255,255,255,0.7) !important;
+}
+html.nf-kb .emby-scrollbuttons-button:focus { opacity: 1 !important; }
+html.nf-kb .nf-row-arrow:focus { opacity: 1; }
+html.nf-kb .nf-cw-remove:focus { opacity: 1; }
 
 /* (RESPONSIVE LAYERS live at the very end of this sheet — see the note there.) */
 
@@ -2220,8 +2308,16 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
 /* Margins, not flex gap (ignored on Chromium <84 — the buttons touched on JMP). */
 .nf-hero-actions > * { margin-inline-end: 12px; }
 .nf-hero-actions > :last-child { margin-inline-end: 0; }
+/* Margin, not flex gap (a no-op on Chromium 83 / JMP, where the ▶ sat flush
+   against the label). The label is a bare text node, so a sibling selector
+   cannot reach it — the margin goes on the icon. */
+.nf-hero-btn .material-icons { margin-inline-end: 9px; }
+/* …but not on the icon-ONLY My-List button: it has no label, so the margin would
+   shove the glyph off-centre in its circle. `gap` never did this (a lone flex
+   item gets no gaps), so this rule is what keeps the change a no-op there. */
+.nf-hero-list .material-icons { margin-inline-end: 0; }
 .nf-hero-btn {
-    display: inline-flex; align-items: center; gap: 9px;
+    display: inline-flex; align-items: center;
     font-family: var(--font-netflix); font-weight: var(--nf-w-bold); font-size: 1.1rem;
     padding: 12px 28px; border-radius: 4px; border: none; cursor: pointer;
     text-decoration: none; transition: background 0.2s ease;
@@ -2258,7 +2354,8 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
     display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .nf-hero-ctrl:hover { border-color: #fff; }
-.nf-hero-dots { display: flex; gap: 3px; align-items: center; }
+.nf-hero-dots { display: flex; align-items: center; }
+.nf-hero-dots > * + * { margin-inline-start: 3px; }   /* not gap: dead on Chromium 83 */
 /* Dots are real buttons: keyboard-focusable, labelled, with a ≥24px hit area. */
 .nf-hero-dot {
     min-width: 17px; height: 24px; padding: 0;
@@ -2461,7 +2558,14 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
     transition: opacity 0.4s ease;
 }
 .nf-pop-media.clip-on .nf-pop-media-title { opacity: 0; }
-.nf-pop-meta { display: flex; align-items: center; gap: 9px; font-size: var(--nf-t-meta); color: var(--nf-text-2); margin-bottom: 7px; flex-wrap: wrap; }
+.nf-pop-meta { display: flex; align-items: center; font-size: var(--nf-t-meta); color: var(--nf-text-2); margin-bottom: 7px; flex-wrap: wrap; }
+/* Margins, not gap (Chromium 83). Inline axis only — the chips wrap rarely and a
+   block margin would pad every single-row popup. */
+/* row-gap stays declared for the engines that have it: wrapped chip rows would
+   otherwise touch. Dead on Chromium 83, parity everywhere else. */
+.nf-pop-meta { row-gap: 9px; }
+.nf-pop-meta > * { margin-inline-end: 9px; }
+.nf-pop-meta > :last-child { margin-inline-end: 0; }
 .nf-pop-match { color: #46d369; font-weight: var(--nf-w-bold); }
 .nf-pop-rating { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.72rem; }
 .nf-pop-hd { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.66rem; color: var(--nf-text-3); }
@@ -2654,10 +2758,11 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
    row hover (the section title is a flex row; auto margin pushes these to the
    4% right rail exactly like Netflix). */
 .nf-row-pages {
-    display: inline-flex; gap: 1px; margin-inline-start: auto;
+    display: inline-flex; margin-inline-start: auto;
     vertical-align: middle; opacity: 0; transition: opacity 0.2s ease;
 }
 .verticalSection:hover .nf-row-pages { opacity: 1; }
+.nf-row-pages > * + * { margin-inline-start: 1px; }   /* not gap: dead on Chromium 83 */
 .nf-row-page { width: 12px; height: 2px; background: #4d4d4d; }
 .nf-row-page.active { background: #b3b3b3; }
 @media (max-width: 768px), (hover: none) { .nf-row-pages { display: none; } }
@@ -2771,7 +2876,7 @@ html.transparentDocument body::after { display: none !important; }
 html.transparentDocument .nf-pop { display: none !important; }
 /* The incoming-page transform would re-anchor the fixed OSD bar (containing
    block); no page-enter animation while the player is up. */
-html.transparentDocument .view-transition { animation: none !important; }
+html.transparentDocument .mainAnimatedPage { animation: none !important; }
 /* During playback the client restyles the main header itself (.osdHeader:
    in-flow, scrim gradient, fades with the OSD). Hand it back — the theme's
    fixed solid-black header would otherwise sit on top of the video. */
@@ -2819,7 +2924,7 @@ html.nf-playing .nf-hero-skel::after { animation: none !important; }
 html.nf-playing .docspinner::after,
 html.nf-playing .loadingSpinner::after,
 html.nf-playing .mainAnimatedPages > .loading::after { animation: none !important; }
-html.nf-playing .view-transition { animation: none !important; }
+html.nf-playing .mainAnimatedPage { animation: none !important; }
 html.nf-playing .card,
 html.nf-playing .cardScalable,
 html.nf-playing .cardImageContainer,
@@ -2829,7 +2934,7 @@ html.nf-playing .nf-cw-thumb { transition: none !important; }
 
 html:has(.videoPlayerContainer) .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
 html:has(.videoPlayerContainer) .nf-hero-skel::after { animation: none !important; }
-html:has(.videoPlayerContainer) .view-transition { animation: none !important; }
+html:has(.videoPlayerContainer) .mainAnimatedPage { animation: none !important; }
 
 /* Jellyfin's own router hides the browse page during playback in the BROWSER
    (verified live: #indexPage and #itemDetailPage both go display:none). Jellyfin
@@ -2977,7 +3082,7 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
    ============================================= */
 @media (prefers-reduced-motion: reduce) {
     .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
-    .view-transition { animation: none !important; }
+    .mainAnimatedPage { animation: none !important; }
     .card, .cardScalable, .cardImageContainer, .nf-hero-slide, .nf-hero-content,
     .nf-pop, .ct-overlay, .ct-overlay-bg { transition: none !important; }
     .card:hover { transform: none !important; }

@@ -481,7 +481,7 @@ namespace Jellyfin.Plugin.CustomTheme
                 // same specificity, so without the extra element "off" left the zoom running.
                 sb.AppendLine("html .card:hover, html .card:hover .cardScalable { transform: none !important; }");
                 sb.AppendLine("html .nf-cw-card:hover .nf-cw-thumb { transform: none !important; }");
-                sb.AppendLine(".view-transition { animation: none !important; }");
+                sb.AppendLine(".mainAnimatedPage { animation: none !important; }");   // .view-transition does not exist in jellyfin-web (viewContainer.js:58)
             }
 
             // Compact sidebar

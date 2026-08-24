@@ -6,7 +6,36 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '2.5.76';
+    var NF_JS_VERSION = '2.5.77';
+
+    // ---- Keyboard-focus state (html.nf-kb) ----
+    // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
+    // :focus-visible, so every focus rule in the sheet is dropped there and
+    // keyboard / TV-remote users get NO focus indication at all. This reproduces
+    // the intent: the class is set while the user navigates with keys and cleared
+    // the moment a pointer is used, and netflix.css mirrors each :focus-visible
+    // rule as a standalone `html.nf-kb X:focus`.
+    // Capture-phase so nothing can swallow it first; the handlers only flip one
+    // class and never read layout, and a nav key during video playback is not a
+    // hot path. Old engines report 'Up'/'Left'/'Spacebar' instead of the modern
+    // key names, so both spellings are accepted.
+    (function () {
+        try {
+            var de = document.documentElement;
+            // Deliberately NO Space/Spacebar: it neither moves focus nor needs a ring,
+            // and it is the pause key — including it made the most common keypress
+            // during playback flip a class on <html>.
+            var NAV = { Tab: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1,
+                        Enter: 1, Home: 1, End: 1, PageUp: 1, PageDown: 1,
+                        Up: 1, Down: 1, Left: 1, Right: 1 };
+            document.addEventListener('keydown', function (e) {
+                if (e && NAV[e.key] && !de.classList.contains('nf-kb')) de.classList.add('nf-kb');
+            }, true);
+            var off = function () { if (de.classList.contains('nf-kb')) de.classList.remove('nf-kb'); };
+            document.addEventListener('pointerdown', off, true);
+            document.addEventListener('mousedown', off, true);
+        } catch (e) {}
+    })();
 
     // Fail-open marker: the generated CSS keys its instant-hide rules on html.nf-js,
     // so a missing/broken script can never blank the home page again.
@@ -43,6 +72,28 @@
         r.setProperty('--ct-tip-watched', "'" + l.tipWatched + "'");
         r.setProperty('--ct-tip-favorite', "'" + l.tipFavorite + "'");
         r.setProperty('--ct-tip-more', "'" + l.tipMore + "'");
+    }
+
+    // 10.11 ships NO .btnResume: a resumable title shows .btnPlay plus an un-hidden
+    // .btnReplay, so netflix.css reads that state with :has(). Chromium 83 (JMP)
+    // cannot parse :has(), so a half-watched title's button said "Play" there.
+    // Mirror the state as a plain class those engines can match. Cheap: one
+    // querySelectorAll over a container that exists only on detail pages, and the
+    // class is only touched when the state actually changes.
+    function syncResumeLabel() {
+        try {
+            // Only the detail template ships .mainDetailButtons — skip the
+            // document-wide query on every other route.
+            if (!/#!?\/details/i.test(location.hash || '')) return;
+            var wraps = document.querySelectorAll('.mainDetailButtons');
+            for (var i = 0; i < wraps.length; i++) {
+                var replay = wraps[i].querySelector('.btnReplay');
+                var resumable = !!(replay && !replay.classList.contains('hide'));
+                if (resumable !== wraps[i].classList.contains('nf-resumable')) {
+                    wraps[i].classList.toggle('nf-resumable', resumable);
+                }
+            }
+        } catch (e) {}
     }
 
     // matchMedia() parses the query and allocates a fresh MediaQueryList on EVERY
@@ -2928,6 +2979,7 @@
             return;
         }
         applyCssLabels();
+        syncResumeLabel();
         updateAdmin();
         addButton();
         setupLogoHome(nfHdr);
