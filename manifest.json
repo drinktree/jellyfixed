@@ -13,7 +13,7 @@
         "changelog": "Jellyfin Media Player fixes (QtWebEngine 5.15 = Chromium 83, where several rules were silently dead). Flex gap is ignored there and cannot be feature-detected, so five sites move to margins \u2014 the detail Play button's label is an ::after pseudo and that gap was the only thing between the \u25b6 and the word, which read \"\u25b6Play\". Page transitions now target .mainAnimatedPage, the class viewContainer actually applies; the old target .view-transition exists nowhere in jellyfin-web, so the page fade and the Animation Speed \"off\" switch had never once run. Chromium 83 also cannot parse :focus-visible or :has(), so keyboard and TV-remote users got no focus ring at all and a half-watched title's button said \"Play\" instead of \"Resume\" \u2014 both are now mirrored as plain classes set from JS. Trickplay preview: the scrub timestamp sits on a constant opaque band below the preview image instead of over it, with one less blur pass per mousemove.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v2.5.77/custom-theme-v2.5.77.zip",
-        "checksum": "",
+        "checksum": "78e608711961b909587c62ea155b6334",
         "timestamp": "2026-08-24T09:30:00Z"
       },
       {
