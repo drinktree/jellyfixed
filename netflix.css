@@ -4165,6 +4165,28 @@ html.nf-playing header.MuiAppBar-root.MuiAppBar-colorPrimary {
     background-color: transparent !important;
 }
 
+/* CONTENT LINKS ARE NOT RED. Jellyfin paints every `.button-link` — search
+   suggestions, "see all" row headers, external IMDb/TMDB links, the detail page's
+   metadata rows — with `var(--jf-palette-primary-main)`
+   (themes/_base/_theme.scss:384). The theme sets that variable to the accent so
+   the app bar, buttons, progress bars and focus rings stop being Jellyfin blue,
+   and the side effect is a page of bold red title links: a list of six red
+   headlines on the search page reads as six alerts.
+
+   This theme's own rule is that red is reserved for FUNCTION, never decoration,
+   so content links take the body voice and mark themselves on hover instead. The
+   detail-page metadata rows already had this treatment; this generalises it.
+   (0,1,0) + !important against stock's (0,1,0); the more specific rules further
+   down the sheet still win where a link needs its own size. */
+.button-link {
+    color: var(--nf-text-2) !important;
+}
+.button-link:hover,
+.button-link:focus {
+    color: var(--text-main) !important;
+    text-decoration: underline !important;
+}
+
 /* NOTE: the logo slot itself (the app bar's home button, which carries the stock
    icon and the server name) is handled by CssGenerator's AppendLogo, because its
    appearance follows the LogoStyle setting. It cannot be done from here: the
