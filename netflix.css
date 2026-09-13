@@ -4662,4 +4662,79 @@ html.nf-modern .MuiTooltip-arrow::before {
 }
 
 
+
+/* =============================================
+   JELLYFIN 12.0 — DETAIL PAGE, AFTER THE ART WENT FULL-BLEED
+   ============================================= */
+
+/* ===== detail-ground (high) — The page never lands on solid — copy scrolls across undimmed artwork forever ===== */
+/* --- GROUND UNDER THE COPY COLUMN — 12.0 Modern -----------------------------
+   10.11's themes paint `.noBackdropTransparency .detailPagePrimaryContainer,
+   .noBackdropTransparency .detailPageSecondaryContainer { background-color:#101010 }`
+   (web1011/src/themes/dark/theme.scss:228). That block is what ended the artwork
+   just under the Play row and gave the synopsis, tags, links and the
+   director/writer/studio/genre rows a real ground. Jellyfin 12.0 DELETED it and
+   kept only `.noBackdropTransparency .detailPageWrapperContainer`
+   (web12/src/themes/_base/_theme.scss:355) — which this sheet has to make
+   transparent for the art to be full-bleed. So on 12.0 nothing lands on solid at
+   all: the backdrop is a FIXED 100vh layer and so is our scrim, so scrolling
+   slides the entire lower half of the page across undimmed artwork.
+   Netflix is on solid before the synopsis — put the ground back, as a dissolve
+   rather than 10.11's hard horizontal cut. Stops are px, not %: this box grows
+   with the item (a series' primary container is far taller) and the dissolve has
+   to stay the same 200px everywhere. */
+/* NOT gated on html.nf-modern: 12.0 deleted that paint for BOTH its layouts,
+   so the Legacy layout on 12.0 has exactly the same missing ground. This sheet
+   only ships on the 3.x/12.0 lane now, so there is no 10.11 case to protect. */
+.itemDetailPage .detailPagePrimaryContainer {
+    background-image: linear-gradient(to bottom,
+        rgba(20,20,20,0)    0px,
+        rgba(20,20,20,.30)  30px,
+        rgba(20,20,20,.60)  62px,
+        rgba(20,20,20,.82)  96px,
+        rgba(20,20,20,.94) 130px,
+        rgba(20,20,20,.99) 168px,
+        var(--bg-dark)     200px) !important;
+}
+
+/* ===== match-score-green (high) — The "% Match" score renders body-copy white instead of Netflix green ===== */
+/* The match score is the one green in Netflix's language, and CssGenerator paints
+   it `.starRatingValue, .starRatingContainer { color:#46d369 !important }`
+   (CssGenerator.cs:764) — but that is (0,1,0), and on a detail page Jellyfin puts
+   BOTH classes on one element (`class="starRatingContainer mediaInfoItem"`), so
+   this sheet's own `.itemMiscInfo .mediaInfoItem { color: var(--nf-text-2)
+   !important }` at (0,2,0) wins and the score renders in body-copy white — the
+   generated rule's font-weight:700 lands, its colour does not.
+   Gated on [data-ct-match="1"], the attribute headerButton.js:2695 sets only
+   after it has rewritten the value to "x% Match": with the MatchScore option OFF
+   the raw community rating keeps its stock colour instead of turning green. */
+.itemMiscInfo .starRatingContainer[data-ct-match="1"],
+.itemMiscInfo .starRatingValue[data-ct-match="1"] { color: #46d369 !important; }
+
+/* ===== track-picker-wells (medium) — Track pickers smear the artwork — a white wash over the backdrop instead of a recessed field ===== */
+/* The read-only track pickers were filled with rgba(255,255,255,0.05) and
+   hairlined with rgba(255,255,255,0.1) (netflix.css:926/949). On 10.11 those sat
+   on the solid #101010 that theme.scss gives .detailPagePrimaryContainer, where a
+   white wash reads as a subtle lift. On 12.0 the artwork runs behind them, and a
+   white wash over a picture LIGHTENS it: two pale rectangles smeared across the
+   backdrop with --nf-text-4 values on top at ~1.3:1. Flip the sign — a dark
+   translucent fill recesses on artwork AND on solid, which is how Netflix builds
+   its own fields. Geometry, type and text colours are untouched, so the row
+   rhythm, the single box shape and the "--nf-text-4 = disabled only" rule of the
+   four-tier ramp all still hold. */
+.itemDetailPage .trackSelections .selectContainer .emby-select {
+    background: rgba(0,0,0,0.45) !important;
+    border-color: rgba(255,255,255,0.14) !important;
+}
+.itemDetailPage .trackSelections .selectContainer .emby-select:hover {
+    background: rgba(0,0,0,0.62) !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+.itemDetailPage .trackSelections .selectContainer .emby-select[disabled],
+.itemDetailPage .trackSelections .selectContainer .emby-select[disabled]:hover {
+    background: rgba(0,0,0,0.38) !important;
+    border-color: rgba(255,255,255,0.1) !important;
+}
+
+
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */
