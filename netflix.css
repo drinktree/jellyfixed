@@ -4475,4 +4475,191 @@ html.nf-modern header.MuiAppBar-root .nf-logo-modern {
 }
 
 
+
+/* =============================================
+   JELLYFIN 12.0 — MENUS, DRAWER, DIALOGS, SEARCH
+   =============================================
+   Everything that opens OUT of the Modern app bar was still stock MUI: its
+   dark-mode elevation overlay paints a ~#373737 slab with a wide halo over a
+   #141414 page, while this theme's own action sheet two clicks away is #181818
+   with a hairline — two panel voices in one app. These give the chrome one
+   voice, and fix a phone drawer that MUI leaves at 151px because its mobile
+   branch sets no width at all. */
+
+/* ===== P1 (high) — MUI menus, popovers, drawers and dialogs are light-grey slabs with wide halos — give them the theme's panel voice ===== */
+/* ---- 12.0 MODERN: MUI panels speak the theme's panel voice ----
+   MUI's CSS-vars mode paints every Paper with `background-image:
+   var(--Paper-overlay)` and stamps that variable INLINE on the element, so the
+   drawer and every menu arrive as a white-washed grey slab over a #141414 page —
+   elevation 8 is rgba(255,255,255,0.118), elevation 16 is 0.145. There is no
+   `--jf-*` for it (the palette bridge only reaches background-paper), so the
+   variable itself has to be answered. An author `!important` declaration beats a
+   style-attribute declaration, which is what makes this reachable at all. With
+   the overlay gone the panel falls back to `--jf-palette-background-paper`, which
+   CssGenerator already derives from the admin's configured background — so this
+   stays config-driven rather than hard-coding a shade. */
+html.nf-modern .MuiPaper-root { --Paper-overlay: none !important; }
+
+/* The rest is the .dialog spec from line 1716 restated for the MUI surfaces:
+   the same 1px rgba(255,255,255,0.1) hairline, the same --r-surface corner, and
+   this sheet's tight elevation tokens instead of MUI's three-layer halo. */
+html.nf-modern .MuiMenu-paper,
+html.nf-modern .MuiPopover-paper,
+html.nf-modern .MuiDialog-paper,
+html.nf-modern .MuiDrawer-paper {
+    background-image: none !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+}
+html.nf-modern .MuiMenu-paper,
+html.nf-modern .MuiPopover-paper {
+    border-radius: var(--r-surface) !important;
+    box-shadow: var(--e-3) !important;
+}
+html.nf-modern .MuiDialog-paper {
+    border-radius: var(--r-surface) !important;
+    box-shadow: var(--e-4) !important;
+}
+/* The drawer is anchored to the viewport edge: no corner radius, and the only
+   edge it can show is the inline-end one. */
+html.nf-modern .MuiDrawer-paper {
+    border-radius: 0 !important;
+    border-width: 0 !important;
+    border-right: 1px solid rgba(255,255,255,0.1) !important;
+    border-inline-end: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: var(--e-4) !important;
+}
+
+/* ===== P2 (high) — On a phone the navigation drawer is a 151px sliver — MUI's mobile branch sets no width ===== */
+/* 12.0's ResponsiveDrawer gives the DESKTOP drawer `width: DRAWER_WIDTH` (240)
+   and the mobile SwipeableDrawer nothing at all (ResponsiveDrawer.tsx:43-56), so
+   the phone drawer shrink-wraps its content — 151px measured, and a different
+   width on every server depending on the longest library name. AppLayout.tsx:27
+   only mounts the drawer below `md`, so the modal branch is the ONLY one that
+   ever renders here; scoping to `.MuiDrawer-modal` (the modal root's own class —
+   a permanent drawer would carry `MuiDrawer-docked` instead) keeps this off the
+   docked variant if a future release starts using it. Jellyfin's own 240 is kept
+   so both branches agree, with a vw ceiling so it never eats a narrow screen. */
+html.nf-modern .MuiDrawer-modal .MuiDrawer-paper {
+    width: 240px !important;
+    max-width: 82vw !important;
+}
+
+/* ===== P6 (high) — Search results are full of saturated Jellyfin-blue blocks where artwork is missing ===== */
+/* Jellyfin paints missing artwork with five hard-coded brand blues
+   (themes/dark/theme.scss:5-25). They are literals, so the --jf-* palette bridge
+   cannot reach them and a search for a common letter fills two rows with cyan.
+   The .personCard rule above already answers this for the detail page's cast
+   strip; the placeholder is the same placeholder everywhere, so state it once for
+   every card. Same --nf-surface-hi that rule uses, so the two agree by
+   construction and the more specific .personCard block still wins where it needs
+   its own flex centring. */
+.cardImageContainer.defaultCardBackground {
+    background-color: var(--nf-surface-hi) !important;
+}
+.cardImageContainer.defaultCardBackground .cardImageIcon {
+    color: rgba(255,255,255,0.45) !important;
+}
+
+/* ===== P5 (medium) — The search magnifier floats outside the search box, and the box keeps 44px of empty space where the icon should be ===== */
+/* The magnifier is a flex SIBLING of the input, not a child of it
+   (SearchFields.tsx), so the `inset-inline-start` above never applied — the span
+   is statically positioned and an inset on a static box does nothing. Take it out
+   of flow and drop it into the 44px well the input already reserves. Physical
+   `left` rather than `inset-inline-start`: the inset-* logical properties are
+   Chromium 87+ and JMP's QtWebEngine 5.15 would drop the declaration and leave
+   the icon outside the box again — same reason as the select chevron at line 965.
+   RTL is handled by an explicit [dir="rtl"] pair rather than a logical property,
+   which also flips the input's reserved padding. */
+.searchFields .searchFieldsInner { position: relative !important; }
+.searchFields .searchfields-icon {
+    position: absolute !important;
+    top: 50% !important;
+    left: 14px !important;
+    right: auto !important;
+    transform: translateY(-50%) !important;
+    margin: 0 !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+}
+[dir="rtl"] .searchFields .searchfields-icon {
+    left: auto !important;
+    right: 14px !important;
+}
+[dir="rtl"] .searchfields-txtSearch, [dir="rtl"] #txtSearch {
+    padding: 0 44px 0 14px !important;
+}
+
+/* ===== P3 (medium) — Selection in the Modern menus and drawer is a maroon wash with no red bar ===== */
+/* One selection marker across the app. The action-sheet block above already
+   says it — a 3px red leading bar plus a quiet neutral tint, at an UNCHANGED font
+   weight so the row does not re-flow and no synthetic bold appears — but only for
+   the legacy sheet. Under Modern the same idea arrives as MUI's `Mui-selected`
+   wash, which the palette bridge turns into a flat 20% red stripe. Restate the
+   theme's marker on the MUI components. Unlike the action-sheet rule this needs
+   no :has() gate, so the bar is drawn on JMP's QtWebEngine too. */
+html.nf-modern .MuiMenuItem-root,
+html.nf-modern .MuiDrawer-paper .MuiListItemButton-root {
+    /* Physical first, logical second: border-inline-* is Chromium 87 and JMP's
+       Chromium 83 lands on Modern, where it would drop the declaration and the
+       red bar would never render. Engines that support the logical form apply it
+       last and win, so RTL stays correct there. */
+    border-left: 3px solid transparent !important;
+    border-inline-start: 3px solid transparent !important;
+}
+html.nf-modern .MuiMenuItem-root.Mui-selected,
+html.nf-modern .MuiDrawer-paper .MuiListItemButton-root.Mui-selected {
+    border-left-color: var(--accent-red) !important;
+    border-inline-start-color: var(--accent-red) !important;
+    background-color: rgba(255,255,255,0.05) !important;
+}
+
+/* ===== P7 (medium) — Search results hang off their own rail — headers at 123px, cards at 113px, while the rest of the app sits at 64px ===== */
+/* The search page stacks three gutters. `.verticalSection` (line 381) already
+   carries the 4% rail; the nested `.sectionTitle.padded-left` then takes a SECOND
+   4% — resolved against the already-inset box, so 58.9px, not 64 — and the card
+   track takes stock's own 3.3% from emby-scroller.scss:8. Result: header at
+   123px, cards at 113px, everything else on the page at 64px. Move the rail off
+   the section and onto the two children that actually draw, so both resolve
+   their 4% against the full page width and land on the one rail. The percentage
+   must be re-stated on the children rather than zeroed on them, or the row would
+   lose its gutter entirely. */
+.searchResults .verticalSection {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+.searchResults .verticalSection .sectionTitle,
+.searchResults .verticalSection .emby-scroller,
+.searchResults .verticalSection > .itemsContainer {
+    padding-inline-start: var(--nf-gutter) !important;
+    padding-inline-end: var(--nf-gutter) !important;
+}
+
+/* ===== P4 (low) — Toolbar tooltips are stock MUI grey pills, and a handful of chrome components still render in Noto Sans ===== */
+/* The component list above misses five more MUI surfaces that declare their own
+   Noto Sans — the drawer's section subheadings and every toolbar tooltip among
+   them. Still listed by component class rather than a descendant `*`: an
+   important font-family on `*` would capture the .material-icons spans and turn
+   every icon into a letter. */
+html.nf-modern .MuiListSubheader-root,
+html.nf-modern .MuiTooltip-tooltip,
+html.nf-modern .MuiDialogTitle-root,
+html.nf-modern .MuiFormLabel-root,
+html.nf-modern .MuiInputBase-input {
+    font-family: var(--font-netflix) !important;
+}
+/* MUI's tooltip is a translucent #616161 pill at 10px — Material's voice, not
+   this one. Same near-black + hairline as the panels above, at the type ramp's
+   caption step so it is actually readable. */
+html.nf-modern .MuiTooltip-tooltip {
+    background-color: rgba(0,0,0,0.92) !important;
+    color: var(--text-main) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: var(--r-badge) !important;
+    font-size: var(--nf-t-cap) !important;
+}
+html.nf-modern .MuiTooltip-arrow::before {
+    background-color: rgba(0,0,0,0.92) !important;
+}
+
+
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */
