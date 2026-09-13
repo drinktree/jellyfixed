@@ -3959,7 +3959,12 @@ body { font-optical-sizing: auto; }
        detail page — where it landed directly above the backdrop band, which is
        what it looked like: artwork that starts a third of the way down a black
        screen. Modern's detail page wants stock's own `padding-top: 0`. */
-    html:not(.nf-home):not(.nf-modern) .page.libraryPage:not(.homePage) { padding-top: calc(var(--nav-height) + 52px) !important; }
+    /* :not(.itemDetailPage) because the detail page is the one route with no tab
+       strip AND a header meant to float over the artwork — stock gives it
+       `padding-top: 0` at every width in both layouts (librarybrowser.scss:95).
+       The extra 52px there was dead page colour between the header and the top
+       of the backdrop band, and only became visible once that band had art. */
+    html:not(.nf-home):not(.nf-modern) .page.libraryPage:not(.homePage):not(.itemDetailPage) { padding-top: calc(var(--nav-height) + 52px) !important; }
 
     /* ---- Hero. Netflix's phone billboard carries NO carousel chrome, and the
        mute button is inert here anyway (nfCheapMode skips preview clips on
@@ -4045,7 +4050,7 @@ body { font-optical-sizing: auto; }
     /* :not(.nf-modern) for the same reason as the 768px block above — under
        Modern the app bar's measured spacer already provides the offset, and
        this would be added on top of it. */
-    html:not(.nf-modern) .libraryPage { padding-top: 5.6em !important; }
+    html:not(.nf-modern) .libraryPage:not(.itemDetailPage) { padding-top: 5.6em !important; }
 
     .nf-hero { height: 82vh !important; min-height: 0 !important; }
     .nf-hero-content { padding-bottom: 5vh !important; max-width: 92% !important; }
@@ -4874,7 +4879,13 @@ html.nf-modern .MuiPopover-paper .MuiAccordionSummary-root {
    so the same list of choices arrived striped like a spreadsheet next to the
    sort menu's clean rows. Flatten it and match the 36px row. */
 html.nf-modern .MuiPopover-paper .MuiAccordion-root {
+    /* FilterButton.tsx:47 is `border: 1px solid theme.palette.divider` on ALL
+       FOUR sides, not just the top, so neutralising border-top alone left a
+       vertical rim stacked immediately inside the paper's own 1px hairline —
+       a doubled line down both edges that the sort popover does not have. */
     border-top-color: transparent !important;
+    border-left-color: transparent !important;
+    border-right-color: transparent !important;
 }
 html.nf-modern .MuiPopover-paper .MuiAccordion-root::before {
     background-color: transparent !important;
@@ -4913,9 +4924,20 @@ html.nf-modern .MuiPopover-paper .MuiListItemText-root + .MuiListItemIcon-root .
 /* ===== P2 — Play All / Shuffle are a 157px slab of saturated red ===== */
 /* Both arrive `containedPrimary`, so the --jf-palette-primary bridge paints them
    the accent colour and the library toolbar becomes the loudest thing on a page
-   of artwork. Netflix's pair is a white primary and a ghost secondary — red is
-   reserved for the mark and for state, never for a button face. */
+   of artwork. Netflix's pair is a white primary and a ghost secondary — the same
+   voice as this sheet's own .btnPlay, down to the identical rgba(255,255,255,.75)
+   hover — and red stays for the mark and for state, never a button face.
+
+   The white face goes on `.MuiButtonGroup-grouped`, NOT on
+   `.MuiButtonGroup-firstButton`: MUI assigns those child classes as
+   `first && last ? '' : first ? firstButton : ...`, so a group with a SINGLE
+   child gets NEITHER. The music Songs tab enables Shuffle with no Play All
+   (apps/modern/features/libraries/constants/views/music.ts), and keying the
+   white face off firstButton left that lone button on the accent red — the
+   exact slab this block exists to remove. */
 html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-grouped {
+    background-color: #fff !important;
+    color: #000 !important;
     border-color: transparent !important;
     font-family: var(--font-netflix) !important;
     font-size: var(--nf-t-meta) !important;
@@ -4925,15 +4947,19 @@ html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-g
     box-shadow: none !important;
     transition: background-color 0.2s ease !important;
 }
-html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-firstButton {
-    background-color: #fff !important;
-    color: #000 !important;
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-grouped:hover {
+    background-color: rgba(255,255,255,0.75) !important;
+}
+/* Square only the edges that meet a neighbour — a lone button keeps all four. */
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-firstButton,
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-middleButton {
     border-top-right-radius: 0 !important;
     border-bottom-right-radius: 0 !important;
 }
-html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-firstButton:hover {
-    background-color: rgba(255,255,255,0.75) !important;
-}
+/* Everything after the first button is the ghost secondary. middleButton covers
+   the three-button Queue branch (LibraryToolbar.tsx:183) that no view config
+   currently enables. margin-left rather than a flex gap: Chromium 83. */
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-middleButton,
 html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-lastButton {
     background-color: var(--nf-surface-hi) !important;
     color: var(--text-main) !important;
@@ -4941,8 +4967,16 @@ html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-l
     border-bottom-left-radius: 0 !important;
     margin-left: 2px !important;
 }
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-middleButton:hover,
 html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-lastButton:hover {
     background-color: rgba(255,255,255,0.22) !important;
+}
+/* Both render `disabled` while the query is pending and on an empty library
+   (PlayAllButton.tsx:73, ShuffleButton.tsx:64); without this a dead button is a
+   fully-lit white CTA. Last in the block so it wins the (0,5,2) tie with :hover. */
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-grouped.Mui-disabled {
+    background-color: var(--nf-surface-hi) !important;
+    color: var(--nf-text-4) !important;
 }
 
 /* ===== P3 — Library title is 22px Light 300, indented off the rail, with a grey pill ===== */
@@ -4995,11 +5029,29 @@ html.nf-modern .itemsContainer.vertical-wrap.MuiBox-root {
 }
 
 /* ===== P6 — The A-Z rail is a #1B1B1B strip of pure-white letters on the edge ===== */
-/* Centre it in the 4% gutter instead of gluing it to the viewport edge: 20px is
-   the rail's own width, so half the remaining gutter on each side. */
-html.nf-modern .alphaPicker-fixed-right {
-    right: calc((var(--nf-gutter) - 20px) / 2) !important;
-}
+/* 12.0's AlphabetPicker wraps the 27 letters in a MUI <Paper>, so a
+   --jf-palette-background-paper slab (measured #1B1B1B on the #141414 page,
+   19.25 x 804px) runs the full height of the viewport, every letter sits at
+   maximum white, and MUI's vertical grouping rules a 12%-white hairline between
+   each one — a utility index louder than the artwork it indexes. Drop the slab
+   and the hairlines and put the letters on the four-tier ramp.
+
+   Selection is this theme's ONE app-wide marker, the same the Modern menu rows
+   draw: a red leading bar plus a quiet neutral tint at an UNCHANGED weight, so
+   the fixed-width column never re-flows. Red TEXT was tried and is wrong twice
+   over — it throws away the tint stock gives for free from
+   --jf-palette-primary-main, and #E50914 on #141414 is 3.87:1 against 8.83:1
+   for the unselected letters, which makes the letter you are ON the dimmest
+   glyph in the column. The .Mui-selected:hover arm is load-bearing: the plain
+   :hover rule is (0,3,1) and would otherwise wipe the tint off the selected
+   letter the moment the pointer crossed it.
+   Physical border first, logical second — border-inline-start is Chromium 87
+   and JMP's Chromium 83 lands on Modern, where the logical form is dropped and
+   the physical bar still draws; engines that understand it apply it last, so
+   RTL (where the picker flips to the left edge) stays correct.
+   The picker's own `right` offset is deliberately NOT touched: stock is
+   0.4em / 1em, and centring it in the 4% rail computes to (16.8 - 20) / 2 =
+   -1.6px at 420px, which hangs the whole column off the screen. */
 html.nf-modern .alphaPicker-fixed-right .MuiPaper-root {
     background-color: transparent !important;
     background-image: none !important;
@@ -5008,16 +5060,21 @@ html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root {
     color: var(--nf-text-3) !important;
     font-weight: var(--nf-w-reg) !important;
     border-color: transparent !important;
-    transition: color 0.15s ease !important;
+    border-left: 3px solid transparent !important;
+    border-inline-start: 3px solid transparent !important;
+    transition: color 0.15s ease, background-color 0.15s ease !important;
 }
 html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root:hover {
     color: var(--text-main) !important;
     background-color: transparent !important;
 }
-html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root.Mui-selected {
-    color: var(--accent-red) !important;
-    background-color: transparent !important;
-    font-weight: var(--nf-w-bold) !important;
+html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root.Mui-selected,
+html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root.Mui-selected:hover {
+    color: var(--text-main) !important;
+    font-weight: var(--nf-w-reg) !important;
+    background-color: rgba(255,255,255,0.05) !important;
+    border-left-color: var(--accent-red) !important;
+    border-inline-start-color: var(--accent-red) !important;
 }
 
 /* ===== T1 — The resume progress bar is Jellyfin cyan on the React card path ===== */
@@ -5030,7 +5087,14 @@ html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root.Mui-selected {
     height: 3px !important;
 }
 .MuiLinearProgress-root.itemLinearProgress .MuiLinearProgress-bar {
-    background-color: var(--accent-red) !important;
+    /* --progress-color, not --accent-red: the LEGACY card path is painted from
+       the admin-configurable value (CssGenerator.cs:186 emits it from config,
+       :267 applies it to .itemProgressBarForeground), so hard-coding the accent
+       here would make the two card paths diverge on any server whose admin has
+       set a custom progress colour — the opposite of one spec everywhere. The
+       fallback keeps this sheet correct when read standalone, without
+       CssGenerator's :root block. */
+    background-color: var(--progress-color, var(--accent-red)) !important;
     border-radius: 0 !important;
 }
 
