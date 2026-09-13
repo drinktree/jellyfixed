@@ -4209,6 +4209,18 @@ html.nf-modern .MuiTab-root {
     font-family: var(--font-netflix) !important;
 }
 
+/* The mark headerButton.js injects into the Modern toolbar at the breakpoints
+   where Jellyfin renders no home button of its own (below md, where the drawer
+   takes that slot). It inherits every .nf-logo rule in this sheet, so the
+   LogoStyle setting reaches it too; it only needs a box that behaves inside a
+   flex MUI Toolbar rather than inside the legacy .headerLeft. */
+html.nf-modern header.MuiAppBar-root .nf-logo-modern {
+    flex-shrink: 0;
+    margin-right: 4px;
+    margin-left: 2px;
+    line-height: 1;
+}
+
 /* The theme's settings button, once headerButton.js has moved it into the MUI
    toolbar. MUI's utility classes (MuiIconButton-root and friends) carry no CSS
    of their own — all real styling lives in an emotion hash class — so an

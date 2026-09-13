@@ -2736,6 +2736,44 @@
         } catch (e) {}
     }
 
+    // Jellyfin 12.0's Modern bar normally carries the mark itself — a Button
+    // linking to the home route with the server icon and name — and the stylesheet
+    // restyles THAT into the configured logo. But below the md breakpoint, where a
+    // drawer is available, AppToolbar does not render that Button at all: the
+    // hamburger takes the slot and the logo moves into the drawer. The bar is then
+    // the only chrome on screen and it carries no mark, which is the one place the
+    // phone layout stops looking like Netflix.
+    //
+    // So: when the Modern toolbar has no home Button, give it the theme's own
+    // .nf-logo element — the same one the legacy header gets, so LogoStyle and all
+    // the existing .nf-logo styling apply unchanged. Deliberately NOT done when the
+    // home Button IS present; that path already works and this would double the mark.
+    function setupModernLogo() {
+        try {
+            var tb = nfModernToolbar();
+            if (!tb) return;
+            if (tb.querySelector('.nf-logo')) return;
+            // The stock mark is here — the stylesheet restyles it, nothing to add.
+            if (tb.querySelector('a.MuiButton-root[href="#/"]')) return;
+
+            var a = document.createElement('a');
+            a.className = 'nf-logo nf-logo-modern';
+            a.href = '#/home';
+            a.setAttribute('aria-label', nfL().home);
+            a.textContent = 'N';
+            a.addEventListener('click', function (e) {
+                e.preventDefault();
+                var home = document.querySelector('.headerHomeButton');
+                if (home) { home.click(); } else { window.location.hash = '#/home'; }
+            });
+            // After the drawer button, the way Netflix sits the mark beside the menu.
+            var menuBtn = tb.querySelector('.MuiIconButton-root');
+            if (menuBtn && menuBtn.nextSibling) tb.insertBefore(a, menuBtn.nextSibling);
+            else if (menuBtn) tb.appendChild(a);
+            else tb.insertBefore(a, tb.firstChild);
+        } catch (e) {}
+    }
+
     // ============ Real Play-button wiring ============
     // The theme's ▶ buttons (hero billboard, hover/touch popup) are anchors to the
     // detail page — the theme has no access to jellyfin's playbackManager module.
@@ -3184,6 +3222,7 @@
         updateAdmin();
         addButton();
         setupLogoHome(nfHdr);
+        setupModernLogo();
         // Cheap: a single window.__nfHeaderScroll read once the listener is armed.
         // Here as well as in init() because at init the header does not exist yet.
         setupHeaderScroll();
