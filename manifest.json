@@ -13,7 +13,7 @@
         "changelog": "Fixes the Jellyfin 12.0 detail page, which was the worst of what 3.0.0 still got wrong.\n\nThe artwork stopped dead in a hard horizontal line partway down the page, with a band of flat black between it and the title. Jellyfin 12.0 marks the detail page itself \"no backdrop transparency\" and paints the content wrapper solid, and that wrapper begins where the theme's content column no longer does. The wrapper is transparent again, which is also simply what the Netflix detail page is: full-bleed art with the title, match score, buttons and synopsis laid over it. The left vignette grew to match so the copy stays readable on bright artwork.\n\nContent links are no longer red. 3.0.0 pointed Jellyfin's accent variable at the theme accent to stop the app bar and buttons rendering in Jellyfin blue, but Jellyfin paints every link from that same variable \u2014 so search suggestions and \"see all\" headers came out as bold red headlines. Red is for function in this theme; links take the body voice and mark themselves on hover.\n\nThe Netflix mark is back in the app bar on phones. Jellyfin only renders its home button above the tablet breakpoint, so on a phone the bar carried no logo at all.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v3.0.1/custom-theme-v3.0.1.zip",
-        "checksum": "",
+        "checksum": "d301202c1c6b99429428765e312ac535",
         "timestamp": "2026-09-13T21:00:00Z"
       },
       {
