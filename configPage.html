@@ -245,28 +245,42 @@
         // so without this, saving here and going back to the app re-renders the OLD
         // theme from the snapshot and the save looks like it did nothing. The cache
         // buster is the web client build id, which a plugin update never changes.
-        // No-op on 10.11, which has no such database. Always calls back.
+        //
+        // Only ever opens a database it has first confirmed exists: opening one that
+        // does not would create it, and rolling that back by aborting the
+        // versionchange transaction risks leaving "keyval-store" at version 1 with no
+        // object stores, which would permanently break jellyfin-web's own persister.
+        // Where indexedDB.databases() is unavailable this does nothing. No-op on
+        // 10.11, which has no such database. Always calls back.
         function evictQueryCache(done) {
             var finished = false;
             function finish() { if (finished) return; finished = true; done(); }
             setTimeout(finish, 1500);
             try {
-                if (!window.indexedDB) { finish(); return; }
-                var req = indexedDB.open('keyval-store');
-                req.onerror = finish;
-                req.onblocked = finish;
-                req.onupgradeneeded = function () { try { req.transaction.abort(); } catch (e) {} finish(); };
-                req.onsuccess = function () {
-                    var db = req.result;
-                    try {
-                        if (!db.objectStoreNames.contains('keyval')) { db.close(); finish(); return; }
-                        var tx = db.transaction('keyval', 'readwrite');
-                        tx.objectStore('keyval')['delete']('jellyfin-query-cache');
-                        tx.oncomplete = function () { db.close(); finish(); };
-                        tx.onerror = function () { db.close(); finish(); };
-                        tx.onabort = function () { db.close(); finish(); };
-                    } catch (e) { try { db.close(); } catch (e2) {} finish(); }
-                };
+                if (!window.indexedDB || !indexedDB.databases) { finish(); return; }
+                indexedDB.databases().then(function (list) {
+                    var exists = false;
+                    for (var i = 0; i < (list || []).length; i++) {
+                        if (list[i] && list[i].name === 'keyval-store') { exists = true; }
+                    }
+                    if (!exists) { finish(); return; }
+
+                    var req = indexedDB.open('keyval-store');
+                    req.onerror = finish;
+                    req.onblocked = finish;
+                    req.onupgradeneeded = finish;
+                    req.onsuccess = function () {
+                        var db = req.result;
+                        try {
+                            if (!db.objectStoreNames.contains('keyval')) { db.close(); finish(); return; }
+                            var tx = db.transaction('keyval', 'readwrite');
+                            tx.objectStore('keyval')['delete']('jellyfin-query-cache');
+                            tx.oncomplete = function () { db.close(); finish(); };
+                            tx.onerror = function () { db.close(); finish(); };
+                            tx.onabort = function () { db.close(); finish(); };
+                        } catch (e) { try { db.close(); } catch (e2) {} finish(); }
+                    };
+                })['catch'](finish);
             } catch (e) { finish(); }
         }
 

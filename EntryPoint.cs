@@ -239,7 +239,7 @@ namespace Jellyfin.Plugin.CustomTheme
         /// in <see cref="Plugin"/> can reuse it.</summary>
         internal static string? LocateIndexHtml(IApplicationPaths appPaths)
         {
-            // IApplicationPaths.WebPath is the authoritative location in 10.11 (the old
+            // IApplicationPaths.WebPath is the authoritative location in 10.11 AND 12.0 (the old
             // reflection on the app host found nothing — its WebPath property is gone, which
             // silently disabled direct-serve and on-disk injection). Keep common install
             // paths as fallbacks.

@@ -1,5 +1,5 @@
 /* =============================================
-   CUSTOM THEME FOR JELLYFIN 10.11+
+   CUSTOM THEME FOR JELLYFIN — 12.0+ on the 3.x line, 10.11 on the frozen 2.x line
    NOTE: no @import here — CssGenerator prepends a Google Fonts import for the
    ONE selected font family (all 15 families used to load on every page).
    ============================================= */
@@ -4076,9 +4076,10 @@ html.layout-tv .card:hover { transform: none !important; }
 
 /* The global `.padded-left, .padded-right { padding: 0 }` reset above is meant
    for home rows; it also strips the gutters off both Modern toolbars, so the
-   logo sits flush against the viewport edge. Physical longhand first: JMP's
-   Chromium 83 parses padding-inline-start but drops the padding-inline
-   shorthand, and dropping the physical value with it would leave zero. */
+   logo sat flush against the viewport edge. Longhands only — the `padding-inline`
+   SHORTHAND is Chromium 87+ and would be dropped whole on JMP's Chromium 83,
+   which also lands on the Modern layout. The physical value is stated first as a
+   fallback for anything older still than the logical longhand (Chromium 69). */
 header.MuiAppBar-root .MuiToolbar-root.padded-left {
     padding-left: var(--nf-gutter) !important;
     padding-inline-start: var(--nf-gutter) !important;

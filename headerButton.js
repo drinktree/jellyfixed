@@ -253,10 +253,22 @@
     // is empty inside a display:none ancestor and non-empty for a visible fixed bar.
     // getComputedStyle is no good either: a child of a display:none parent still
     // computes its own display normally.
+    //
+    // getClientRects() forces a style + layout flush, and applyDynamic calls this —
+    // directly and through addButton / syncHeaderScrolled / setupHeaderScroll — several
+    // times per mutation frame. Memoised on nfPassId (bumped once per applyDynamic
+    // pass, the same pattern activeHomeContainer uses) so the flush happens at most
+    // once per pass instead of four times.
+    var nfHdrCache = { frame: -1, el: null };
     function nfLegacyHeader() {
+        if (nfHdrCache.frame === nfPassId && (nfHdrCache.el === null || nfHdrCache.el.isConnected)) {
+            return nfHdrCache.el;
+        }
         var h = document.querySelector('.skinHeader:not(.osdHeader)') || document.querySelector('.skinHeader');
-        if (!h || h.classList.contains('osdHeader')) return null;
-        return h.getClientRects().length > 0 ? h : null;
+        if (h && h.classList.contains('osdHeader')) h = null;
+        nfHdrCache.frame = nfPassId;
+        nfHdrCache.el = (h && h.getClientRects().length > 0) ? h : null;
+        return nfHdrCache.el;
     }
 
     // True on the 12.0 dashboard, where the branding CustomCss carrying this
@@ -789,8 +801,18 @@
     // arrived. The cache buster is the WEB CLIENT build id, which a plugin update
     // never changes, so waiting it out is not an option either.
     //
-    // Drop the entry before reloading. Always calls back, including when IndexedDB
-    // is unavailable, blocked by another tab, or absent entirely (10.11).
+    // Drop the entry before reloading. Always calls back — including when IndexedDB
+    // is unavailable, when the database does not exist (every Jellyfin 10.11 install),
+    // and when another tab blocks the open.
+    //
+    // It only ever opens a database it has first CONFIRMED exists. Opening one that
+    // does not would create it, and the only way back out is aborting the
+    // versionchange transaction; if that abort ever failed to roll back we would
+    // leave `keyval-store` at version 1 with no object stores, and idb-keyval's own
+    // `open(name, 1)` would then never fire onupgradeneeded — permanently breaking
+    // jellyfin-web's cache persister for that user. Not worth the risk for a cache
+    // eviction, so where indexedDB.databases() is unavailable this simply does
+    // nothing (Chromium 71+, Safari 14+ and Firefox 126+ all have it).
     function nfEvictQueryCache(done) {
         var finished = false;
         function finish() {
@@ -798,26 +820,35 @@
             finished = true;
             done();
         }
-        // A blocked upgrade or a hung transaction must never strand the save.
+        // A blocked open or a hung transaction must never strand the save.
         setTimeout(finish, 1500);
         try {
-            if (!window.indexedDB) { finish(); return; }
-            var req = indexedDB.open('keyval-store');
-            req.onerror = finish;
-            req.onblocked = finish;
-            req.onsuccess = function () {
-                var db = req.result;
-                try {
-                    if (!db.objectStoreNames.contains('keyval')) { db.close(); finish(); return; }
-                    var tx = db.transaction('keyval', 'readwrite');
-                    tx.objectStore('keyval')['delete']('jellyfin-query-cache');
-                    tx.oncomplete = function () { db.close(); finish(); };
-                    tx.onerror = function () { db.close(); finish(); };
-                    tx.onabort = function () { db.close(); finish(); };
-                } catch (e) { try { db.close(); } catch (e2) {} finish(); }
-            };
-            // An upgrade would create an empty store — nothing to evict.
-            req.onupgradeneeded = function () { try { req.transaction.abort(); } catch (e) {} finish(); };
+            if (!window.indexedDB || !indexedDB.databases) { finish(); return; }
+            indexedDB.databases().then(function (list) {
+                var exists = false;
+                for (var i = 0; i < (list || []).length; i++) {
+                    if (list[i] && list[i].name === 'keyval-store') { exists = true; }
+                }
+                if (!exists) { finish(); return; }
+
+                var req = indexedDB.open('keyval-store');
+                req.onerror = finish;
+                req.onblocked = finish;
+                // Cannot happen — the database exists, so no version change is needed —
+                // but if it somehow did, doing nothing is the safe answer.
+                req.onupgradeneeded = finish;
+                req.onsuccess = function () {
+                    var db = req.result;
+                    try {
+                        if (!db.objectStoreNames.contains('keyval')) { db.close(); finish(); return; }
+                        var tx = db.transaction('keyval', 'readwrite');
+                        tx.objectStore('keyval')['delete']('jellyfin-query-cache');
+                        tx.oncomplete = function () { db.close(); finish(); };
+                        tx.onerror = function () { db.close(); finish(); };
+                        tx.onabort = function () { db.close(); finish(); };
+                    } catch (e) { try { db.close(); } catch (e2) {} finish(); }
+                };
+            })['catch'](finish);
         } catch (e) { finish(); }
     }
 
