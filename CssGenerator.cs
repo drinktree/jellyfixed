@@ -222,11 +222,21 @@ namespace Jellyfin.Plugin.CustomTheme
             // rule can practically beat (the card focus ring is one), and the variable
             // is the only lever there.
             //
-            // Inert on 10.11, which defines none of these.
+            // 10.11 DEFINES these too (its MUI theme also uses cssVarPrefix 'jf'), but
+            // none of its own stylesheets read one — 0 occurrences of var(--jf- in
+            // 10.11's scss against 108 in 12.0 — so there the bridge reaches only MUI
+            // components, which in 10.11 exist solely in the opt-in experimental
+            // layout. Recolouring those is equally wanted, so this is safe on both.
             sb.AppendLine($"    --jf-palette-primary-main: {accent};");
             sb.AppendLine($"    --jf-palette-primary-dark: {Darken(accent, 0.22)};");
             sb.AppendLine($"    --jf-palette-primary-light: {Lighten(accent, 0.22)};");
             sb.AppendLine($"    --jf-palette-secondary-main: {accent};");
+            // MUI reads contrastText for the label of every CONTAINED button, chip
+            // and badge on the accent. It defaults to rgba(0,0,0,0.87), which is
+            // right for Jellyfin's light blue and near-illegible on a deep accent —
+            // "Play All" rendered as black-on-red. Netflix sets white on red.
+            sb.AppendLine("    --jf-palette-primary-contrastText: #FFFFFF;");
+            sb.AppendLine("    --jf-palette-secondary-contrastText: #FFFFFF;");
             sb.AppendLine($"    --jf-palette-secondary-dark: {Darken(accent, 0.22)};");
             sb.AppendLine($"    --jf-palette-secondary-light: {Lighten(accent, 0.22)};");
             sb.AppendLine($"    --jf-palette-starIcon-main: {accent};");
@@ -306,16 +316,6 @@ namespace Jellyfin.Plugin.CustomTheme
                 return;
             }
 
-            // Strip the stock icon and the server-name text out of the Modern logo button so
-            // the theme's mark is the only thing in the slot. The name is a bare TEXT NODE
-            // with no element to target, hence font-size: 0 on the button itself, with the
-            // pseudo-element setting its own size back.
-            // Physical longhands, not the padding-inline shorthand: that shorthand is
-            // Chromium 87+, and JMP's QtWebEngine (Chromium 83) — which also lands on the
-            // Modern layout — would drop the declaration.
-            sb.AppendLine($"{LogoHosts()} {{ font-size: 0 !important; min-width: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }}");
-            sb.AppendLine($"{LogoHosts(" .MuiButton-startIcon")} {{ display: none !important; }}");
-
             // The appearance itself, shared by both hosts. "netflix" has no .headerLeft rule
             // in the switch below because the base sheet paints the red N on the .nf-logo
             // ELEMENT — which does not exist in the Modern layout, so it needs one here.
@@ -343,6 +343,10 @@ namespace Jellyfin.Plugin.CustomTheme
                     var url = SanitizeUrl(config.CustomLogoUrl ?? string.Empty);
                     if (string.IsNullOrWhiteSpace(url))
                     {
+                        // No usable URL: emit nothing at all and leave both hosts stock.
+                        // Emitting the strip rules here would blank the Modern home button
+                        // (icon hidden, server name at font-size 0) with nothing to replace
+                        // it — which is why they are emitted AFTER this switch, not before.
                         return;
                     }
 
@@ -368,6 +372,15 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine($".headerLeft::before {{\n    {appearance}\n}}");
             }
 
+            // Strip the stock icon and the server-name text out of the Modern logo button
+            // so the theme's mark is the only thing in the slot. Emitted only now that an
+            // appearance is certain. The name is a bare TEXT NODE with no element to
+            // target, hence font-size: 0 on the button itself with the pseudo-element
+            // setting its own size back. Physical longhands, not the padding-inline
+            // shorthand: that shorthand is Chromium 87+, and JMP's QtWebEngine
+            // (Chromium 83) — which also lands on the Modern layout — would drop it.
+            sb.AppendLine($"{LogoHosts()} {{ font-size: 0 !important; min-width: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }}");
+            sb.AppendLine($"{LogoHosts(" .MuiButton-startIcon")} {{ display: none !important; }}");
             sb.AppendLine($"{LogoHosts("::before")} {{\n    {appearance}\n}}");
         }
 

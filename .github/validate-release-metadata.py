@@ -37,11 +37,20 @@ def fail(msg):
     errors.append(msg)
 
 
-def parse_version(text):
+def parse_version(text, exact_parts=4):
+    """Parse a dotted version. `exact_parts=None` accepts 2-4 components, which is
+    what .NET's Version.Parse accepts and therefore what a targetAbi may legally be;
+    the repo's own version strings are required to be 4-part because the release
+    job's checksum pin matches on `version` or `version + '.0'`."""
     parts = text.split('.')
-    if len(parts) != 4 or not all(p.isdigit() for p in parts):
+    if not parts or not all(p.isdigit() for p in parts):
         return None
-    return tuple(int(p) for p in parts)
+    if exact_parts is None:
+        if not 2 <= len(parts) <= 4:
+            return None
+    elif len(parts) != exact_parts:
+        return None
+    return tuple(int(p) for p in parts) + (0,) * (4 - len(parts))
 
 
 # ---- 1. the ABI lane rule -------------------------------------------------
@@ -58,7 +67,7 @@ for package in manifest:
             continue
         # Version.Parse throws on anything non-numeric, and the exception
         # surfaces as a 500 from /Packages — taking the whole catalogue down.
-        if parse_version(abi) is None:
+        if parse_version(abi, exact_parts=None) is None:
             fail(f'manifest.json: {raw_version} has targetAbi {abi!r}, which .NET Version.Parse rejects')
             continue
         if version >= FIRST_12_VERSION and not abi.startswith('12.'):
@@ -100,6 +109,17 @@ if match:
 else:
     fail('headerButton.js: NF_JS_VERSION not found')
 
+REQUIRED_STAMPS = (
+    'Jellyfin.Plugin.CustomTheme.csproj <Version>',
+    'Jellyfin.Plugin.CustomTheme.csproj <AssemblyVersion>',
+    'Jellyfin.Plugin.CustomTheme.csproj <FileVersion>',
+    'FileTransformation/CustomTheme.FileTransformation.csproj <Version>',
+    'headerButton.js NF_JS_VERSION',
+)
+for required in REQUIRED_STAMPS:
+    if required not in stamps:
+        fail(f'{required} is missing entirely — a deleted stamp must fail like a stale one')
+
 for where, value in stamps.items():
     # headerButton.js carries Major.Minor.Build to match CssGenerator's
     # --nf-version stamp; everything else carries the full 4-part version.
@@ -118,6 +138,19 @@ if expected_parts:
     want_prefix = '12.' if expected_parts >= FIRST_12_VERSION else '10.'
     if not meta_abi.startswith(want_prefix):
         fail(f'meta.json: version {expected} needs a targetAbi starting {want_prefix}, got {meta_abi!r}')
+
+# The release job derives TAG and ZIP from meta.json's version
+# (SHORT="${VERSION%.0}"), so a sourceUrl that disagrees points at a file the run
+# will never upload — and the plugin simply fails to download for every user.
+if expected_parts:
+    short = expected[:-2] if expected.endswith('.0') else expected
+    want_url = (f'https://github.com/drinktree/jellyfixed/releases/download/'
+                f'v{short}/custom-theme-v{short}.zip')
+    for package in manifest:
+        for entry in package.get('versions', []):
+            if entry.get('version') == expected and entry.get('sourceUrl') != want_url:
+                fail(f'manifest.json: {expected} sourceUrl is {entry.get("sourceUrl")!r}, '
+                     f'but the release job will upload {want_url}')
 
 if errors:
     for err in errors:

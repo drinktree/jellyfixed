@@ -264,8 +264,10 @@
         if (nfHdrCache.frame === nfPassId && (nfHdrCache.el === null || nfHdrCache.el.isConnected)) {
             return nfHdrCache.el;
         }
-        var h = document.querySelector('.skinHeader:not(.osdHeader)') || document.querySelector('.skinHeader');
-        if (h && h.classList.contains('osdHeader')) h = null;
+        // No `|| querySelector('.skinHeader')` fallback: if the :not() form found
+        // nothing then every .skinHeader carries .osdHeader, and this function must
+        // return null for those anyway — the fallback could only ever be discarded.
+        var h = document.querySelector('.skinHeader:not(.osdHeader)');
         nfHdrCache.frame = nfPassId;
         nfHdrCache.el = (h && h.getClientRects().length > 0) ? h : null;
         return nfHdrCache.el;
@@ -2959,12 +2961,19 @@
         var y = window.pageYOffset || document.documentElement.scrollTop || 0;
         h.classList.toggle('nf-scrolled', y > 8);   // Netflix goes solid almost immediately
     }
+    // Called from init() AND from every applyDynamic pass. init() alone is not
+    // enough: this script is injected inline before </body> and runs before
+    // jellyfin-web's bundles have mounted anything, so at init there is no
+    // .skinHeader yet and the visibility guard below would reject it forever —
+    // the Netflix transparent-to-solid header would simply never happen. The
+    // window.__nfHeaderScroll flag keeps the listener single; the guard returns
+    // WITHOUT setting it, so a later pass can still arm it.
     function setupHeaderScroll() {
         if (window.__nfHeaderScroll) return;
-        // Nothing to drive on Modern — the MUI app bar swaps its own colour class on
-        // scroll. Not flagged as installed, so it still arms if a legacy header shows
-        // up later; without the guard a permanent scroll listener would run a rAF per
-        // frame for a class nobody can see.
+        // Nothing to drive on Modern — the MUI app bar swaps its own colour class
+        // on scroll and the stylesheet paints both states. Without this guard a
+        // permanent scroll listener would run a rAF per frame, and a pageYOffset
+        // read per frame, for a class on an element nobody can see.
         if (!nfLegacyHeader()) return;
         window.__nfHeaderScroll = true;
         var ticking = false;
@@ -3175,6 +3184,9 @@
         updateAdmin();
         addButton();
         setupLogoHome(nfHdr);
+        // Cheap: a single window.__nfHeaderScroll read once the listener is armed.
+        // Here as well as in init() because at init the header does not exist yet.
+        setupHeaderScroll();
         syncHeaderScrolled(nfHdr);
         // Before the CT_CONFIG gate: a pending ▶ must fire even on first paint.
         setupAutoPlay();

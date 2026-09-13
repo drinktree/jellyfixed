@@ -91,7 +91,11 @@ workflow builds the plugin, creates the `vX.Y.Z` tag + GitHub release with
 `custom-theme-vX.Y.Z.zip` attached, and pins the zip's MD5 into the matching
 `manifest.json` entry (make sure that entry exists — unmatched versions are
 skipped silently). To release: merge a PR that bumps the version in `meta.json`,
-both `.csproj` files, and adds the `manifest.json` entry.
+both `.csproj` files and `NF_JS_VERSION` in `headerButton.js`, and adds the
+`manifest.json` entry at the TOP of `versions` (the dashboard installs
+`versions[0]` by array position). `.github/validate-release-metadata.py` runs
+first in CI and fails the build if any of those disagree or if the entry is on
+the wrong ABI lane.
 
 ## Project structure
 

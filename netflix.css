@@ -159,8 +159,12 @@ html {
     font-family: var(--font-netflix) !important;
     /* Jellyfin 12.0 dropped the `html.preload` class the theme used to paint the
        first frame with, and hard-codes `html { background-color: #101010 }`
-       instead — so a lighter-grey flash now precedes every cold load. Painting
-       the root here covers the whole gap, on both versions. */
+       instead. That is very close to (slightly darker than) this theme's #141414,
+       so the flash it leaves is subtle rather than glaring — but it is the WRONG
+       colour once the admin picks a background, and it is the colour behind every
+       page. Painting the root here keeps it consistent on both versions. It does
+       NOT cover the gap before this stylesheet arrives: branding CustomCss is
+       fetched by the app, so stock's value is what paints the very first frame. */
     background-color: var(--bg-dark) !important;
 }
 
@@ -3499,7 +3503,12 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     text-transform: uppercase !important;
     letter-spacing: var(--nf-track-caps) !important;
     font-weight: var(--nf-w-semi) !important;
-    margin: 0 !important;
+    /* BLOCK margins only. Stock gives this label `margin: 0 0.6em 0 0` — the only
+       gutter between it and its value — and 12.0 renders it as an MUI Typography
+       <p>, which brings a block margin the theme never had. Zeroing the shorthand
+       would take the gutter with it. */
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
 }
 
 /* --- Menus: action sheets ('...' menus, playback settings) — Netflix-dark,
@@ -4098,26 +4107,36 @@ html.nf-modern header.MuiAppBar-root {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     background-image: none !important;
+    /* The SOLID state is the default, not a colorDefault-only rule: Jellyfin
+       10.11's experimental layout (which also hides the legacy header and mounts
+       this same bar) renders it with no `color` prop at all, so it lands on
+       MuiAppBar-colorPrimary — and with the palette bridge below that would paint
+       the whole bar the accent colour. Defaulting to --bg-dark is correct for
+       that, and for 12.0's scrolled colorDefault state. */
+    background-color: var(--bg-dark) !important;
     transition: background-color 0.4s ease !important;
 }
 html.nf-modern header.MuiAppBar-root.MuiAppBar-colorTransparent {
     background-color: transparent !important;
     background-image: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 40%, transparent 100%) !important;
 }
-html.nf-modern header.MuiAppBar-root.MuiAppBar-colorDefault {
-    background-color: var(--bg-dark) !important;
-}
 
-/* Netflix's bar is taller than MUI's 48px dense toolbar. NOT unconditional: the
-   /video route renders inside the same Modern layout with an EMPTY AppBar over
-   the player (AppToolbar returns null there), so an unqualified height + scrim
-   paints a black band across the top of every film. .transparentDocument is the
-   engine-proof playback flag — set by web code on every client including JMP. */
-html.nf-modern:not(.transparentDocument):not(.nf-playing) header.MuiAppBar-root .MuiToolbar-root {
-    min-height: var(--nav-height) !important;
-}
-html.transparentDocument header.MuiAppBar-root,
-html.nf-playing header.MuiAppBar-root {
+/* The bar's HEIGHT is deliberately left to MUI. Netflix's own bar is nearer this
+   sheet's 68px --nav-height, but there is no selector that reliably picks out the
+   app toolbar: on a library route the same AppBar holds a SECOND dense Toolbar
+   (LibraryToolbar) carrying the identical `MuiToolbar-dense padded-left
+   padded-right` class list, so any height rule hits both and stacks a 136px
+   header over every library page. Modern's own 48px bar is a fine Netflix height,
+   and leaving it alone also keeps OffsetAppBar's measured spacer honest. */
+
+/* Every colour state spelled out: these have to OUT-SPECIFY the two skin rules
+   above, which are (0,3,0), or the scrim keeps painting over the picture. */
+html.transparentDocument header.MuiAppBar-root.MuiAppBar-colorTransparent,
+html.transparentDocument header.MuiAppBar-root.MuiAppBar-colorDefault,
+html.transparentDocument header.MuiAppBar-root.MuiAppBar-colorPrimary,
+html.nf-playing header.MuiAppBar-root.MuiAppBar-colorTransparent,
+html.nf-playing header.MuiAppBar-root.MuiAppBar-colorDefault,
+html.nf-playing header.MuiAppBar-root.MuiAppBar-colorPrimary {
     background-image: none !important;
     background-color: transparent !important;
 }
@@ -4126,6 +4145,23 @@ html.nf-playing header.MuiAppBar-root {
    icon and the server name) is handled by CssGenerator's AppendLogo, because its
    appearance follows the LogoStyle setting. It cannot be done from here: the
    server name is a bare TEXT NODE with no element to select. */
+
+/* MUI declares its own typography (`fontFamily: '"Noto Sans", sans-serif'` in
+   themes/_base/theme.ts) on every component, so the root `html { font-family }`
+   this sheet relies on everywhere else never reaches the Modern chrome, its
+   drawer, menus or dialogs — they rendered in Noto Sans beside a page in the
+   chosen face. Listed by component class rather than a descendant `*`: an
+   important font-family on `*` would also capture the .material-icons spans and
+   replace every icon with a letter. */
+html.nf-modern .MuiTypography-root,
+html.nf-modern .MuiButton-root,
+html.nf-modern .MuiChip-root,
+html.nf-modern .MuiMenuItem-root,
+html.nf-modern .MuiListItemText-root,
+html.nf-modern .MuiInputBase-root,
+html.nf-modern .MuiTab-root {
+    font-family: var(--font-netflix) !important;
+}
 
 /* The theme's settings button, once headerButton.js has moved it into the MUI
    toolbar. MUI's utility classes (MuiIconButton-root and friends) carry no CSS
@@ -4171,14 +4207,14 @@ html.nf-modern .skinHeader.osdHeader .MuiTypography-root {
     color: #fff !important;
 }
 
-/* New in 12.0: the aspect-ratio spacer behind every tile is painted #202020, so
-   any card whose art is missing, letterboxed or still loading shows a grey plate
-   on the Netflix canvas — and the placeholder icon is painted the same #202020,
-   which would be invisible once the plate is repainted. */
-.cardBox:not(.visualCardBox) .cardPadder {
-    background-color: transparent !important;
-    border-radius: var(--card-radius) !important;
-}
+/* 12.0's shared base theme adds `.cardPadder .cardImageIcon { color: <paper> }`
+   (themes/_base/_theme.scss), which paints the missing-artwork placeholder icon
+   #202020 on the #242424 padder stock has always used — near-invisible. Give it
+   the metadata grey instead. This is a plain contrast fix and it reaches 10.11
+   too, where the icon previously inherited the card's own colour.
+   NOT touched: the padder's own #242424 background. An earlier read of this
+   called it new in 12.0; card.scss is byte-identical between 10.11 and 12.0, so
+   repainting it would have been a look change on both, outside this release. */
 .cardPadder .cardImageIcon {
     color: var(--text-muted) !important;
 }
