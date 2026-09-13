@@ -674,7 +674,14 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
             rgba(20,20,20,0) 38%, rgba(20,20,20,.05) 48%, rgba(20,20,20,.14) 56%,
             rgba(20,20,20,.28) 64%, rgba(20,20,20,.46) 72%, rgba(20,20,20,.66) 80%,
             rgba(20,20,20,.84) 88%, rgba(20,20,20,.96) 95%, var(--bg-dark) 100%),
-        linear-gradient(to right, rgba(20,20,20,0.85) 0%, transparent 35%),
+        /* The COPY scrim. Netflix lays the title, match score, synopsis and
+           buttons directly over the artwork and keeps them readable with a wide
+           left-to-right vignette, not with a box behind the text. The old 35%
+           stop was tuned for a page whose lower half sat on an opaque wrapper;
+           now that the art is full-bleed the copy column runs to roughly 45% of
+           the viewport, so the scrim has to cover it — three stops, easing out,
+           so there is no visible edge where it ends. */
+        linear-gradient(to right, rgba(20,20,20,0.92) 0%, rgba(20,20,20,0.75) 26%, rgba(20,20,20,0.35) 46%, transparent 62%),
         linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 15%) !important;
     z-index: 1 !important;
     pointer-events: none !important;
@@ -732,6 +739,23 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
 }
 
 /* --- PAGE WRAPPER: Content overlays the backdrop --- */
+/* The wrapper MUST be transparent. Jellyfin puts `noBackdropTransparency` on the
+   detail PAGE element (not on <html>, which is where you would look for it), and
+   `themes/_base/_theme.scss` paints
+   `.noBackdropTransparency .detailPageWrapperContainer` with the solid background
+   colour. That is an opaque block starting directly under the 40vh #itemBackdrop
+   spacer: on 12.0 it cut the artwork off with a hard horizontal edge and left a
+   dead black band between the art and the title, because the spacer's 40vh and
+   this wrapper's 30vh padding no longer meet. Transparent here is also what the
+   Netflix detail page actually is — full-bleed art with the copy laid over it,
+   the scrim on .backgroundContainer.withBackdrop doing the legibility work.
+   (0,2,0) against stock's (0,2,0), and this sheet is appended last, so it wins on
+   order; `.itemDetailPage` also keeps it off season/episode pages' own wrappers
+   only when they are detail pages, which is every case that has a backdrop. */
+.itemDetailPage .detailPageWrapperContainer {
+    background-color: transparent !important;
+    background-image: none !important;
+}
 .detailPageWrapperContainer {
     position: relative !important;
     z-index: 3 !important;
