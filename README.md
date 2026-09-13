@@ -1,8 +1,8 @@
 # Jellyfin Custom Theme
 
-A sleek, dark streaming-style skin for **Jellyfin 10.11+**. Install the plugin and the theme is applied automatically — all settings live on the server, so they follow you to every device. No manual CSS, no client tweaks.
+A sleek, dark streaming-style skin for **Jellyfin 12.0+**. Install the plugin and the theme is applied automatically — all settings live on the server, so they follow you to every device. No manual CSS, no client tweaks.
 
-![Jellyfin](https://img.shields.io/badge/Jellyfin-10.11+-00A4DC?logo=jellyfin&logoColor=white)
+![Jellyfin](https://img.shields.io/badge/Jellyfin-12.0+-00A4DC?logo=jellyfin&logoColor=white)
 [![Build](https://github.com/drinktree/jellyfixed/actions/workflows/build.yml/badge.svg)](https://github.com/drinktree/jellyfixed/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
@@ -70,11 +70,11 @@ After saving, reload the web page to see the new theme.
 
 ## Build from source
 
-Requires the **.NET 9 SDK**.
+Requires the **.NET 10 SDK**.
 
 ```bash
 dotnet build -c Release
-# Output: bin/Release/net9.0/Jellyfin.Plugin.CustomTheme.dll
+# Output: bin/Release/net10.0/Jellyfin.Plugin.CustomTheme.dll
 ```
 
 To package a release zip manually, bundle **both** built DLLs
@@ -113,12 +113,29 @@ LICENSE                    # MIT license
 .github/workflows/build.yml # CI: build on push/PR, package & release on tags
 ```
 
+## Jellyfin version
+
+Jellyfin 12.0 moved the server to .NET 10, so plugins have to be rebuilt for it and a single
+build cannot serve both generations.
+
+| Plugin | Server | Status |
+| --- | --- | --- |
+| 3.0.0 and newer | Jellyfin 12.0+ | current |
+| 2.5.77 | Jellyfin 10.11 | final 10.11 build, kept on the `release/10.11` branch |
+
+Both lines stay in the repository manifest with their own `targetAbi`, and Jellyfin only offers
+a server the build it can actually load — so nothing has to be done by hand when upgrading.
+
+Jellyfin 12.0 also made its new **Modern** layout the default. The theme skins that layout's app
+bar directly (logo, scrim, colours and the theme's settings button), and still skins the Legacy
+layout the way it always did, so either choice looks right.
+
 ## Requirements
 
-- Jellyfin 10.11+
+- Jellyfin 12.0+ (on Jellyfin 10.11 the plugin repository serves the final 10.11 build, 2.5.77)
 - *(optional)* [Jellyfin Media Bar](https://github.com/IAmParadox27/jellyfin-plugin-media-bar) — for the big cinematic hero banner; works without the separate File Transformation plugin because Custom Theme provides that service
 - No File Transformation plugin required (it is bundled/provided by this plugin)
-- .NET 9 SDK (only to build from source)
+- .NET 10 SDK (only to build from source)
 
 ## License
 

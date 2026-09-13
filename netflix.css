@@ -157,6 +157,11 @@
    (.material-icons keeps its own icon font-family and is unaffected.) */
 html {
     font-family: var(--font-netflix) !important;
+    /* Jellyfin 12.0 dropped the `html.preload` class the theme used to paint the
+       first frame with, and hard-codes `html { background-color: #101010 }`
+       instead — so a lighter-grey flash now precedes every cold load. Painting
+       the root here covers the whole gap, on both versions. */
+    background-color: var(--bg-dark) !important;
 }
 
 body, .mainDrawer, .dialog {
@@ -669,6 +674,13 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
         linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 15%) !important;
     z-index: 1 !important;
     pointer-events: none !important;
+    /* Jellyfin 12.0 dims the backdrop with `opacity: .86` on this element instead
+       of the translucent background-color 10.11 used. That composites OUR ramp at
+       86% too, so the bottom of the gradient — which is meant to land on solid
+       --bg-dark under the synopsis and cast — lets the artwork ghost through, and
+       the element becomes a stacking context, which changes what the z-index
+       above means. Inert on 10.11, where the property was never set. */
+    opacity: 1 !important;
 }
 
 /* --- DETAIL LOGO (title card image) — Netflix shows the logo art above the
@@ -939,8 +951,15 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
    DETAIL PAGE BUTTONS — Netflix style
    ============================================= */
 
-.mainDetailButtons {
+/* :not(.hide) — gotcha S. The detail controller calls hideAll(page,
+   'mainDetailButtons') for item types with no playable actions, and an unguarded
+   `display: flex !important` here ties jellyfin's `.hide` on specificity and then
+   beats it on document order (this sheet is appended last), so the empty button
+   row rendered anyway. */
+.mainDetailButtons:not(.hide) {
     display: flex !important;
+}
+.mainDetailButtons {
     flex-wrap: wrap !important;
     gap: 0 !important;
     align-items: center !important;
@@ -1233,8 +1252,11 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
 /* Detail sections (seasons, cast, similar) */
 .detailSection { padding: 0 4% !important; }
 
-/* .detailPageContent DOES exist on season pages (live-verified — an earlier
-   audit wrongly called it dead): it carries the poster-era side padding. */
+/* .detailPageContent exists on season pages in JELLYFIN 10.11 only (live-verified
+   there — an earlier audit wrongly called it dead everywhere). Jellyfin 12.0
+   deletes the wrapper entirely, so this rule is a no-op there and the rail moved
+   to `.detailPageSecondaryContainer.padded-left`; see the cancel rule further
+   down. Kept because one stylesheet still has to read correctly on both. */
 .detailPageContent {
     padding-left: 4% !important;
     padding-right: 4% !important;
@@ -1471,6 +1493,17 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 .detailPageSecondaryContainer .detailPageContent .verticalSection {
     padding-left: 0 !important;
     padding-right: 0 !important;
+}
+/* Jellyfin 12.0 deleted .detailPageContent and moved the rail onto the container
+   itself as `padded-left`, so the cancel rule above can never fire there and the
+   SAME 7.7%-vs-4% step came straight back on every detail page. Zero the
+   container's own rail instead and let the 4% above stay the single one — that
+   also keeps the end edge, which `padded-left` alone would not. (0,3,0)+important
+   beats the `.libraryPage .padded-left` re-add at (0,2,0); inert on 10.11, where
+   this element carries no padding class. */
+.libraryPage .detailPageSecondaryContainer.padded-left {
+    padding-inline-start: 0 !important;
+    padding-left: 0 !important;
 }
 
 .detailPageSecondaryContainer .verticalSection .sectionTitle {
@@ -1885,6 +1918,35 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
     right: 0 !important;
     padding: 0.25em 0.5em !important;
     text-align: center !important;
+    /* Jellyfin 12.0 added `min-width: fit-content` here and `white-space: nowrap;
+       min-width: fit-content` on .chapterThumbText. On an out-of-flow strip with
+       both left and right pinned, a text-derived min-width is exactly the
+       per-mousemove box change this block exists to prevent. */
+    min-width: 0 !important;
+}
+/* Jellyfin 12.0 moved `position: relative` off .chapterThumbContainer into a
+   separate .chapterBubblePosition class that the TRICKPLAY path never gets
+   (video/index.js builds that container with no such class). Without a positioned
+   ancestor the strip above resolves against .sliderBubble instead and escapes the
+   container's inline `overflow: hidden` — re-assert it. Matches 10.11's own value,
+   so this is a no-op there. */
+.videoOsdBottom .chapterThumbContainer {
+    position: relative !important;
+}
+/* The CHAPTERS-but-no-images bubble is the one case that has no thumb at all:
+   12.0 marks its text container .chapterBubblePosition and relies on it staying
+   IN FLOW to give the bubble its width. Forcing it absolute (the rule above)
+   collapses that bubble to a 0-wide hairline with the timestamp painted straight
+   over live video. Hand this one case back to stock geometry — keyed on the class
+   jellyfin uses only here, so trickplay and chapter-image bubbles are untouched.
+   (0,3,0) beats the (0,2,0) block above in both directions. */
+.videoOsdBottom .chapterThumbTextContainer.chapterBubblePosition {
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    min-width: fit-content !important;
 }
 /* Now-playing line */
 .videoOsdBottom .osdTitle {
@@ -2910,6 +2972,14 @@ html:has(.videoPlayerContainer) .nf-nav-tabs { display: none !important; }
    z-999 header; the .osdHeader state above keeps its own in-flow handling. */
 html.nf-playing .skinHeader:not(.osdHeader) { z-index: 900 !important; }
 html:has(.videoPlayerContainer) .skinHeader:not(.osdHeader) { z-index: 900 !important; }
+/* Jellyfin 12.0's Modern layout has the SAME problem with a different element:
+   the MUI app bar is `position: fixed` at z-index 1100, and in the transient
+   playback state where the browse route is still mounted under the video
+   (.videoPlayerContainer-onTop at z 1000) it composites over the picture. Sink it
+   to the same 900. Not applied to the OSD's own bar, which is a different element
+   carrying .osdHeader and is handled above. */
+html.nf-playing header.MuiAppBar-root { z-index: 900 !important; }
+html:has(.videoPlayerContainer) header.MuiAppBar-root { z-index: 900 !important; }
 
 /* --- NOTHING ANIMATES UNDER THE PLAYER -----------------------------------------
    In State-A the whole browse page keeps living beneath the video, and a RUNNING
@@ -3400,14 +3470,36 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     color: #fff !important;
     text-decoration: underline !important;
 }
-/* The row's label is a DIV with class "label", so the `label` TYPE selector
-   elsewhere in this sheet never matched it. Same micro-label spec as everywhere. */
+/* Jellyfin 12.0 rebuilt all four rows as one React component: the per-type
+   wrappers (.genresGroup / .directorsGroup / .writersGroup / .studiosGroup and
+   their .genres / .directors / .writers / .studios children) are gone and every
+   row is now .detailsGroupItem inside .itemDetailsGroup. Without this the links
+   revert to the stock link voice on every detail page — the exact regression the
+   block above was written to kill. `color` MUST stay !important: 12.0 puts an
+   inline `style="color: inherit"` on each anchor, and an inline declaration beats
+   any author rule that is not important, so the same selector without it would
+   silently do nothing. */
+.itemDetailsGroup .detailsGroupItem .button-link {
+    background: none !important;
+    padding: 0 !important;
+    font-size: var(--nf-t-meta) !important;
+    color: var(--nf-text-2) !important;
+}
+.itemDetailsGroup .detailsGroupItem .button-link:hover {
+    color: #fff !important;
+    text-decoration: underline !important;
+}
+/* The row's label is a DIV with class "label" in 10.11 and an MUI Typography <p>
+   in 12.0, so the `label` TYPE selector elsewhere in this sheet never matched it
+   either way. Same micro-label spec as everywhere; the margin reset kills the
+   block margin Typography brings and the theme never had. */
 .itemDetailsGroup .detailsGroupItem .label {
     color: var(--nf-text-3) !important;
     font-size: var(--nf-t-micro) !important;
     text-transform: uppercase !important;
     letter-spacing: var(--nf-track-caps) !important;
     font-weight: var(--nf-w-semi) !important;
+    margin: 0 !important;
 }
 
 /* --- Menus: action sheets ('...' menus, playback settings) — Netflix-dark,
@@ -3956,6 +4048,145 @@ html.layout-tv .card:hover { transform: none !important; }
     padding-bottom: 24px;
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
+
+
+/* =============================================
+   JELLYFIN 12.0 — MODERN LAYOUT
+   =============================================
+   12.0 made the "Modern" layout the default for every non-TV client. The legacy
+   .skinHeader still EXISTS there — libraryMenu still builds .headerLeft /
+   .headerRight inside it, and this theme still injects its logo, nav tabs and
+   settings button into them — but its wrapper carries an inline `display: none`,
+   so all of that paints nothing. The visible chrome is a MUI AppBar instead.
+
+   Rather than un-hide the legacy header (tried and rejected: nothing populates
+   .headerTabs on Modern library routes, and the MUI bar is the only home for
+   sort / filter / view / pagination — hiding it takes those controls away), the
+   theme restyles the MUI bar into the Netflix top bar and headerButton.js moves
+   the settings button into it.
+
+   EVERY selector here is a plain class. `:has()` is unsupported on Jellyfin
+   Media Player's QtWebEngine, where an unsupported :has() drops the whole rule —
+   so the house rule stands: :has() is only ever a standalone backstop, never the
+   only gate for anything load-bearing. html.nf-modern is stamped by
+   headerButton.js from a DOM probe.
+
+   The bar appears on dashboard routes too, where the branding CustomCss is NOT
+   mounted at all, so none of this reaches the dashboard either way. */
+
+/* The global `.padded-left, .padded-right { padding: 0 }` reset above is meant
+   for home rows; it also strips the gutters off both Modern toolbars, so the
+   logo sits flush against the viewport edge. Physical longhand first: JMP's
+   Chromium 83 parses padding-inline-start but drops the padding-inline
+   shorthand, and dropping the physical value with it would leave zero. */
+header.MuiAppBar-root .MuiToolbar-root.padded-left {
+    padding-left: var(--nf-gutter) !important;
+    padding-inline-start: var(--nf-gutter) !important;
+}
+header.MuiAppBar-root .MuiToolbar-root.padded-right {
+    padding-right: var(--nf-gutter) !important;
+    padding-inline-end: var(--nf-gutter) !important;
+}
+
+/* MUI's own `colorTransparent` is flat transparent, not a scrim — Netflix paints
+   a top-down scrim over the billboard and goes solid once scrolled. OffsetAppBar
+   already swaps colorTransparent -> colorDefault on the first scroll pixel, so
+   the state change needs no JS at all. */
+html.nf-modern header.MuiAppBar-root {
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-image: none !important;
+    transition: background-color 0.4s ease !important;
+}
+html.nf-modern header.MuiAppBar-root.MuiAppBar-colorTransparent {
+    background-color: transparent !important;
+    background-image: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 40%, transparent 100%) !important;
+}
+html.nf-modern header.MuiAppBar-root.MuiAppBar-colorDefault {
+    background-color: var(--bg-dark) !important;
+}
+
+/* Netflix's bar is taller than MUI's 48px dense toolbar. NOT unconditional: the
+   /video route renders inside the same Modern layout with an EMPTY AppBar over
+   the player (AppToolbar returns null there), so an unqualified height + scrim
+   paints a black band across the top of every film. .transparentDocument is the
+   engine-proof playback flag — set by web code on every client including JMP. */
+html.nf-modern:not(.transparentDocument):not(.nf-playing) header.MuiAppBar-root .MuiToolbar-root {
+    min-height: var(--nav-height) !important;
+}
+html.transparentDocument header.MuiAppBar-root,
+html.nf-playing header.MuiAppBar-root {
+    background-image: none !important;
+    background-color: transparent !important;
+}
+
+/* NOTE: the logo slot itself (the app bar's home button, which carries the stock
+   icon and the server name) is handled by CssGenerator's AppendLogo, because its
+   appearance follows the LogoStyle setting. It cannot be done from here: the
+   server name is a bare TEXT NODE with no element to select. */
+
+/* The theme's settings button, once headerButton.js has moved it into the MUI
+   toolbar. MUI's utility classes (MuiIconButton-root and friends) carry no CSS
+   of their own — all real styling lives in an emotion hash class — so an
+   injected button inherits nothing and has to be sized here. */
+html.nf-modern header.MuiAppBar-root .ct-settings-btn {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* OffsetAppBar renders the fixed bar PLUS an unclassed spacer sibling whose
+   inline height it keeps in sync, so Modern pushes content down instead of
+   overlaying it. That is right everywhere except the billboard, which has to
+   bleed to the viewport top — html.nf-hero-top already marks exactly that state
+   for the legacy layout. Scoped to the home hero so every other route keeps its
+   offset; AppOverrides.scss has already zeroed the stock .libraryPage padding
+   that used to provide it. */
+html.nf-modern.nf-hero-top header.MuiAppBar-root + div[aria-hidden="true"] {
+    display: none !important;
+}
+
+/* 12.0's Modern video page puts `skinHeader skinHeader-withBackground
+   skinHeader-blurred osdHeader` on the OSD's MUI Box — a class list that element
+   did not carry in 10.11. Every box-model rule in the HEADER block above now
+   lands on the player's top bar: 68px around a 48px toolbar, position fixed over
+   stock's absolute, z-index 10000 over everything. Hand it back its own
+   geometry. (0,2,0) beats the (0,1,0) block above without touching the legacy
+   header. Its title is an MUI Typography, not a .pageTitle. */
+.skinHeader.osdHeader {
+    position: absolute !important;
+    height: auto !important;
+    z-index: auto !important;
+    contain: none !important;
+}
+.skinHeader.osdHeader .MuiTypography-root {
+    font-family: var(--font-netflix) !important;
+    font-size: 1.05rem !important;
+    font-weight: var(--nf-w-semi) !important;
+    color: #fff !important;
+}
+
+/* New in 12.0: the aspect-ratio spacer behind every tile is painted #202020, so
+   any card whose art is missing, letterboxed or still loading shows a grey plate
+   on the Netflix canvas — and the placeholder icon is painted the same #202020,
+   which would be invisible once the plate is repainted. */
+.cardBox:not(.visualCardBox) .cardPadder {
+    background-color: transparent !important;
+    border-radius: var(--card-radius) !important;
+}
+.cardPadder .cardImageIcon {
+    color: var(--text-muted) !important;
+}
+
+/* NOT overridden on purpose: 12.0 ships apps/modern/AppOverrides.scss with
+   `.libraryPage:not(.itemDetailPage) { padding-top: 0 !important }`, which
+   outranks this sheet's chrome offsets. Under Modern that is CORRECT —
+   OffsetAppBar's measured spacer provides the offset instead of page padding —
+   so the theme agrees with it rather than fighting it. That stylesheet is
+   imported by the Modern AppLayout chunk alone, so the legacy layout on 12.0
+   keeps jellyfin's stock 7.5em exactly as on 10.11. */
 
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */

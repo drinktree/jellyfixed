@@ -15,9 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
+
+      # The five version stamps must agree or the theme's own settings drawer
+      # prints "(MISMATCH)" on a perfectly good install and sends the next
+      # debugging session down a false trail. The ABI lane rule cannot be
+      # recalled once published: a net10 assembly offered to a 10.11 server
+      # loads, fails GetTypes(), and is permanently marked NotSupported.
+      - name: Validate release metadata
+        run: python3 .github/validate-release-metadata.py
 
       - name: Build
         run: dotnet build -c Release --nologo
@@ -25,7 +33,7 @@ jobs:
       - name: Package (verify)
         run: |
           mkdir -p dist
-          cp bin/Release/net9.0/Jellyfin.Plugin.CustomTheme.dll bin/Release/net9.0/CustomTheme.FileTransformation.dll meta.json dist/
+          cp bin/Release/net10.0/Jellyfin.Plugin.CustomTheme.dll bin/Release/net10.0/CustomTheme.FileTransformation.dll meta.json dist/
           (cd dist && zip -q -X plugin.zip Jellyfin.Plugin.CustomTheme.dll CustomTheme.FileTransformation.dll meta.json)
           echo "MD5: $(md5sum dist/plugin.zip | cut -d' ' -f1)"
 
@@ -55,9 +63,9 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Auto tag, build & publish release if the version is new
         env:
@@ -76,7 +84,7 @@ jobs:
 
           dotnet build -c Release --nologo
           mkdir -p dist
-          cp bin/Release/net9.0/Jellyfin.Plugin.CustomTheme.dll bin/Release/net9.0/CustomTheme.FileTransformation.dll meta.json dist/
+          cp bin/Release/net10.0/Jellyfin.Plugin.CustomTheme.dll bin/Release/net10.0/CustomTheme.FileTransformation.dll meta.json dist/
           (cd dist && zip -q -X "$ZIP" Jellyfin.Plugin.CustomTheme.dll CustomTheme.FileTransformation.dll meta.json)
           MD5="$(md5sum "dist/$ZIP" | cut -d' ' -f1)"
           echo "### Released $TAG" >> "$GITHUB_STEP_SUMMARY"

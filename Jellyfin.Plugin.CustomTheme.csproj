@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Plugin.CustomTheme</AssemblyName>
     <RootNamespace>Jellyfin.Plugin.CustomTheme</RootNamespace>
-    <Version>2.5.77.0</Version>
-    <AssemblyVersion>2.5.77.0</AssemblyVersion>
-    <FileVersion>2.5.77.0</FileVersion>
+    <Version>3.0.0.0</Version>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
   </PropertyGroup>
 
   <!-- The bundled File Transformation provider is a separate assembly so its name
@@ -23,8 +23,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Model" Version="10.11.0" />
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
+    <PackageReference Include="Jellyfin.Model" Version="12.0.0" />
+    <PackageReference Include="Jellyfin.Controller" Version="12.0.0" />
   </ItemGroup>
 
   <!-- ASP.NET types for the self-contained index.html injection middleware

@@ -207,6 +207,50 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine($"    --nf-track-head: {tracking};");
             }
 
+            // One step up from the page background — the raised surface MUI paints
+            // menus, dialogs and the scrolled app bar with (the theme's own
+            // --nf-surface is the same relationship, hard-coded for the default #141414).
+            var surface = Lighten(bg, 0.03);
+
+            // --- Jellyfin 12.0 palette bridge ---------------------------------------
+            // 12.0 rebuilt every theme on one MUI base whose colours come from ~200
+            // `--jf-*` custom properties, and the Modern layout (the new default) draws
+            // its app bar, drawer, menus, dialogs, filter/sort controls and every link
+            // with them. None of those surfaces carry a class this sheet targets, so
+            // without this bridge a Netflix-red page is framed in Jellyfin blue. A
+            // handful of 12.0 rules are also `!important` at a specificity no author
+            // rule can practically beat (the card focus ring is one), and the variable
+            // is the only lever there.
+            //
+            // Inert on 10.11, which defines none of these.
+            sb.AppendLine($"    --jf-palette-primary-main: {accent};");
+            sb.AppendLine($"    --jf-palette-primary-dark: {Darken(accent, 0.22)};");
+            sb.AppendLine($"    --jf-palette-primary-light: {Lighten(accent, 0.22)};");
+            sb.AppendLine($"    --jf-palette-secondary-main: {accent};");
+            sb.AppendLine($"    --jf-palette-secondary-dark: {Darken(accent, 0.22)};");
+            sb.AppendLine($"    --jf-palette-secondary-light: {Lighten(accent, 0.22)};");
+            sb.AppendLine($"    --jf-palette-starIcon-main: {accent};");
+            sb.AppendLine($"    --jf-palette-background-default: {bg};");
+            sb.AppendLine($"    --jf-palette-background-paper: {surface};");
+            sb.AppendLine($"    --jf-palette-AppBar-defaultBg: {bg};");
+            sb.AppendLine("    --jf-palette-AppBar-transparentBg: transparent;");
+            sb.AppendLine($"    --jf-palette-text-primary: {text};");
+            sb.AppendLine($"    --jf-palette-text-secondary: {muted};");
+            sb.AppendLine($"    --jf-card-borderRadius: {config.CardRadius}px;");
+
+            var accentChannels = Channels(accent);
+            if (accentChannels is not null)
+            {
+                sb.AppendLine($"    --jf-palette-primary-mainChannel: {accentChannels};");
+                sb.AppendLine($"    --jf-palette-secondary-mainChannel: {accentChannels};");
+            }
+
+            var bgChannels = Channels(surface);
+            if (bgChannels is not null)
+            {
+                sb.AppendLine($"    --jf-palette-background-paperChannel: {bgChannels};");
+            }
+
             sb.AppendLine("}");
 
             // --- Always-on extras (moved out of the base theme) ---
@@ -230,49 +274,101 @@ namespace Jellyfin.Plugin.CustomTheme
             return sb.ToString();
         }
 
+        /// <summary>
+        /// The Jellyfin 12.0 "Modern" layout hides the legacy header, so <c>.headerLeft</c>
+        /// (and the <c>.nf-logo</c> element headerButton.js builds inside it) never paints.
+        /// Its MUI app bar opens with a Button linking to the home route, carrying the server
+        /// icon and name — the same job the theme's logo does — so the logo treatment is
+        /// emitted for that button too. Two spellings for robustness: the home href, and the
+        /// `sizeLarge` variant that distinguishes it from the nav buttons beside it.
+        /// </summary>
+        private static readonly string[] ModernLogoHosts =
+        {
+            "html.nf-modern header.MuiAppBar-root a.MuiButton-root[href=\"#/\"]",
+            "html.nf-modern header.MuiAppBar-root .MuiToolbar-root a.MuiButton-sizeLarge"
+        };
+
+        /// <summary>Joins every logo host into one selector list, appending
+        /// <paramref name="suffix"/> (e.g. "::before") to each.</summary>
+        private static string LogoHosts(string suffix = "")
+        {
+            return string.Join(", ", System.Array.ConvertAll(ModernLogoHosts, h => h + suffix));
+        }
+
         private static void AppendLogo(StringBuilder sb, PluginConfiguration config)
         {
-            switch (config.LogoStyle)
+            var style = string.IsNullOrEmpty(config.LogoStyle) ? "netflix" : config.LogoStyle;
+
+            if (style == "none")
+            {
+                sb.AppendLine(".headerLeft::before { display: none !important; }");
+                sb.AppendLine($"{LogoHosts()} {{ display: none !important; }}");
+                return;
+            }
+
+            // Strip the stock icon and the server-name text out of the Modern logo button so
+            // the theme's mark is the only thing in the slot. The name is a bare TEXT NODE
+            // with no element to target, hence font-size: 0 on the button itself, with the
+            // pseudo-element setting its own size back.
+            // Physical longhands, not the padding-inline shorthand: that shorthand is
+            // Chromium 87+, and JMP's QtWebEngine (Chromium 83) — which also lands on the
+            // Modern layout — would drop the declaration.
+            sb.AppendLine($"{LogoHosts()} {{ font-size: 0 !important; min-width: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }}");
+            sb.AppendLine($"{LogoHosts(" .MuiButton-startIcon")} {{ display: none !important; }}");
+
+            // The appearance itself, shared by both hosts. "netflix" has no .headerLeft rule
+            // in the switch below because the base sheet paints the red N on the .nf-logo
+            // ELEMENT — which does not exist in the Modern layout, so it needs one here.
+            string appearance;
+            switch (style)
             {
                 case "jellyfin":
-                    sb.AppendLine(@".headerLeft::before {
-    content: '' !important;
+                    appearance = @"content: '' !important;
     background-image: url('data:image/svg+xml,%3Csvg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 512 512""%3E%3Cdefs%3E%3ClinearGradient id=""g"" x1=""0%25"" y1=""0%25"" x2=""100%25"" y2=""100%25""%3E%3Cstop offset=""0%25"" stop-color=""%23aa5cc3""/%3E%3Cstop offset=""100%25"" stop-color=""%2300a4dc""/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d=""M256 70c-54 0-103 28-140 72-37 44-56 102-56 152 0 36 22 72 56 100 37 30 86 48 140 48s103-18 140-48c34-28 56-64 56-100 0-50-19-108-56-152-37-44-86-72-140-72zm0 62c34 0 66 18 90 48 24 28 38 66 38 98 0 18-12 38-32 54-22 18-52 30-96 30s-74-12-96-30c-20-16-32-36-32-54 0-32 14-70 38-98 24-30 56-48 90-48zm0 84c-16 0-28 8-36 20-8 10-12 24-12 36 0 14 10 28 26 28s28-8 36-20c8-10 12-24 12-36 0-14-10-28-26-28z"" fill=""url(%23g)""/%3E%3C/svg%3E') !important;
     background-size: contain !important; background-repeat: no-repeat !important;
     width: 36px !important; height: 36px !important; display: inline-block !important;
-    text-shadow: none !important; font-size: 0 !important;
-}");
+    text-shadow: none !important; font-size: 0 !important;";
                     break;
+
                 case "letter":
-                    var letter = SanitizeLetter(config.LogoLetter);
-                    sb.AppendLine($@".headerLeft::before {{
-    content: '{letter}' !important; color: var(--accent-red) !important;
+                    appearance = $@"content: '{SanitizeLetter(config.LogoLetter)}' !important; color: var(--accent-red) !important;
     font-weight: 900 !important; font-size: 2.6rem !important; letter-spacing: -2px !important;
     text-shadow: 0 0 15px rgba(229,9,20,0.4) !important; display: flex !important;
     align-items: center !important; transform: scaleY(1.1) !important;
     font-family: var(--font-netflix) !important; width: auto !important; height: auto !important;
-    background: none !important;
-}}");
+    background: none !important;";
                     break;
-                case "custom" when !string.IsNullOrWhiteSpace(config.CustomLogoUrl):
-                    var url = SanitizeUrl(config.CustomLogoUrl);
-                    if (!string.IsNullOrEmpty(url))
+
+                case "custom":
+                    var url = SanitizeUrl(config.CustomLogoUrl ?? string.Empty);
+                    if (string.IsNullOrWhiteSpace(url))
                     {
-                        sb.AppendLine($@".headerLeft::before {{
-    content: '' !important; background-image: url('{url}') !important;
-    background-size: contain !important; background-repeat: no-repeat !important;
-    width: 40px !important; height: 30px !important; display: inline-block !important;
-    text-shadow: none !important; font-size: 0 !important;
-}}");
+                        return;
                     }
 
-                    break;
-                case "none":
-                    sb.AppendLine(".headerLeft::before { display: none !important; }");
+                    appearance = $@"content: '' !important; background-image: url('{url}') !important;
+    background-size: contain !important; background-repeat: no-repeat !important;
+    width: 40px !important; height: 30px !important; display: inline-block !important;
+    text-shadow: none !important; font-size: 0 !important;";
                     break;
 
-                // "netflix" — the base theme already renders the red 'N'.
+                default:   // "netflix"
+                    appearance = @"content: 'N' !important; color: var(--accent-red) !important;
+    font-weight: var(--nf-w-display) !important; font-size: 2rem !important;
+    letter-spacing: -1.5px !important; line-height: 1 !important; display: flex !important;
+    align-items: center !important; transform: scaleY(1.1) !important;
+    font-family: var(--font-netflix) !important; background: none !important;";
+                    break;
             }
+
+            // The legacy header keeps its existing behaviour exactly: "netflix" is painted by
+            // the base sheet's .nf-logo element there, so no .headerLeft rule is emitted for it.
+            if (style != "netflix")
+            {
+                sb.AppendLine($".headerLeft::before {{\n    {appearance}\n}}");
+            }
+
+            sb.AppendLine($"{LogoHosts("::before")} {{\n    {appearance}\n}}");
         }
 
         private static void AppendElements(StringBuilder sb, PluginConfiguration config)
@@ -653,7 +749,9 @@ namespace Jellyfin.Plugin.CustomTheme
                 // flashes before becoming "78% Match"; the animation reveals them
                 // anyway after 2.5s if the script can't process them (fail open).
                 sb.AppendLine(@".starRatingValue, .starRatingContainer { color: #46d369 !important; font-weight: 700 !important; }
-.starIcon { display: none !important; }
+/* Jellyfin 12.0 renders the star as an MUI <StarIcon> with no .starIcon class,
+   so the 10.11 selector alone leaves a blue star beside the match score. */
+.starIcon, .starRatingContainer .MuiSvgIcon-root { display: none !important; }
 .starRatingValue:not([data-ct-match]), .starRatingContainer:not([data-ct-match]) { visibility: hidden; animation: nfMatchReveal 0s 2.5s forwards; }
 @keyframes nfMatchReveal { to { visibility: visible; } }");
             }
@@ -699,7 +797,11 @@ namespace Jellyfin.Plugin.CustomTheme
 
             // Detail page polish (always on — lightweight). Covers series: seasons + episode list.
             sb.AppendLine(@".detailPagePrimaryContent .sectionTitle { font-size: var(--nf-t-row) !important; font-weight: 700 !important; }
-#castContent .card, .peopleCards .card { --card-radius: 50%; }
+/* --jf-card-borderRadius is substituted at computed-value time, so the :root
+   declaration resolves ONCE against the root --card-radius and inherits already
+   resolved. Re-emit it here or 12.0 would round the person card's .cardPadder
+   and blurhash canvas to the page radius while the image goes fully circular. */
+#castContent .card, .peopleCards .card { --card-radius: 50%; --jf-card-borderRadius: 50%; }
 /* Episode list rows — same 4px shape and hover tint as the base sheet */
 .listItem { border-radius: 4px !important; padding: 10px 12px !important; transition: background 0.2s ease !important; }
 .listItem:hover { background: rgba(255,255,255,0.05) !important; }
@@ -825,6 +927,28 @@ namespace Jellyfin.Plugin.CustomTheme
 
             var c = letter[0];
             return char.IsLetterOrDigit(c) ? c.ToString() : "N";
+        }
+
+        /// <summary>Returns "R G B" (space-separated channels) for a #RRGGBB colour, or
+        /// <c>null</c> when the input is not one. MUI composes every hover tint, ripple and
+        /// focus wash as <c>rgba(var(--jf-palette-X-mainChannel) / &lt;alpha&gt;)</c>, so the
+        /// channel form has to be supplied alongside the colour or those surfaces keep the
+        /// stock blue even after the main colour is overridden.</summary>
+        private static string? Channels(string hex)
+        {
+            if (string.IsNullOrEmpty(hex) || hex.Length != 7 || hex[0] != '#')
+            {
+                return null;
+            }
+
+            if (!int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
+                !int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
+                !int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+            {
+                return null;
+            }
+
+            return string.Create(CultureInfo.InvariantCulture, $"{r} {g} {b}");
         }
 
         /// <summary>Returns the value when it is a safe CSS colour (hex, named, or a plain

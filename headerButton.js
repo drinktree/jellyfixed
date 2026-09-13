@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '2.5.77';
+    var NF_JS_VERSION = '3.0.0';
 
     // ---- Keyboard-focus state (html.nf-kb) ----
     // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
@@ -231,6 +231,48 @@
                 nfRowNav(sec, strip, strip);
             });
         } catch (e) {}
+    }
+
+    // ---- Jellyfin 12.0 "Modern" layout ----
+    // 12.0 made the Modern layout the default for every non-TV client. The legacy
+    // .skinHeader still exists there — libraryMenu still builds .headerLeft /
+    // .headerRight inside it, and this script still injects the logo, nav tabs and
+    // settings button successfully — but its wrapper carries an inline
+    // `display: none`, so none of it is ever painted. The real chrome is a MUI
+    // AppBar. Everything below keys on the RENDERED DOM rather than on a layout
+    // setting, because:
+    //   * html.layout-desktop / .layout-mobile are set in BOTH layouts (Modern
+    //     re-adds them), so the root classes cannot discriminate;
+    //   * the `layout` app setting is only ever persisted from the Display
+    //     preferences save path, so on a default install the key is absent;
+    //   * this script runs inline before </body>, before layoutManager has run at all.
+    //
+    // offsetParent is NOT usable as the visibility probe: .skinHeader is
+    // position:fixed in stock and in this theme, and offsetParent is null for any
+    // fixed element — the test would report "hidden" in every layout. getClientRects()
+    // is empty inside a display:none ancestor and non-empty for a visible fixed bar.
+    // getComputedStyle is no good either: a child of a display:none parent still
+    // computes its own display normally.
+    function nfLegacyHeader() {
+        var h = document.querySelector('.skinHeader:not(.osdHeader)') || document.querySelector('.skinHeader');
+        if (!h || h.classList.contains('osdHeader')) return null;
+        return h.getClientRects().length > 0 ? h : null;
+    }
+
+    // True on the 12.0 dashboard, where the branding CustomCss carrying this
+    // theme is not mounted at all — so nothing injected there can be styled.
+    function nfIsDashboard() {
+        return document.body && document.body.classList.contains('dashboardDocument');
+    }
+
+    // The Modern toolbar, or null. Deliberately excludes the dashboard (same bar,
+    // no theme CSS) and the /video route (AppToolbar renders null there, so the
+    // AppBar is empty over the player).
+    function nfModernToolbar() {
+        if (nfIsDashboard()) return null;
+        var bar = document.querySelector('header.MuiAppBar-root');
+        if (!bar) return null;
+        return bar.querySelector('.MuiToolbar-root');
     }
 
     // "Cheap mode" — touch/low-power WebViews (phone/tablet/TV layout) and metered /
@@ -596,9 +638,24 @@
 
     function addButton() {
         if (!nfAdminState.admin) return;
-        if (document.querySelector('.ct-settings-btn')) return;
-        var hr = document.querySelector('.headerRight');
-        if (!hr) return;
+
+        // The legacy header is the preferred home, but on Jellyfin 12.0's Modern
+        // layout it is inside a display:none wrapper — where .headerRight still
+        // RESOLVES, so the old code inserted the button, saw it on the next pass and
+        // concluded it had succeeded. The admin then had no in-app way to open the
+        // drawer at all, which is also the only place the version readout lives.
+        // So: only treat an existing button as "done" if it is in the container we
+        // would put it in now, and re-home it otherwise.
+        var legacy = nfLegacyHeader();
+        var host = legacy ? legacy.querySelector('.headerRight') : nfModernToolbar();
+        if (!host) return;
+
+        var existing = document.querySelector('.ct-settings-btn');
+        if (existing) {
+            if (host.contains(existing)) return;
+            existing.remove();
+        }
+
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'ct-settings-btn headerButton headerButtonRight';
@@ -606,9 +663,22 @@
         btn.setAttribute('aria-label', nfL().themeSettings);
         btn.innerHTML = '<span class="material-icons" style="font-size:24px" aria-hidden="true">palette</span>';
         btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePanel(); });
-        var userBtn = hr.querySelector('.headerUserButton');
-        if (userBtn) hr.insertBefore(btn, userBtn);
-        else hr.appendChild(btn);
+
+        if (legacy) {
+            var userBtn = host.querySelector('.headerUserButton');
+            if (userBtn) host.insertBefore(btn, userBtn);
+            else host.appendChild(btn);
+            return;
+        }
+
+        // Modern: the toolbar's last child is the user-menu Box (or, on a public
+        // path, the buttons Box) — both are safe insertion points, and sitting
+        // before the avatar matches where the button lives in the legacy header.
+        // MUI's utility classes carry no CSS of their own, so the button is styled
+        // by the theme's own .ct-settings-btn rules, not by borrowing MuiIconButton.
+        var last = host.lastElementChild;
+        if (last) host.insertBefore(btn, last);
+        else host.appendChild(btn);
     }
 
     function ctPanelKeydown(e) {
@@ -707,6 +777,50 @@
         body.querySelector('.ct-save-btn').addEventListener('click', function () { saveConfig(panel, config); });
     }
 
+    // Jellyfin 12.0 persists its react-query cache to IndexedDB (idb-keyval:
+    // database "keyval-store", store "keyval", key "jellyfin-query-cache") with a
+    // 24-hour gcTime and a 60-second staleTime, and nothing filters what goes in.
+    // The BrandingOptions response is in there — and that response carries this
+    // plugin's ENTIRE generated stylesheet, ~210 KB of it. So after a settings save
+    // the next load re-renders the OLD CSS from that snapshot: within 60s react-query
+    // does not even refetch, and past it the stale sheet paints first. The theme's own
+    // version readout reports the previous version too, which makes the project's
+    // first diagnostic ("check the version in the drawer") say the release never
+    // arrived. The cache buster is the WEB CLIENT build id, which a plugin update
+    // never changes, so waiting it out is not an option either.
+    //
+    // Drop the entry before reloading. Always calls back, including when IndexedDB
+    // is unavailable, blocked by another tab, or absent entirely (10.11).
+    function nfEvictQueryCache(done) {
+        var finished = false;
+        function finish() {
+            if (finished) return;
+            finished = true;
+            done();
+        }
+        // A blocked upgrade or a hung transaction must never strand the save.
+        setTimeout(finish, 1500);
+        try {
+            if (!window.indexedDB) { finish(); return; }
+            var req = indexedDB.open('keyval-store');
+            req.onerror = finish;
+            req.onblocked = finish;
+            req.onsuccess = function () {
+                var db = req.result;
+                try {
+                    if (!db.objectStoreNames.contains('keyval')) { db.close(); finish(); return; }
+                    var tx = db.transaction('keyval', 'readwrite');
+                    tx.objectStore('keyval')['delete']('jellyfin-query-cache');
+                    tx.oncomplete = function () { db.close(); finish(); };
+                    tx.onerror = function () { db.close(); finish(); };
+                    tx.onabort = function () { db.close(); finish(); };
+                } catch (e) { try { db.close(); } catch (e2) {} finish(); }
+            };
+            // An upgrade would create an empty store — nothing to evict.
+            req.onupgradeneeded = function () { try { req.transaction.abort(); } catch (e) {} finish(); };
+        } catch (e) { finish(); }
+    }
+
     function saveConfig(panel, config) {
         panel.querySelectorAll('[data-key]').forEach(function (el) {
             var key = el.dataset.key;
@@ -722,7 +836,9 @@
         ApiClient.updatePluginConfiguration(PLUGIN_ID, config).then(function () {
             status.textContent = '✓ Saved — reloading…';
             status.style.color = '#46d369';
-            setTimeout(function () { location.reload(); }, 1200);
+            setTimeout(function () {
+                nfEvictQueryCache(function () { location.reload(); });
+            }, 1200);
         }).catch(function (err) {
             status.textContent = 'Error: ' + err;
             status.style.color = '#E50914';
@@ -1907,9 +2023,14 @@
     // the h264 copy-remux only for sources it can't (e.g. HEVC/MKV on desktops).
     var NF_TPS = 10000000; // Jellyfin ticks per second (ticks are 100ns units)
     function nfVideoUrl(playId, path, query, msId) {
+        // ApiKey, not api_key: Jellyfin 12.0 disables legacy authorization by
+        // default (and migrates existing installs to disable it too), and the
+        // lower-case form is part of it — verified live, an authenticated request
+        // carrying api_key= answers 401 on 12.0 and 200 on 10.11, while ApiKey=
+        // answers 200 on both. The trickplay prefetch already uses this spelling.
         return ApiClient.serverAddress() + '/Videos/' + playId + path + '?' + query
             + (msId ? '&mediaSourceId=' + msId : '')
-            + '&api_key=' + ApiClient.accessToken();
+            + '&ApiKey=' + ApiClient.accessToken();
     }
     function nfTransUrl(playId, msId, startTicks) {
         return nfVideoUrl(playId, '/stream.mp4',
@@ -2764,7 +2885,17 @@
     var nfHdrScrollEl = null;
     var nfHdrScrollHash = null;
     function syncHeaderScrolled(hdr, force) {
-        var h = hdr || document.querySelector('.skinHeader');
+        // nfLegacyHeader(), not a bare .skinHeader query: on Jellyfin 12.0's Modern
+        // layout the legacy bar is display:none (so toggling .nf-scrolled on it is a
+        // no-op that still costs a pageYOffset layout flush on every scroll frame),
+        // and the Modern video page puts `skinHeader ... osdHeader` on the player's
+        // OSD bar, which must never receive the browse-header scroll treatment.
+        // The Modern app bar needs no help here: it swaps MuiAppBar-colorTransparent
+        // for MuiAppBar-colorDefault on the first scroll pixel by itself, and the
+        // stylesheet paints both states.
+        var h = hdr && hdr.getClientRects && hdr.getClientRects().length > 0 && !hdr.classList.contains('osdHeader')
+            ? hdr
+            : nfLegacyHeader();
         if (!h) { nfHdrScrollEl = null; nfHdrScrollHash = null; return; }
         // Re-sync on NAVIGATION as well as on a new header element. Jellyfin keeps ONE
         // persistent .skinHeader across routes, so the element-identity guard below
@@ -2788,6 +2919,11 @@
     }
     function setupHeaderScroll() {
         if (window.__nfHeaderScroll) return;
+        // Nothing to drive on Modern — the MUI app bar swaps its own colour class on
+        // scroll. Not flagged as installed, so it still arms if a legacy header shows
+        // up later; without the guard a permanent scroll listener would run a rAF per
+        // frame for a class nobody can see.
+        if (!nfLegacyHeader()) return;
         window.__nfHeaderScroll = true;
         var ticking = false;
         window.addEventListener('scroll', function () {
@@ -2959,6 +3095,13 @@
         // this one ran on every mutation frame including during playback.
         // All four signals are unchanged, and .videoPlayerContainer (the universal
         // one) is still checked first.
+        // Deliberately the FIRST .skinHeader in document order, hidden or not: on
+        // Modern, RootAppLayout renders the legacy header before the router outlet,
+        // so this resolves to the hidden legacy bar — which is exactly the element
+        // jellyfin's own video controller stamps .osdHeader onto (it queries the same
+        // way), so the fourth playback signal below keeps working there. The VISIBLE
+        // OSD bar on Modern is a different element that also carries .skinHeader;
+        // anything that needs the browse header must go through nfLegacyHeader().
         var nfHdr = document.querySelector('.skinHeader');
         var nfOsd = document.getElementById('videoOsdPage');
         var playing = document.documentElement.classList.contains('transparentDocument')
@@ -2966,6 +3109,13 @@
             || !!(nfOsd && !nfOsd.classList.contains('hide'))
             || !!(nfHdr && nfHdr.classList.contains('osdHeader'));
         document.documentElement.classList.toggle('nf-playing', playing);
+        // html.nf-modern gates the whole Modern-chrome block in the stylesheet. A
+        // plain class on purpose: :has() is unsupported on Jellyfin Media Player's
+        // QtWebEngine, where an unsupported :has() drops the entire rule — so it is
+        // only ever a standalone backstop here, never the only gate for something
+        // load-bearing. Re-evaluated every pass because the AppBar is absent in the
+        // legacy layout and present-but-dashboard on /dashboard routes.
+        document.documentElement.classList.toggle('nf-modern', !nfLegacyHeader() && !!nfModernToolbar());
         // EDGE-triggered teardown. Everything else here is an entry guard, which only
         // stops the NEXT clip — an in-flight one kept decoding and streaming under the
         // player for up to 30s. .videoPlayerContainer being inserted is itself a body
