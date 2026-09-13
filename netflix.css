@@ -2898,6 +2898,20 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
 .ct-rating-plate.show { opacity: 1; transform: none; }
 .ct-rating-value { font-size: 2.1rem; font-weight: var(--nf-w-bold); line-height: 1.1; }
 @media (prefers-reduced-motion: reduce) { .ct-rating-plate { transition: none; } }
+/* `inset-inline-start` is Chromium 87. Jellyfin Media Player is QtWebEngine 5.15
+   = Chromium 83, where the declaration is dropped at parse time, the used `left`
+   falls back to `auto`, and the plate lands flush at x=0 with its white bar
+   clipped by the viewport edge — correct in a desktop browser, wrong on the one
+   client this theme cares most about. Physical fallback behind @supports so
+   modern engines never see it and keep the logical property for RTL. */
+@supports not (inset-inline-start: 0) {
+    /* `border-inline-start` has the same Chromium 87 baseline, so on the same
+       engines the plate's white bar — the thing that makes it read as Netflix's
+       rating card rather than floating text — is dropped too. Both physical
+       fallbacks live here together. */
+    .ct-rating-plate { left: 6%; border-left: 4px solid #fff; }
+    [dir="rtl"] .ct-rating-plate { left: auto; right: 6%; border-left: 0; border-right: 4px solid #fff; }
+}
 
 /* Audio / subtitle pickers DURING PLAYBACK only — html.transparentDocument is
    set by the client while the player is up, so app-wide menus keep their look. */
@@ -4257,6 +4271,64 @@ html.nf-modern .skinHeader.osdHeader {
     height: auto !important;
     z-index: auto !important;
     contain: none !important;
+}
+/* …but `height: auto` was too blunt. It collapses stock's 7.5em top scrim onto
+   the 48px dense Toolbar, so the soft vignette the title and back arrow float in
+   becomes a hard 48px band across the top of the picture. Give the box stock's
+   own height back — and with it stock's own `pointer-events: none`, which the
+   MUI `sx` on that element overrides to `unset !important`: without that, a
+   112px-tall box turns the top of the video into an invisible click-blocker.
+   The Toolbar takes the events back, exactly as `.osdHeader .headerTop
+   { pointer-events: all }` does for the legacy header. Scoped to .MuiBox-root so
+   the LEGACY .skinHeader — which also picks up .osdHeader from the video
+   controller — can never match; (0,4,1) beats the (0,2,1) block above. */
+html.nf-modern .skinHeader.osdHeader.MuiBox-root {
+    height: 7.5em !important;
+    pointer-events: none !important;
+}
+html.nf-modern .skinHeader.osdHeader.MuiBox-root .MuiToolbar-root {
+    pointer-events: auto !important;
+}
+
+/* ONE rail in the player. On Modern the OSD top bar is its own element with its
+   own 1em gutter (`.videoOsd-appBar`, styles/videoosd.scss) while the control row
+   sits at 2.4em — so the back arrow hung 22px left of the transport buttons and
+   the cast icons hung 26px right of Fullscreen. Both ends move to --nf-gutter,
+   the same 4% rail the rows, billboard and detail page hang off. Longhands, not
+   the `padding` shorthand: the >=769px block later in this sheet supplies
+   `padding-bottom: 0.5em` on .osdControls and that has to survive. */
+html.nf-modern .skinHeader.osdHeader .videoOsd-appBar {
+    padding-left: var(--nf-gutter) !important;
+    padding-right: var(--nf-gutter) !important;
+}
+html.nf-modern .videoOsdBottom .osdControls {
+    padding-left: var(--nf-gutter) !important;
+    padding-right: var(--nf-gutter) !important;
+}
+
+/* The volume slider inherited the seek bar's red fill, so the control row showed
+   TWO red progress bars and the eye read volume as a second timeline. Netflix
+   reserves red in the player for the one thing it means — position. Scoped to the
+   volume container so the seek bar and every other slider keep the accent. The
+   two vendor thumb pseudos stay in SEPARATE rules: one unrecognised vendor pseudo
+   invalidates a whole selector list. */
+.videoOsdBottom .osdVolumeSliderContainer .mdl-slider-background-lower {
+    background-color: rgba(255,255,255,0.9) !important;
+}
+.videoOsdBottom .osdVolumeSliderContainer .mdl-slider::-webkit-slider-thumb { background: #fff !important; }
+.videoOsdBottom .osdVolumeSliderContainer .mdl-slider::-moz-range-thumb { background: #fff !important; }
+
+/* "Ends at 10:44 PM" inherited #fff / 400 / 1em from .videoOsdBottom while the
+   clocks either side of the seek bar are already on the metadata tier — one
+   ancillary label shouting as loud as the transport glyphs is exactly the tier
+   collapse the four-tier ramp exists to prevent. Tabular figures so the clock
+   cannot jitter as the minute rolls. TEXT properties only, on a CHILD of
+   .videoOsdBottom: gotcha P untouched. */
+.videoOsdBottom .osdTimeText {
+    color: var(--nf-text-2) !important;
+    font-size: 0.9rem !important;
+    font-weight: var(--nf-w-med) !important;
+    font-variant-numeric: tabular-nums !important;
 }
 html.nf-modern .skinHeader.osdHeader .MuiTypography-root {
     font-family: var(--font-netflix) !important;
