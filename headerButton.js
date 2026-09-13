@@ -277,9 +277,20 @@
         return document.body && document.body.classList.contains('dashboardDocument');
     }
 
-    // The Modern toolbar, or null. Deliberately excludes the dashboard (same bar,
-    // no theme CSS) and the /video route (AppToolbar renders null there, so the
-    // AppBar is empty over the player).
+    // True when the visible chrome is the Modern MUI app bar. Keyed on the BAR, not
+    // its toolbar: on the /video route AppToolbar renders null, so the AppBar is
+    // present but empty — and that is exactly when html.nf-modern still has to be
+    // set, because the stylesheet uses it to scope the player's OSD header rules
+    // (in the legacy layout that same .skinHeader.osdHeader element is the real
+    // header and must keep its own geometry). Excludes the dashboard, where the
+    // branding CustomCss carrying this theme is not mounted at all.
+    function nfIsModernChrome() {
+        return !nfIsDashboard() && !!document.querySelector('header.MuiAppBar-root');
+    }
+
+    // The Modern toolbar to hang the settings button off, or null. Unlike
+    // nfIsModernChrome this DOES require the toolbar, so nothing is inserted into
+    // the empty AppBar the /video route leaves over the player.
     function nfModernToolbar() {
         if (nfIsDashboard()) return null;
         var bar = document.querySelector('header.MuiAppBar-root');
@@ -3146,7 +3157,7 @@
         // only ever a standalone backstop here, never the only gate for something
         // load-bearing. Re-evaluated every pass because the AppBar is absent in the
         // legacy layout and present-but-dashboard on /dashboard routes.
-        document.documentElement.classList.toggle('nf-modern', !nfLegacyHeader() && !!nfModernToolbar());
+        document.documentElement.classList.toggle('nf-modern', !nfLegacyHeader() && nfIsModernChrome());
         // EDGE-triggered teardown. Everything else here is an entry guard, which only
         // stops the NEXT clip — an in-flight one kept decoding and streaming under the
         // player for up to 30s. .videoPlayerContainer being inserted is itself a body

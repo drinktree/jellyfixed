@@ -4154,15 +4154,17 @@ html.nf-modern.nf-hero-top header.MuiAppBar-root + div[aria-hidden="true"] {
    did not carry in 10.11. Every box-model rule in the HEADER block above now
    lands on the player's top bar: 68px around a 48px toolbar, position fixed over
    stock's absolute, z-index 10000 over everything. Hand it back its own
-   geometry. (0,2,0) beats the (0,1,0) block above without touching the legacy
-   header. Its title is an MUI Typography, not a .pageTitle. */
-.skinHeader.osdHeader {
+   geometry. SCOPED to html.nf-modern: in the legacy layout — on 10.11 and on
+   12.0 — `.skinHeader.osdHeader` IS the one real header, and the box-model rules
+   in the HEADER block are correct for it there. Its title is an MUI Typography,
+   not a .pageTitle. */
+html.nf-modern .skinHeader.osdHeader {
     position: absolute !important;
     height: auto !important;
     z-index: auto !important;
     contain: none !important;
 }
-.skinHeader.osdHeader .MuiTypography-root {
+html.nf-modern .skinHeader.osdHeader .MuiTypography-root {
     font-family: var(--font-netflix) !important;
     font-size: 1.05rem !important;
     font-weight: var(--nf-w-semi) !important;
