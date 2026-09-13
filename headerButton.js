@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.0.0';
+    var NF_JS_VERSION = '3.0.1';
 
     // ---- Keyboard-focus state (html.nf-kb) ----
     // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
