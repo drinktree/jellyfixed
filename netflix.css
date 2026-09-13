@@ -4358,4 +4358,121 @@ html.nf-modern .skinHeader.osdHeader .MuiTypography-root {
    keeps jellyfin's stock 7.5em exactly as on 10.11. */
 
 
+
+/* =============================================
+   JELLYFIN 12.0 — MODERN CHROME, NETFLIX VOICE
+   =============================================
+   From a rendered audit of the Modern app bar against the 10.11 reference.
+   Everything here sits AFTER the Modern block above on purpose: two of these
+   rules are exact specificity ties with rules up there and win on order. */
+
+/* ===== home-appbar-scrim (high) — The billboard's top scrim ends in a hard horizontal line at 48px ===== */
+/* The Modern AppBar is a 48px dense Toolbar, so the Netflix top scrim above
+   had only 48px of border box to fade in and ended in a visible horizontal
+   Mach band across the billboard (10.11's legacy header gave it 68px). Move
+   the scrim to a ::before that is free to be 140px tall, and drive it by
+   OPACITY so it cross-fades with the bar's own 0.4s background-color
+   transition instead of vanishing the instant OffsetAppBar swaps
+   colorTransparent -> colorDefault. Longhands (left/right/top), not `inset`:
+   the shorthand is Chromium 87+ and JMP's Chromium 83 lands on Modern too.
+   The :not() pair mirrors the nf-playing / transparentDocument carve-out at
+   netflix.css:4151 so nothing paints over the OSD. */
+html.nf-modern.nf-hero-top:not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root.MuiAppBar-colorTransparent {
+    background-image: none !important;
+}
+html.nf-modern.nf-hero-top:not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 140px;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    background-image: linear-gradient(to bottom, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.32) 45%, rgba(0,0,0,0) 100%);
+}
+html.nf-modern.nf-hero-top:not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root.MuiAppBar-colorTransparent::before {
+    opacity: 1;
+}
+
+/* ===== home-nav-icon-voice (high) — Top nav renders as MUI icon+label buttons, not Netflix's quiet text ===== */
+/* Netflix's top nav is TEXT ONLY, in the .nf-nav-tab voice. UserViewNav gives
+   every entry a MUI startIcon and MUI's own 13px/500/min-width:64px label
+   metrics; the theme's real .nf-nav-tab is stranded inside the display:none
+   legacy header, so restyle MUI's in place instead. `> .MuiToolbar-root:first-child`
+   is what singles out the app toolbar: on library routes the SECOND dense
+   Toolbar carries the identical class list, but it is not header's first
+   element child. iconSizeMedium only — the mark (ServerButton) and the active
+   cast button are size='large', and the overflow "More" caret is an endIcon. */
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-sizeMedium {
+    font-size: var(--nf-t-meta);
+    font-weight: var(--nf-w-reg);
+    color: var(--nf-text-2);
+    min-width: 0;
+    padding-top: 6px; padding-bottom: 6px;
+    padding-left: 0; padding-right: 0;
+    margin-top: 0; margin-bottom: 0; margin-left: 0; margin-right: 18px;
+    background-color: transparent;
+    transition: color 0.25s var(--nf-ease-fade);
+}
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-sizeMedium:hover {
+    color: var(--nf-text-3);
+    background-color: transparent;
+}
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child .MuiButton-startIcon.MuiButton-iconSizeMedium {
+    display: none;
+}
+/* Netflix's 25px rail between the mark and the first nav word. */
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-sizeLarge[href="#/"] {
+    margin-right: 25px;
+}
+
+/* ===== home-nav-active-red (high) — The current library tab in the nav paints red — label, icon and a red plate ===== */
+/* Red is reserved for FUNCTION. UserViewNav passes color='primary' to the
+   CURRENT nav entry and the theme maps --jf-palette-primary-main to the accent,
+   so the nav item for the library you are in — and the Favorites tab on /home —
+   renders as a red word with a red icon on a red plate. Netflix marks the
+   current entry in white at the nav weight and paints nothing behind it, the
+   way .nf-nav-tab.active (netflix.css:2578) already does on the legacy header.
+   This is an exact specificity TIE with the nav-voice rule above, so it must
+   stay AFTER it in the sheet. */
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-colorPrimary,
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-textPrimary {
+    color: var(--text-main);
+    font-weight: var(--nf-w-med);
+}
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-colorPrimary:hover {
+    color: var(--text-main);
+    background-color: transparent;
+}
+
+/* ===== home-avatar-red-disc (medium) — The user avatar is a 40px solid red disc ===== */
+/* MUI's user-menu Avatar takes its fill from the 12.0 palette, which the theme
+   maps to the accent — a 40px solid red disc in the corner, the brightest thing
+   on the billboard, where 10.11 had a plain glyph. Netflix's profile chip is a
+   small NEUTRAL rounded square; --r-art is the sheet's boxart radius and
+   --nf-surface-hi its raised-surface grey, so this also covers the case where a
+   user has a real profile image (the radius still applies, the fill is hidden). */
+html.nf-modern header.MuiAppBar-root .MuiAvatar-root {
+    width: 32px; height: 32px;
+    border-radius: var(--r-art);
+    background-color: var(--nf-surface-hi);
+    color: var(--nf-text-2);
+    font-size: 1rem;
+}
+
+/* ===== home-mobile-logo-order (low) — On phones the N mark sits after the hamburger instead of leading the rail ===== */
+/* Below md, 12.0 renders no home Button and headerButton.js injects the theme's
+   own mark AFTER the drawer button, so the phone rail opens on a hamburger.
+   10.11 and Netflix both lead with the mark. The element is the theme's own, is
+   only ever injected into the Modern toolbar, and the Toolbar is a plain flex
+   row, so one `order` is the whole fix. Same (0,3,2) as netflix.css:4217, so
+   this must sit AFTER that rule — or be folded into it. */
+html.nf-modern header.MuiAppBar-root .nf-logo-modern {
+    order: -1;
+    margin-left: 0;
+    margin-right: 12px;
+}
+
+
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */
