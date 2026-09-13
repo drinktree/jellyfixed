@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.0.2';
+    var NF_JS_VERSION = '3.0.3';
 
     // ---- Keyboard-focus state (html.nf-kb) ----
     // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
@@ -205,6 +205,99 @@
             var m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
             if (!m || !m[1] || m[1] === 'none') return;
             nfSampleAmbient(m[1]);
+        } catch (e) {}
+    }
+
+    // ---- NARROW-VIEWPORT DETAIL BACKDROP ------------------------------------
+    // jellyfin-web leaves a gap on the detail page. renderBackdrop() raises the
+    // fixed app backdrop only when `!layoutManager.mobile && innerWidth >= 1000`
+    // (apps/legacy/controllers/itemDetails/index.js:517), and the in-flow 40vh
+    // banner is filled by renderHeaderBackdrop() only `if (layoutManager.mobile)`
+    // (:566). A DESKTOP layout in a window under 1000px — a half-screen browser,
+    // a small Jellyfin Media Player window, a tablet that does not claim a mobile
+    // user agent — matches NEITHER: .backgroundContainer never gains .withBackdrop
+    // and #itemBackdrop keeps its height with nothing in it. That height is not
+    // ours to collapse; librarybrowser.scss:953 re-asserts `40vh` for exactly
+    // `.layout-desktop` under `max-width: 62.5em`, so stock deliberately reserves
+    // the band and then leaves it empty. Netflix shows the artwork at every width,
+    // so fill the band in that one gap and leave both stock paths alone.
+    function setupNarrowBackdrop() {
+        try {
+            // Off a detail page the class has to COME OFF, not just stop being
+            // added: applyDynamic re-runs on every route, and leaving it stamped
+            // after navigating away is stale state on the documentElement that a
+            // later rule would silently inherit.
+            if (!/#\/details/i.test(location.hash)) {
+                document.documentElement.classList.remove('nf-inflow-backdrop');
+                return;
+            }
+            var el = document.getElementById('itemBackdrop');
+            if (!el) { document.documentElement.classList.remove('nf-inflow-backdrop'); return; }
+            // The >=1000px path is live. Nothing to do — and if a resize brought it
+            // up over a band WE filled, take ours back down: jellyfin re-runs
+            // renderBackdrop() on resize, so both layers would otherwise show the
+            // same art at two different scales.
+            if (document.querySelector('.backgroundContainer.withBackdrop')) {
+                if (el.getAttribute('data-nf-bd')) {
+                    el.removeAttribute('data-nf-bd');
+                    el.style.backgroundImage = '';
+                    el.style.backgroundAttachment = '';
+                    el.style.backgroundPosition = '';
+                }
+                document.documentElement.classList.remove('nf-inflow-backdrop');
+                return;
+            }
+            // The layout-mobile path is live: stock's imageLoader already put the
+            // art here inline. Claim nothing, just stamp the class so the seam
+            // dissolve below applies on engines without :has().
+            var id = (location.hash.match(/[?&]id=([a-f0-9]+)/i) || [])[1];
+            if (!id) return;
+            if (el.style.backgroundImage && !el.getAttribute('data-nf-bd')) {
+                document.documentElement.classList.add('nf-inflow-backdrop');
+                return;
+            }
+            // Guard by ITEM ID rather than a boolean: in-app forward navigation
+            // (pushState) never fires hashchange and this element is reused, so a
+            // boolean would paint the first film's art behind every later one.
+            // Set BEFORE the async hop — applyDynamic runs on every mutation frame
+            // and would otherwise launch a request per frame until the first lands.
+            if (el.getAttribute('data-nf-bd') === id) return;
+            if (typeof ApiClient === 'undefined' || !ApiClient.getItem || !ApiClient.getCurrentUserId || !ApiClient.getScaledImageUrl) return;
+            var uid = ApiClient.getCurrentUserId();
+            if (!uid) return;
+            el.setAttribute('data-nf-bd', id);
+            ApiClient.getItem(uid, id).then(function (item) {
+                // Mirrors getItemBackdropImageUrl (utils/jellyfin-apiclient/backdropImage.ts):
+                // the item's own backdrop, else the parent's (how an episode or a
+                // season borrows the series art), else the primary image.
+                var w = nfW(window.innerWidth || 1000);
+                var url = '';
+                if (item.BackdropImageTags && item.BackdropImageTags.length) {
+                    url = ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', index: 0, tag: item.BackdropImageTags[0], maxWidth: w });
+                } else if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length) {
+                    url = ApiClient.getScaledImageUrl(item.ParentBackdropItemId, { type: 'Backdrop', index: 0, tag: item.ParentBackdropImageTags[0], maxWidth: w });
+                } else if (item.ImageTags && item.ImageTags.Primary) {
+                    url = ApiClient.getScaledImageUrl(item.Id, { type: 'Primary', tag: item.ImageTags.Primary, maxWidth: w });
+                }
+                if (!url) { el.removeAttribute('data-nf-bd'); return; }
+                // Decode before painting, or the band flashes its empty colour and
+                // then snaps. Re-check the route on load: a slow image must not
+                // paint itself over whatever page the user has moved on to.
+                var pre = new Image();
+                pre.onload = function () {
+                    if (el.getAttribute('data-nf-bd') !== id) return;
+                    if (location.hash.indexOf(id) === -1) return;
+                    el.style.backgroundImage = 'url("' + url + '")';
+                    // Stock's own mobile treatment (librarybrowser.scss:576): a band
+                    // this short with `attachment: fixed` would window a
+                    // viewport-sized image and hold still while the page scrolls.
+                    el.style.backgroundAttachment = 'scroll';
+                    el.style.backgroundPosition = 'top center';
+                    document.documentElement.classList.add('nf-inflow-backdrop');
+                };
+                pre.onerror = function () { el.removeAttribute('data-nf-bd'); };
+                pre.src = url;
+            }, function () { el.removeAttribute('data-nf-bd'); });
         } catch (e) {}
     }
 
@@ -3205,6 +3298,15 @@
         // load-bearing. Re-evaluated every pass because the AppBar is absent in the
         // legacy layout and present-but-dashboard on /dashboard routes.
         document.documentElement.classList.toggle('nf-modern', !nfLegacyHeader() && nfIsModernChrome());
+        // Which surfaces have ARTWORK behind the app bar: the home billboard
+        // (html.nf-hero-top, stamped by setupHero) and the detail page. Netflix
+        // scrims the bar over a picture; over flat page colour a black gradient
+        // is a smear with nothing to protect, which is what Modern's unscrolled
+        // `colorTransparent` state gave every library, search and settings page.
+        // A plain class rather than :has(#itemDetailPage): an unsupported :has()
+        // drops the whole rule on Jellyfin Media Player's QtWebEngine, and the
+        // bar's colour is not something that may silently fall back.
+        document.documentElement.classList.toggle('nf-detail-page', /#\/details/i.test(location.hash));
         // EDGE-triggered teardown. Everything else here is an entry guard, which only
         // stops the NEXT clip — an in-flight one kept decoding and streaming under the
         // player for up to 30s. .videoPlayerContainer being inserted is itself a body
@@ -3254,6 +3356,7 @@
         setupRatingPlate();
         setupTopTen();
         setupMatchScore();
+        setupNarrowBackdrop();
         setupDetailClip();
         setupDetailAmbient();
         setupDetailRowNav();

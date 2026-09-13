@@ -390,10 +390,15 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
 /* ONE row-header voice everywhere: Netflix's row titles read bold #e5e5e5 at
    ~1.4vw, brightening to white on row hover (the nf-* rows share this scale). */
 .sectionTitle {
-    font-size: clamp(1.1rem, 1.4vw, 1.45rem) !important;
+    /* --nf-t-row, not a clamp() of its own: this rule and the token were two
+       hand-tuned versions of the same ramp (1.1/1.4vw/1.45 against
+       1.05/1.4vw/1.4), so a stock Jellyfin row header and one of this theme's
+       own nf-* rows sat a fraction of a step apart on the same screen. */
+    font-size: var(--nf-t-row) !important;
     font-weight: var(--nf-w-bold) !important;
+    letter-spacing: var(--nf-track-head) !important;
     margin-bottom: 0.4rem !important;
-    color: #e5e5e5 !important;
+    color: var(--nf-text-2) !important;
     font-family: var(--font-netflix) !important;
 }
 
@@ -570,6 +575,30 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
     padding: 2px !important;
 }
 
+/* 12.0 splits across two elements what 10.11 put on one: the check badge is now
+   `div.playedIndicator.indicator` wrapping `svg.MuiSvgIcon-root.indicatorIcon`,
+   so the compound rule above matches nothing on a React-rendered card and the
+   red count-badge pill lands on it instead — a 31x23 block of accent red in the
+   corner of every watched poster, the loudest thing on a page of artwork.
+   Netflix marks a finished title with a quiet glyph, never a colour block.
+   No `display` anywhere in here on purpose: an !important visible display at
+   (0,2,0) would outrank jellyfin's own `.hide`. `line-height: 0` collapses the
+   inline svg's baseline gap instead, which is what was making the box 31x23
+   rather than square. */
+.playedIndicator.indicator {
+    background-color: rgba(0,0,0,0.7) !important;
+    border-radius: 50% !important;
+    padding: 3px !important;
+    min-width: 0 !important;
+    line-height: 0 !important;
+}
+.playedIndicator.indicator .MuiSvgIcon-root.indicatorIcon {
+    /* MUI sizes its own svg off font-size, not width/height. */
+    font-size: 1rem !important;
+    color: #fff !important;
+    vertical-align: top !important;
+}
+
 /* Horizontal scroll — Netflix-style edge arrows.
    SCOPED to the home container only: globally forcing emby-scroller to
    overflow:visible breaks horizontal scrolling on detail/search/library pages
@@ -655,6 +684,29 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
 html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop::after {
     content: '';
     position: absolute; inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+        rgba(20,20,20,0) 55%, rgba(20,20,20,.06) 62%, rgba(20,20,20,.16) 69%,
+        rgba(20,20,20,.30) 76%, rgba(20,20,20,.52) 83%, rgba(20,20,20,.74) 90%,
+        rgba(20,20,20,.9) 96%, var(--bg-dark) 100%);
+}
+
+/* The same dissolve, reached WITHOUT :has(). headerButton.js stamps
+   html.nf-inflow-backdrop whenever the in-flow band is the only backdrop there
+   is — stock's layout-mobile path, or the narrow-desktop gap the script fills
+   itself — so the seam gets its fade on Jellyfin Media Player's QtWebEngine
+   too, where an unsupported :has() drops the rule above whole. Physical offsets
+   rather than `inset`, which is Chromium 87 and this rule exists for 83.
+
+   That gap: renderBackdrop() raises the fixed app backdrop only at
+   `!layoutManager.mobile && innerWidth >= 1000`, and renderHeaderBackdrop()
+   fills this band only `if (layoutManager.mobile)` — so a desktop layout under
+   1000px wide gets neither, and librarybrowser.scss:953 keeps the band at 40vh
+   for exactly that case. Stock reserves the space and paints nothing in it. */
+html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
     pointer-events: none;
     background: linear-gradient(180deg,
         rgba(20,20,20,0) 55%, rgba(20,20,20,.06) 62%, rgba(20,20,20,.16) 69%,
@@ -1258,8 +1310,14 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
     margin-bottom: 20px !important;
 }
 
-/* Tags, external links */
-.itemTags, .itemExternalLinks { font-size: var(--nf-t-meta) !important; }
+/* Tags, external links. The COLOUR is on the container as well as the links:
+   these blocks are label + separator + link ("Tags: a, b, c"), and the
+   separators were inheriting the detail column's brighter body copy — so the
+   punctuation between two links read louder than the links themselves. */
+.itemTags, .itemExternalLinks {
+    font-size: var(--nf-t-meta) !important;
+    color: var(--nf-text-3) !important;
+}
 .itemTags a, .itemExternalLinks a { color: var(--text-muted) !important; transition: color 0.2s ease !important; }
 .itemTags a:hover, .itemExternalLinks a:hover { color: var(--text-main) !important; }
 
@@ -1441,7 +1499,12 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 }
 
 .itemExternalLinks a {
-    color: rgba(255,255,255,0.6) !important; /* 0.4 failed WCAG AA contrast */
+    /* --nf-text-3 (#b3b3b3), not rgba(255,255,255,0.6): the alpha form composites
+       to a different grey on artwork than on the page ground, and this block sits
+       on both. It is also the third rule in this sheet to set this colour — the
+       other two are the shared .itemTags/.itemExternalLinks pair above — so they
+       all now name the same tier of the ramp instead of three near-misses. */
+    color: var(--nf-text-3) !important;
     transition: color 0.2s ease !important;
 }
 
@@ -3884,8 +3947,19 @@ body { font-optical-sizing: auto; }
     /* Stock's 7.5em top padding is 105px with FontSize=small — less than the
        chrome above it, so the first grid row hid under the tab strip. Pin it to
        the real chrome height. :not(.homePage) because Jellyfin puts homePage and
-       libraryPage on the SAME element, and the hero needs its zero padding. */
-    html:not(.nf-home) .page.libraryPage:not(.homePage) { padding-top: calc(var(--nav-height) + 52px) !important; }
+       libraryPage on the SAME element, and the hero needs its zero padding.
+
+       :not(.nf-modern) because under 12.0's Modern layout there is no fixed
+       chrome for a page to clear: OffsetAppBar renders the bar PLUS a spacer
+       sibling whose height it keeps in sync, so the page is already pushed down
+       by exactly the chrome height (the same reasoning as the spacer note far
+       below, and as stock's own `.libraryPage:not(.itemDetailPage){padding-top:0}`
+       in AppOverrides.scss). Adding 108px on top of that spacer put a slab of
+       empty page colour under the app bar on every library page AND on the
+       detail page — where it landed directly above the backdrop band, which is
+       what it looked like: artwork that starts a third of the way down a black
+       screen. Modern's detail page wants stock's own `padding-top: 0`. */
+    html:not(.nf-home):not(.nf-modern) .page.libraryPage:not(.homePage) { padding-top: calc(var(--nav-height) + 52px) !important; }
 
     /* ---- Hero. Netflix's phone billboard carries NO carousel chrome, and the
        mute button is inert here anyway (nfCheapMode skips preview clips on
@@ -3968,7 +4042,10 @@ body { font-optical-sizing: auto; }
     :root { --nav-height: 52px; }
     .headerTabs.sectionTabs { height: 36px !important; }
     .headerTabs .emby-tab-button { padding: 5px 10px !important; font-size: 0.8rem !important; }
-    .libraryPage { padding-top: 5.6em !important; }
+    /* :not(.nf-modern) for the same reason as the 768px block above — under
+       Modern the app bar's measured spacer already provides the offset, and
+       this would be added on top of it. */
+    html:not(.nf-modern) .libraryPage { padding-top: 5.6em !important; }
 
     .nf-hero { height: 82vh !important; min-height: 0 !important; }
     .nf-hero-content { padding-bottom: 5vh !important; max-width: 92% !important; }
@@ -4157,6 +4234,21 @@ html.nf-modern header.MuiAppBar-root {
 html.nf-modern header.MuiAppBar-root.MuiAppBar-colorTransparent {
     background-color: transparent !important;
     background-image: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 40%, transparent 100%) !important;
+}
+
+/* …but only where there is a PICTURE to protect. OffsetAppBar sets
+   colorTransparent on every route while the page is at scrollTop 0, so the
+   scrim above was also painting on the library grids, search and settings —
+   a 0.75-black gradient over flat --bg-dark, which reads as a dark smear
+   hanging off the top of a page that has no artwork at all. Artwork lives on
+   exactly two surfaces: the home billboard (html.nf-hero-top) and the detail
+   page (html.nf-detail-page, stamped in applyDynamic). Everywhere else the bar
+   is simply solid, which is what Netflix does on its own browse pages.
+   The playing states are excluded so this never outranks the OSD carve-out
+   below, which it would otherwise beat at (0,7,2) vs (0,3,2). */
+html.nf-modern:not(.nf-hero-top):not(.nf-detail-page):not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root.MuiAppBar-colorTransparent {
+    background-color: var(--bg-dark) !important;
+    background-image: none !important;
 }
 
 /* The bar's HEIGHT is deliberately left to MUI. Netflix's own bar is nearer this
@@ -4564,19 +4656,31 @@ html.nf-modern .MuiDrawer-modal .MuiDrawer-paper {
 /* The magnifier is a flex SIBLING of the input, not a child of it
    (SearchFields.tsx), so the `inset-inline-start` above never applied — the span
    is statically positioned and an inset on a static box does nothing. Take it out
-   of flow and drop it into the 44px well the input already reserves. Physical
-   `left` rather than `inset-inline-start`: the inset-* logical properties are
-   Chromium 87+ and JMP's QtWebEngine 5.15 would drop the declaration and leave
+   of flow and drop it into the 44px well the input already reserves.
+   Anchor it to the BOTTOM of .searchFieldsInner, not to its middle: emby-input's
+   .inputContainer wraps an empty <label class="inputLabel"> whose line box makes
+   that wrapper 64px tall while the field is only its bottom 44px, so
+   `top: 50%` + `translateY(-50%)` centres the glyph on the WRAPPER and lands it
+   10px above the field's centre, riding the top border (worst at 420px). The
+   input's bottom edge is always flush with the wrapper's, so `bottom: 0` plus a
+   44px height/line-height — the field height declared at .searchfields-txtSearch
+   above — centres the glyph on the caret text and stays correct if the icon's
+   font-size changes.
+   Physical `left` rather than `inset-inline-start`: the inset-* logical properties
+   are Chromium 87+ and JMP's QtWebEngine 5.15 would drop the declaration and leave
    the icon outside the box again — same reason as the select chevron at line 965.
    RTL is handled by an explicit [dir="rtl"] pair rather than a logical property,
    which also flips the input's reserved padding. */
 .searchFields .searchFieldsInner { position: relative !important; }
 .searchFields .searchfields-icon {
     position: absolute !important;
-    top: 50% !important;
+    top: auto !important;
+    bottom: 0 !important;
     left: 14px !important;
     right: auto !important;
-    transform: translateY(-50%) !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    transform: none !important;
     margin: 0 !important;
     z-index: 1 !important;
     pointer-events: none !important;
@@ -4615,23 +4719,35 @@ html.nf-modern .MuiDrawer-paper .MuiListItemButton-root.Mui-selected {
 
 /* ===== P7 (medium) — Search results hang off their own rail — headers at 123px, cards at 113px, while the rest of the app sits at 64px ===== */
 /* The search page stacks three gutters. `.verticalSection` (line 381) already
-   carries the 4% rail; the nested `.sectionTitle.padded-left` then takes a SECOND
-   4% — resolved against the already-inset box, so 58.9px, not 64 — and the card
-   track takes stock's own 3.3% from emby-scroller.scss:8. Result: header at
-   123px, cards at 113px, everything else on the page at 64px. Move the rail off
-   the section and onto the two children that actually draw, so both resolve
-   their 4% against the full page width and land on the one rail. The percentage
-   must be re-stated on the children rather than zeroed on them, or the row would
-   lose its gutter entirely. */
-.searchResults .verticalSection {
+   carries the 4% rail; inside it the `.sectionTitle.padded-left` takes a SECOND
+   4% from the `.libraryPage .padded-left` re-add — and because it is a
+   percentage it resolves against the already-inset 1472px box, giving 58.9px,
+   so the header text lands at 122.9. Separately the card track takes stock's own
+   `max(3.3%, env(safe-area-inset-left))` from emby-scroller.scss:8 = 48.6px of
+   that same box, so cards land at 112.6. Three left edges on one page while the
+   app bar sits at 64.
+
+   Fix by DELETING the two nested gutters, not by re-homing the rail onto the
+   children: `.emby-scroller` is the scroll container (overflow-x: auto) and
+   Chromium drops a scroll container's END padding from its scrollable overflow,
+   so a gutter moved there survives on the start side and silently vanishes on
+   the end side — an overflowing row then runs flush off the window edge, under
+   the scroll buttons (measured: last card's right edge 1600.4 in a 1600px
+   window, against 1536 before). `.verticalSection`'s own `padding: 0 4%` is on a
+   non-scrolling box, where both sides hold; leave it as the single rail.
+   (0,3,0)+important beats the `.libraryPage .padded-left` re-add at (0,2,0), the
+   `.padded-left` reset at (0,1,0) and stock's `.emby-scroller` at (0,1,0).
+   Unscoped on purpose: `.searchResults` only ever exists on the search page, the
+   markup is identical in 10.11 and in 12.0's Legacy layout, and the empty state
+   is `.searchSuggestions` — a `.verticalSection` that is NOT inside
+   `.searchResults`, so it keeps its centred gutter untouched. */
+.searchResults .verticalSection .sectionTitle {
     padding-left: 0 !important;
     padding-right: 0 !important;
 }
-.searchResults .verticalSection .sectionTitle,
-.searchResults .verticalSection .emby-scroller,
-.searchResults .verticalSection > .itemsContainer {
-    padding-inline-start: var(--nf-gutter) !important;
-    padding-inline-end: var(--nf-gutter) !important;
+.searchResults .verticalSection .emby-scroller {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 
 /* ===== P4 (low) — Toolbar tooltips are stock MUI grey pills, and a handful of chrome components still render in Noto Sans ===== */
@@ -4711,29 +4827,274 @@ html.nf-modern .MuiTooltip-arrow::before {
 .itemMiscInfo .starRatingContainer[data-ct-match="1"],
 .itemMiscInfo .starRatingValue[data-ct-match="1"] { color: #46d369 !important; }
 
-/* ===== track-picker-wells (medium) — Track pickers smear the artwork — a white wash over the backdrop instead of a recessed field ===== */
-/* The read-only track pickers were filled with rgba(255,255,255,0.05) and
-   hairlined with rgba(255,255,255,0.1) (netflix.css:926/949). On 10.11 those sat
-   on the solid #101010 that theme.scss gives .detailPagePrimaryContainer, where a
-   white wash reads as a subtle lift. On 12.0 the artwork runs behind them, and a
-   white wash over a picture LIGHTENS it: two pale rectangles smeared across the
-   backdrop with --nf-text-4 values on top at ~1.3:1. Flip the sign — a dark
-   translucent fill recesses on artwork AND on solid, which is how Netflix builds
-   its own fields. Geometry, type and text colours are untouched, so the row
-   rhythm, the single box shape and the "--nf-text-4 = disabled only" rule of the
-   four-tier ramp all still hold. */
-.itemDetailPage .trackSelections .selectContainer .emby-select {
-    background: rgba(0,0,0,0.45) !important;
-    border-color: rgba(255,255,255,0.14) !important;
+/* NOT DONE, deliberately: a "recess the track pickers into the artwork" change
+   (dark translucent fill instead of the white wash at netflix.css:985) was
+   proposed and measured out. The ground behind those boxes is never brighter
+   than RGB 43 — the picker row sits at ~80% of viewport height, deep inside the
+   hero's bottom scrim, and at phone widths there is no artwork behind them at
+   all — so the value text already reads at 4.11:1, not the 1.3:1 the finding
+   claimed, and the flip moved at most 15 per channel inside two rectangles: two
+   frames indistinguishable at 1:1. It also inverted the hover: the enabled
+   picker rests DARKER than the page ground, so a darker hover made it recede
+   under the cursor (RGB 15.9 -> 11.2) where the white wash lifts it
+   (40.0 -> 49.1), against every other hover in this sheet. Left as it was. */
+
+/* =============================================
+   JELLYFIN 12.0 — LIBRARY PAGES & TYPE, NETFLIX VOICE
+   =============================================
+   From rendered audits of the Modern library toolbar and of type/colour across
+   the whole app, both against the 10.11 reference. The grid itself measured
+   correct on 12.0 (cards on the same 4% rail, uniform tile ladder); everything
+   here is the chrome ABOVE the grid, which was still stock Material. */
+
+/* ===== P1 — Modern menus arrive as Material grey, and the filter popover as a striped spreadsheet ===== */
+/* The surface itself (hairline, corner, elevation) is already specified once for
+   every MUI paper further up — this only fills in what that block does not say:
+   the Netflix surface colour, and the row metrics. MUI's own Paper nests a
+   second .MuiPaper-root inside the popover, which re-draws its own ground and
+   halo over ours. */
+html.nf-modern .MuiPopover-paper {
+    background-color: var(--nf-surface) !important;
 }
-.itemDetailPage .trackSelections .selectContainer .emby-select:hover {
-    background: rgba(0,0,0,0.62) !important;
-    border-color: rgba(255,255,255,0.3) !important;
+html.nf-modern .MuiPopover-paper .MuiPaper-root {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
 }
-.itemDetailPage .trackSelections .selectContainer .emby-select[disabled],
-.itemDetailPage .trackSelections .selectContainer .emby-select[disabled]:hover {
-    background: rgba(0,0,0,0.38) !important;
-    border-color: rgba(255,255,255,0.1) !important;
+html.nf-modern .MuiPopover-paper .MuiMenuItem-root,
+html.nf-modern .MuiPopover-paper .MuiAccordionSummary-root {
+    min-height: 36px !important;
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+    color: var(--nf-text-2) !important;
+    transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+/* The filter popover is a stack of MUI Accordions, not menu rows: each one draws
+   a 1px rule twice over (border-top AND ::before) and tints its header 5% white,
+   so the same list of choices arrived striped like a spreadsheet next to the
+   sort menu's clean rows. Flatten it and match the 36px row. */
+html.nf-modern .MuiPopover-paper .MuiAccordion-root {
+    border-top-color: transparent !important;
+}
+html.nf-modern .MuiPopover-paper .MuiAccordion-root::before {
+    background-color: transparent !important;
+}
+html.nf-modern .MuiPopover-paper .MuiAccordionSummary-root {
+    background-color: transparent !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+html.nf-modern .MuiPopover-paper .MuiAccordionSummary-content {
+    margin-top: 8px !important;
+    margin-bottom: 8px !important;
+    margin-left: 0 !important;
+}
+html.nf-modern .MuiPopover-paper .MuiListItemText-primary,
+html.nf-modern .MuiPopover-paper .MuiAccordionSummary-content .MuiTypography-root {
+    font-size: var(--nf-t-meta) !important;
+    font-weight: var(--nf-w-reg) !important;
+    color: inherit !important;
+}
+html.nf-modern .MuiPopover-paper .MuiMenuItem-root:hover,
+html.nf-modern .MuiPopover-paper .MuiAccordionSummary-root:hover {
+    background-color: var(--nf-surface-hi) !important;
+    color: var(--text-main) !important;
+}
+html.nf-modern .MuiPopover-paper .MuiDivider-root {
+    border-color: rgba(255,255,255,0.08) !important;
+}
+/* Active sort row: its direction arrow is the ONLY marker stock gives it, and it
+   is the same white as every inert row. Red = state. The icon slot AFTER the
+   label is unique to the sort menu (every other Modern menu puts it before). */
+html.nf-modern .MuiPopover-paper .MuiListItemText-root + .MuiListItemIcon-root .MuiSvgIcon-root {
+    color: var(--accent-red) !important;
+}
+
+/* ===== P2 — Play All / Shuffle are a 157px slab of saturated red ===== */
+/* Both arrive `containedPrimary`, so the --jf-palette-primary bridge paints them
+   the accent colour and the library toolbar becomes the loudest thing on a page
+   of artwork. Netflix's pair is a white primary and a ghost secondary — red is
+   reserved for the mark and for state, never for a button face. */
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-grouped {
+    border-color: transparent !important;
+    font-family: var(--font-netflix) !important;
+    font-size: var(--nf-t-meta) !important;
+    font-weight: var(--nf-w-bold) !important;
+    text-transform: none !important;
+    border-radius: var(--card-radius) !important;
+    box-shadow: none !important;
+    transition: background-color 0.2s ease !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-firstButton {
+    background-color: #fff !important;
+    color: #000 !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-firstButton:hover {
+    background-color: rgba(255,255,255,0.75) !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-lastButton {
+    background-color: var(--nf-surface-hi) !important;
+    color: var(--text-main) !important;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    margin-left: 2px !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-contained .MuiButtonGroup-lastButton:hover {
+    background-color: rgba(255,255,255,0.22) !important;
+}
+
+/* ===== P3 — Library title is 22px Light 300, indented off the rail, with a grey pill ===== */
+/* "Movies" is the same thing as a row header and should read in the same voice.
+   The item count arrives as a filled MUI Chip — a grey lozenge Netflix has no
+   equivalent for; it is metadata, so it goes to the metadata tier and loses the
+   pill. The title also sits inside a menu button whose default padding pushes it
+   ~11px off the 4% rail every other element on the page hangs from. */
+html.nf-modern header.MuiAppBar-root .MuiToolbar-root .MuiTypography-h2 {
+    font-size: var(--nf-t-row) !important;
+    font-weight: var(--nf-w-bold) !important;
+    color: var(--nf-text-2) !important;
+    letter-spacing: var(--nf-track-head) !important;
+}
+html.nf-modern header.MuiAppBar-root button[aria-controls="library-view-menu"] {
+    padding-left: 0 !important;
+    padding-right: 4px !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiChip-filled {
+    background-color: transparent !important;
+    height: auto !important;
+    color: var(--nf-text-3) !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiChip-filled .MuiChip-label {
+    font-size: var(--nf-t-meta) !important;
+    font-weight: var(--nf-w-reg) !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+}
+
+/* ===== P5 — Icon control groups are boxed by MUI's group dividers at full white ===== */
+/* Netflix's controls are bare glyphs on the four-tier ramp: resting metadata
+   grey, white on hover, --nf-text-4 only when actually disabled. */
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-text .MuiButtonGroup-grouped {
+    border-color: transparent !important;
+    color: var(--nf-text-3) !important;
+    transition: color 0.2s ease !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-text .MuiButtonGroup-grouped:hover {
+    color: var(--text-main) !important;
+    background-color: transparent !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiButtonGroup-text .MuiButtonGroup-grouped.Mui-disabled {
+    color: var(--nf-text-4) !important;
+}
+
+/* ===== P4 — The grid starts flush against the chrome ===== */
+html.nf-modern .itemsContainer.vertical-wrap.MuiBox-root {
+    padding-top: 28px !important;
+}
+
+/* ===== P6 — The A-Z rail is a #1B1B1B strip of pure-white letters on the edge ===== */
+/* Centre it in the 4% gutter instead of gluing it to the viewport edge: 20px is
+   the rail's own width, so half the remaining gutter on each side. */
+html.nf-modern .alphaPicker-fixed-right {
+    right: calc((var(--nf-gutter) - 20px) / 2) !important;
+}
+html.nf-modern .alphaPicker-fixed-right .MuiPaper-root {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root {
+    color: var(--nf-text-3) !important;
+    font-weight: var(--nf-w-reg) !important;
+    border-color: transparent !important;
+    transition: color 0.15s ease !important;
+}
+html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root:hover {
+    color: var(--text-main) !important;
+    background-color: transparent !important;
+}
+html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root.Mui-selected {
+    color: var(--accent-red) !important;
+    background-color: transparent !important;
+    font-weight: var(--nf-w-bold) !important;
+}
+
+/* ===== T1 — The resume progress bar is Jellyfin cyan on the React card path ===== */
+/* 12.0's React cards draw progress with MUI's LinearProgress instead of the
+   legacy .itemProgressBar this sheet already paints, so a half-watched tile in
+   any React-rendered row kept the stock accent. */
+.MuiLinearProgress-root.itemLinearProgress {
+    background-color: rgba(255,255,255,0.3) !important;
+    border-radius: 0 !important;
+    height: 3px !important;
+}
+.MuiLinearProgress-root.itemLinearProgress .MuiLinearProgress-bar {
+    background-color: var(--accent-red) !important;
+    border-radius: 0 !important;
+}
+
+/* ===== T2 — MUI heading variants render Light 300 ===== */
+/* Netflix has no light weight anywhere. MUI's h1-h3 default to 300, which is
+   what every Modern page heading outside the ones named individually above
+   inherits. */
+html.nf-modern .MuiTypography-h1,
+html.nf-modern .MuiTypography-h2,
+html.nf-modern .MuiTypography-h3 {
+    font-weight: var(--nf-w-bold) !important;
+    letter-spacing: var(--nf-track-head) !important;
+    color: var(--nf-text-2) !important;
+}
+
+/* ===== T3 — Jellyfin's brand colour survives in user settings ===== */
+.subtitleappearance-preview {
+    background-color: var(--nf-surface) !important;
+    background-image: linear-gradient(140deg, var(--nf-surface-hi), var(--nf-surface)) !important;
+}
+.listItemIcon:not(.listItemIcon-transparent) {
+    background-color: var(--nf-surface-hi) !important;
+    color: var(--nf-text-2) !important;
+}
+
+/* ===== T4 — The last MUI components still in Noto Sans ===== */
+/* The same list as the font-family block further up, extended with every
+   component 12.0 added. Named components rather than `*`: an !important
+   font-family on the universal selector would also capture .material-icons and
+   replace every glyph with a letter. */
+html.nf-modern .MuiToggleButton-root,
+html.nf-modern .MuiAvatar-root,
+html.nf-modern .MuiFormHelperText-root,
+html.nf-modern .MuiTableCell-root,
+html.nf-modern .MuiAlert-root,
+html.nf-modern .MuiPaginationItem-root,
+html.nf-modern .MuiBadge-badge,
+html.nf-modern .MuiSnackbarContent-root,
+html.nf-modern .MuiStepLabel-label,
+html.nf-modern .MuiSlider-valueLabel {
+    font-family: var(--font-netflix) !important;
+}
+
+/* ===== T7 — The profile page's own voice ===== */
+/* The user name is a bare `h2.username` with an inline `font-size: xx-large`
+   (userprofile.tsx), so it reaches none of the MUI heading rules above and lands
+   on the browser's default 400 — the one Light-ish heading left in the app.
+   The avatar is stock's white silhouette PNG on a transparent 200px circle, so
+   with no user image it floats as a cut-out on the page ground; Jellyfin's own
+   login screen and Netflix's profile picker both sit that silhouette in a disc. */
+.userPreferencesPage h2.username {
+    font-weight: var(--nf-w-bold) !important;
+    letter-spacing: var(--nf-track-head) !important;
+    color: var(--text-main) !important;
+}
+.imagePlaceHolder #image {
+    background-color: var(--nf-surface-hi) !important;
+}
+
+/* ===== T6b — Detail metadata separators read louder than the links they join ===== */
+.itemDetailsGroup .detailsGroupItem .focuscontainer-x,
+.itemDetailsGroup .detailsGroupItem .focuscontainer-x > span {
+    color: var(--nf-text-3) !important;
+    font-size: var(--nf-t-meta) !important;
 }
 
 
