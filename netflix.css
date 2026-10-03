@@ -5499,4 +5499,58 @@ html .itemDetailPage[data-nf-art="none"] .detailImageContainer .card:hover .card
     }
 }
 
+/* =============================================
+   v3.1.0 — LIBRARY PAGES
+   ============================================= */
+
+/* --- Missing artwork on the React cards ----------------------------------------
+   12.x's React card puts the placeholder colour on the WRAPPER —
+   `div.cardContent.defaultCardBackground.defaultCardBackgroundN` around a plain
+   `.cardImageContainer` — where the legacy card put it on the image container
+   itself. The neutral fill above only named the legacy shape, so a collection or
+   playlist with no artwork was still a saturated Jellyfin-teal block in a grid of
+   posters. Same surface, same quiet glyph. */
+.cardContent.defaultCardBackground {
+    background-color: var(--nf-surface-hi) !important;
+}
+.cardContent.defaultCardBackground .cardImageIcon,
+.cardContent.defaultCardBackground .material-icons {
+    color: rgba(255,255,255,0.45) !important;
+}
+
+/* --- "New Collection" / "New Playlist" -------------------------------------------
+   A lone `containedPrimary` button, so the palette bridge painted it the accent:
+   a block of red in the toolbar of a page whose only primary action is Play.
+   Creating a collection is a secondary action — it takes the same ghost face as
+   Shuffle beside Play All. :not() keeps the Play All group's own rules above in
+   charge of its buttons. */
+html.nf-modern header.MuiAppBar-root .MuiButton-containedPrimary:not(.MuiButtonGroup-grouped) {
+    background-color: var(--nf-surface-hi) !important;
+    color: var(--text-main) !important;
+    font-family: var(--font-netflix) !important;
+    font-size: var(--nf-t-meta) !important;
+    font-weight: var(--nf-w-bold) !important;
+    text-transform: none !important;
+    border-radius: var(--card-radius) !important;
+    box-shadow: none !important;
+    transition: background-color 0.2s ease !important;
+}
+html.nf-modern header.MuiAppBar-root .MuiButton-containedPrimary:not(.MuiButtonGroup-grouped):hover {
+    background-color: rgba(255,255,255,0.22) !important;
+}
+
+/* --- The A–Z rail on a phone ------------------------------------------------------
+   Jellyfin renders the rail on the sectioned tabs too (Genres), where nothing
+   reserves room for it: the grid gets `padded-right-withalphapicker`, the rows do
+   not. On a desktop the rail sits inside the 4% gutter and misses them; on a phone
+   the gutter is 16px and the rail 23, so its letters printed over the last tile of
+   every row. The rail is rendered before the content it belongs to, so a sibling
+   selector reaches the rows without :has(). */
+@media (max-width: 768px) {
+    .alphaPicker-fixed-right ~ .verticalSection,
+    .alphaPicker-fixed-right ~ * .verticalSection {
+        padding-right: 34px !important;
+    }
+}
+
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */
