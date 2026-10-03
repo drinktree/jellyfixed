@@ -29,6 +29,8 @@ The plugin also injects a small script that adds a **palette settings button** i
 - **Seasonal presets** — Default, Christmas, Halloween, Summer, Ocean (override the colour palette)
 - Color customization — accent, background, text, muted text, progress bar
 - Round cast/crew images, full-backdrop detail page, card hover zoom
+- **Sign-in as a profile gate** — the user picker is a "Who's watching?" screen and every sign-in form shares one card. Turn on Jellyfin's splash screen (*Dashboard → General*) and a collage of your library's posters sits behind it
+- Albums, artists, playlists and people get a cover header and a proper track list instead of an empty backdrop band
 - Toggle visibility of badges, watched marks, backdrop, description, tags, external links, similar titles
 - Toggle the detail-page circle buttons (watched, favorite, more)
 - Adjustable card rounding, card size & shape, gradient strength, title size, font size

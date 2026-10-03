@@ -5330,8 +5330,9 @@ html.layout-mobile.nf-inflow-backdrop .itemDetailPage .detailPagePrimaryContaine
    cover — the one picture these items do have — hidden. headerButton.js marks
    such a page data-nf-art="none"; the band goes, and Jellyfin's own poster card
    (already rendered, only hidden by this sheet) comes back beside the title.
-   The (0,4,1) on the container beats `.layout-mobile .hide-mobile`, which hides
-   this copy of the card on phones with an important display:none. */
+   The (0,5,1) on the container beats `.layout-mobile .hide-mobile`, which hides
+   this copy of the card on phones with an important display:none; `:not(.hide)`
+   leaves Jellyfin's own hide in charge (gotcha S). */
 .itemDetailPage[data-nf-art="none"] #itemBackdrop { display: none !important; }
 .itemDetailPage[data-nf-art="none"] .detailPageWrapperContainer {
     padding-top: 2.5rem !important;
@@ -5346,7 +5347,7 @@ html:not(.nf-modern) .itemDetailPage[data-nf-art="none"] .detailPageWrapperConta
     flex-wrap: wrap !important;
     align-items: flex-end !important;
 }
-html .itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer > .detailImageContainer {
+html .itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer > .detailImageContainer:not(.hide) {
     display: block !important;
     flex: 0 0 auto !important;
     width: 232px !important;
@@ -5389,12 +5390,52 @@ html .itemDetailPage[data-nf-art="none"] .detailImageContainer .card:hover .card
         flex-direction: column !important;
         align-items: flex-start !important;
     }
-    html .itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer > .detailImageContainer {
+    html .itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer > .detailImageContainer:not(.hide) {
         width: 46vw !important;
         max-width: 46vw !important;
         margin: 0 0 16px !important;
     }
     .itemDetailPage[data-nf-art="none"] .detailRibbon { flex: 0 0 auto !important; width: 100% !important; }
+}
+
+/* --- Music keeps Shuffle and Instant Mix ---------------------------------------
+   The button row hides Download, Trailer, Shuffle and Instant Mix on every title,
+   which is right for a film — Netflix's row is Play and a few round actions — and
+   wrong for an album or an artist, where shuffling IS the second action. Jellyfin
+   only un-hides Instant Mix on music, so its visibility is the "this is music"
+   signal, and Shuffle is its next sibling in the row: both come back there, in the
+   same ring as the other round buttons, and nowhere else.
+   :not(.hide) per gotcha S — Jellyfin's own hide must keep winning. */
+.mainDetailButtons .btnInstantMix:not(.hide),
+.mainDetailButtons .btnInstantMix:not(.hide) + .btnShuffle:not(.hide) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    border: var(--nf-ring) !important;
+    background-color: var(--nf-ring-fill) !important;
+    transition: border-color 0.2s ease, background-color 0.2s ease !important;
+}
+.mainDetailButtons .btnInstantMix:not(.hide):hover,
+.mainDetailButtons .btnInstantMix:not(.hide) + .btnShuffle:not(.hide):hover {
+    border-color: #fff !important;
+    background-color: rgba(255,255,255,0.1) !important;
+}
+.mainDetailButtons .btnInstantMix .detailButton-content,
+.mainDetailButtons .btnShuffle .detailButton-content { padding: 0 !important; }
+.mainDetailButtons .btnInstantMix .detailButton-text,
+.mainDetailButtons .btnShuffle .detailButton-text { display: none !important; }
+.mainDetailButtons .btnInstantMix .detailButton-icon,
+.mainDetailButtons .btnShuffle .detailButton-icon { font-size: 20px !important; color: #fff !important; }
+@media (max-width: 768px) {
+    .mainDetailButtons .btnInstantMix:not(.hide),
+    .mainDetailButtons .btnInstantMix:not(.hide) + .btnShuffle:not(.hide) {
+        width: 44px !important; height: 44px !important; min-width: 44px !important;
+    }
 }
 
 /* --- Lists that are not episodes ---------------------------------------------
@@ -5658,23 +5699,31 @@ html.nf-session .skinHeader {
 #selectServerPage .servers .cardScalable {
     border-radius: var(--card-radius) !important;
     overflow: hidden !important;
-    box-shadow: 0 0 0 0 rgba(229,229,229,0) !important;
-    transition: box-shadow 0.15s ease !important;
 }
 /* Hover and keyboard focus draw Netflix's white ring; the tile never zooms and never
-   opens a preview. The `html ` prefix out-ranks the zoom CssGenerator appends after
-   this sheet. Standalone :focus rule — these are <button>s, so it is the real
-   keyboard state, and :focus-visible is unknown to Chromium 83. */
+   opens a preview. The ring is a border on a pseudo-element INSIDE the tile: an
+   outer box-shadow or outline is clipped by the card's own overflow, and showed as
+   a sliver along one edge. Physical offsets — `inset` is Chromium 87. The `html `
+   prefix out-ranks the zoom CssGenerator appends after this sheet. Standalone
+   :focus rule — these are <button>s, so it is the real keyboard state, and
+   :focus-visible is unknown to Chromium 83. */
+#loginPage #divUsers .cardScalable::after,
+#selectServerPage .servers .cardScalable::after {
+    content: '';
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    border: 3px solid #e5e5e5;
+    border-radius: var(--card-radius);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+    z-index: 2;
+}
+#loginPage #divUsers .card:hover .cardScalable::after,
+#selectServerPage .servers .card:hover .cardScalable::after { opacity: 1; }
+#loginPage #divUsers .card:focus .cardScalable::after,
+#selectServerPage .servers .card:focus .cardScalable::after { opacity: 1; }
 html #loginPage #divUsers .card:hover .cardScalable,
-html #selectServerPage .servers .card:hover .cardScalable {
-    transform: none !important;
-    box-shadow: 0 0 0 3px #e5e5e5 !important;
-}
-html #loginPage #divUsers .card:focus .cardScalable,
-html #selectServerPage .servers .card:focus .cardScalable {
-    transform: none !important;
-    box-shadow: 0 0 0 3px #e5e5e5 !important;
-}
+html #selectServerPage .servers .card:hover .cardScalable { transform: none !important; }
 html #loginPage #divUsers .card:hover,
 html #selectServerPage .servers .card:hover { transform: none !important; box-shadow: none !important; }
 #loginPage #divUsers .cardFooter,
@@ -5705,7 +5754,7 @@ html #selectServerPage .servers .card:hover { transform: none !important; box-sh
    No `display` on the buttons: Jellyfin hides the ones that do not apply (Quick
    Connect, Change Server) with `.hide`, and as flex items they shrink to their
    label on their own. */
-#loginPage .readOnlyContent {
+#loginPage .readOnlyContent:not(.hide) {
     display: flex !important;
     flex-wrap: wrap !important;
     justify-content: center !important;
@@ -5848,6 +5897,20 @@ html #selectServerPage .servers .card:hover { transform: none !important; box-sh
         margin: 0 3vw 1.4em !important;
     }
     #loginPage .visualLoginForm h1 { font-size: 1.9rem !important; }
+}
+
+/* =============================================
+   v3.1.0 — QUEUE / NOW PLAYING
+   ============================================= */
+/* Modern zeroes every library page's top padding (the app bar keeps its own
+   spacer), and this page has no backdrop band of its own to absorb that — the
+   cover art sat hard against the bar. The cover takes the boxart corner and the
+   one elevation the theme uses for a lifted picture. */
+html.nf-modern .nowPlayingPage .remoteControlContent { padding-top: 1.75rem !important; }
+.nowPlayingPage .nowPlayingPageImageContainer img,
+.nowPlayingPage .nowPlayingPageImage {
+    border-radius: var(--card-radius) !important;
+    box-shadow: var(--e-3) !important;
 }
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */
