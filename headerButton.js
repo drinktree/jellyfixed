@@ -52,9 +52,9 @@
     // (detail play button, tooltips) are driven via custom properties below.
     var LOCALES = {
         en: { home: 'Home', play: 'Play', moreInfo: 'More Info', myList: 'My List', like: 'Like', cw: 'Continue Watching', season: 'Season', seasons: 'Seasons', sound: 'Toggle sound', pause: 'Pause', slide: 'Slide', themeSettings: 'Theme settings', scrollBack: 'Scroll left', scrollFwd: 'Scroll right', labelPlay: 'Play', labelResume: 'Resume', labelReplay: 'Replay', tipWatched: 'Watched', tipFavorite: 'Favorite', tipMore: 'More',
-             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'NEW', minLeft: '{0} min left', hourAbbr: '{0} h', minAbbr: '{0} min', removeRow: 'Remove from row', page: 'Page' },
+             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'Recently Added', minLeft: '{0} min left', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Remove from row', page: 'Page' },
         de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr',
-             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'NEU', minLeft: 'Noch {0} Min.', hourAbbr: '{0} Std.', minAbbr: '{0} Min.', removeRow: 'Aus Zeile entfernen', page: 'Seite' }
+             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'Neu hinzugefügt', minLeft: 'Noch {0} Min.', hourAbbr: '{0} Std.', minAbbr: '{0} Min.', removeRow: 'Aus Zeile entfernen', page: 'Seite' }
     };
     function nfL() {
         var l = (document.documentElement.getAttribute('lang') || navigator.language || 'en').toLowerCase();
@@ -789,7 +789,9 @@
     }
 
     // Netflix-style runtime text from RunTimeTicks: "1 Std. 42 Min." (de) /
-    // "1 h 42 min" (en) — same LOCALES mechanism as every other UI string.
+    // "1h 42m" (en) — same LOCALES mechanism as every other UI string. The English
+    // form is Netflix's own and the one Jellyfin prints on the detail page; the
+    // popup used to say "1 h 42 min", so one runtime read two ways a click apart.
     function nfRuntimeText(ticks) {
         var mins = Math.round((parseInt(ticks, 10) || 0) / 600000000);
         if (mins <= 0) return '';
@@ -1293,6 +1295,54 @@
         } catch (e) { heroBusy = false; }
     }
 
+    // ---- Dark title logos ----
+    // TMDb logo art comes in whatever colour the studio drew it, and a black or
+    // near-black wordmark over a dark scrim is simply not there: the billboard
+    // showed a metadata line under nothing, on a slide nobody could name. Sample
+    // the logo's opaque pixels once; when they are dark the sheet redraws the
+    // mark in white (.nf-logo-dark). A failed or tainted read answers "leave it
+    // alone" — so does anything with a bright stroke, which stays as drawn.
+    var nfToneCache = {};
+    function nfLogoIsDark(img) {
+        try {
+            var w = img.naturalWidth, h = img.naturalHeight;
+            if (!w || !h) return false;
+            var cw = 48, ch = Math.max(1, Math.round(48 * h / w));
+            var c = document.createElement('canvas');
+            c.width = cw; c.height = ch;
+            var ctx = c.getContext('2d');
+            if (!ctx) return false;
+            ctx.drawImage(img, 0, 0, cw, ch);
+            var d = ctx.getImageData(0, 0, cw, ch).data, sum = 0, cnt = 0, bright = 0;
+            for (var i = 0; i < d.length; i += 4) {
+                if (d[i + 3] < 96) continue;
+                var y = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+                sum += y; cnt++;
+                if (y > 110) bright++;
+            }
+            if (cnt < 12) return false;
+            return (sum / cnt) < 62 && (bright / cnt) < 0.12;
+        } catch (e) { return false; }
+    }
+    function nfToneLogo(url, apply) {
+        if (!url) return;
+        if (nfToneCache[url] !== undefined) { if (nfToneCache[url]) apply(); return; }
+        nfToneCache[url] = false;   // latch: one probe per URL, whatever happens to it
+        var im = new Image();
+        // A web client served from somewhere other than the server (the desktop
+        // app's bundled one) needs a CORS read, and must not be answered from the
+        // cache entry the visible <img> made without one.
+        var probe = url;
+        try {
+            if (new URL(url, location.href).origin !== location.origin) {
+                im.crossOrigin = 'anonymous';
+                probe = url + (url.indexOf('?') === -1 ? '?' : '&') + 'nfTone=1';
+            }
+        } catch (e) {}
+        im.onload = function () { if (nfLogoIsDark(im)) { nfToneCache[url] = true; apply(); } };
+        im.src = probe;
+    }
+
     function heroSlideHtml(item, active) {
         // Cover-fit is HEIGHT-driven whenever the box is taller than 9/16 of its
         // width — i.e. on every portrait viewport. Sizing from window.innerWidth
@@ -1365,6 +1415,9 @@
 
         // Initial ambient bleed from the first slide (go() handles later slides).
         if (items[0]) nfSampleAmbient(nfBackdropAmbientUrl(items[0]));
+        hero.querySelectorAll('img.nf-hero-logo').forEach(function (lg) {
+            nfToneLogo(lg.getAttribute('src'), function () { lg.classList.add('nf-logo-dark'); });
+        });
 
         var cur = 0, paused = false;
         var slideEls = hero.querySelectorAll('.nf-hero-slide');
@@ -1401,7 +1454,18 @@
             var v = nfNewClipVideo('nf-hero-video');
             // Netflix choreography: once the trailer actually renders, shrink the
             // title logo and fade the synopsis; stopClip/go() restore it.
-            v.addEventListener('playing', function () { v.classList.add('show'); if (slideEl) slideEl.classList.add('nf-clip-on'); });
+            v.addEventListener('playing', function () {
+                v.classList.add('show');
+                if (!slideEl) return;
+                // The synopsis fades but keeps its box, so the title has to travel
+                // the height it leaves empty or a hole opens between the metadata
+                // and the buttons. One layout read per clip start; 0 when the
+                // synopsis is not laid out at all (short viewports hide it).
+                var ov = slideEl.querySelector('.nf-hero-overview');
+                var drop = ov && ov.offsetHeight ? ov.offsetHeight + 20 : 0;
+                slideEl.style.setProperty('--nf-hero-drop', drop + 'px');
+                slideEl.classList.add('nf-clip-on');
+            });
             nfClaim(v);
             nfClipSrc(v, playId, ms, ticks);
             var bg = slideEl.querySelector('.nf-hero-bg');
@@ -1691,9 +1755,15 @@
     function nfRowSection(title, items, sid, extraClass) {
         var sec = document.createElement('div');
         sec.className = 'verticalSection nf-genre-section' + (extraClass ? ' ' + extraClass : '');
+        // "Recently Added" is an exception marker. On a row where most tiles would
+        // carry it — a freshly scanned library, or the New Releases row, whose
+        // heading already says so — it marks nothing and just stripes the shelf red.
+        var fresh = 0;
+        items.forEach(function (it) { if (nfIsNew(it)) fresh++; });
+        var quiet = fresh * 2 > items.length;
         sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + esc(title) + '</h2>' +
             '<div class="nf-row-scroll"><div class="nf-row-track">' +
-            items.map(function (it) { return buildCardHtml(it, sid); }).join('') +
+            items.map(function (it) { return buildCardHtml(it, sid, quiet); }).join('') +
             '</div></div>';
         return sec;
     }
@@ -1709,16 +1779,38 @@
         return cwImage(item);
     }
 
-    function buildCardHtml(item, sid) {
+    // Added in the last two weeks.
+    function nfIsNew(item) {
+        return !!item.DateCreated && (Date.now() - Date.parse(item.DateCreated)) < 14 * 864e5;
+    }
+
+    // What a landscape tile needs when its artwork carries no title. cwImage() falls
+    // from the titled Thumb to the plain Backdrop, and backdrops are textless by
+    // design — so those tiles were anonymous stills in a row of named boxart. The
+    // title logo goes over the corner, the way Netflix composes its own boxart, and
+    // a title with no logo gets its name in type.
+    function nfCardTitleHtml(item) {
+        if (cfg('CardStyle', 'mixed') === 'portrait') return '';
+        var t = item.ImageTags || {};
+        if (t.Thumb || (item.ParentThumbItemId && item.ParentThumbImageTag)) return '';
+        var hasBackdrop = (item.BackdropImageTags && item.BackdropImageTags.length)
+            || (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length);
+        if (!hasBackdrop) return '';   // the poster fallback carries its own title
+        var logo = t.Logo ? nfImg(item.Id, 'Logo', t.Logo, 240)
+            : (item.ParentLogoItemId && item.ParentLogoImageTag ? nfImg(item.ParentLogoItemId, 'Logo', item.ParentLogoImageTag, 240) : '');
+        if (logo) return '<img class="nf-card-logo" loading="lazy" alt="" src="' + esc(logo) + '">';
+        return '<div class="nf-card-name">' + esc(item.SeriesName || item.Name || '') + '</div>';
+    }
+
+    function buildCardHtml(item, sid, quiet) {
         // Netflix uses LANDSCAPE 16:9 boxart by default. Prefer the titled Thumb
         // (true boxart), then Backdrop/ParentBackdrop, then the portrait Primary —
         // unless the card shape is set to portrait (see nfCardImage).
         var img = nfCardImage(item) || '';
         var href = '#/details?id=' + item.Id + (sid ? '&serverId=' + sid : '');
         var year = item.ProductionYear || '';
-        // Netflix's red NEW flag for anything added in the last two weeks.
-        var isNew = item.DateCreated && (Date.now() - Date.parse(item.DateCreated)) < 14 * 864e5;
-        var newFlag = isNew ? '<div class="nf-new-flag">' + nfL().newBadge + '</div>' : '';
+        // Netflix's red "Recently Added" badge — unless the row is all of them.
+        var newFlag = (!quiet && nfIsNew(item)) ? '<div class="nf-new-flag">' + nfL().newBadge + '</div>' : '';
         // Mirror Jellyfin's native overflow backdrop-card markup for native styling + delegation.
         return '<div data-id="' + item.Id + '" data-serverid="' + (sid || '') + '" data-type="' + item.Type + '" data-mediatype="Video" data-isfolder="false" class="card overflowBackdropCard card-hoverable card-withuserdata nf-card nf-card-landscape">' +
             '<div class="cardBox cardBox-bottompadded">' +
@@ -1730,7 +1822,7 @@
                   '<div class="cardOverlayButtonContainer cardOverlayButtonContainer-centered">' +
                     '<button type="button" is="paper-icon-button-light" class="cardOverlayButton cardOverlayButton-hover itemAction paper-icon-button-light" data-action="resume" title="' + nfL().play + '" aria-label="' + nfL().play + '"><span class="material-icons cardOverlayButtonIcon" aria-hidden="true">play_arrow</span></button>' +
                   '</div>' +
-                '</div>' + newFlag +
+                '</div>' + nfCardTitleHtml(item) + newFlag +
               '</div>' +
               '<div class="cardText cardTextCentered cardText-first"><bdi>' + esc(item.Name) + '</bdi></div>' +
               (year ? '<div class="cardText cardTextCentered cardText-secondary"><bdi>' + esc(year) + '</bdi></div>' : '') +
@@ -2933,6 +3025,34 @@
         } catch (e) {}
     }
 
+    // Netflix's nav opens on "Home". Modern's UserViewNav opens on Favorites — a
+    // sub-tab of a page that has no entry of its own — so the mark was the only way
+    // back and the first word in the bar was the wrong one. Same foreign-node
+    // technique as the mark above: the link goes BEFORE React's first nav button,
+    // never between two of its nodes, so nothing React inserts or removes is ever
+    // positioned relative to it. On phones the nav lives in the drawer, there is
+    // no Favorites button in the bar, and this does nothing.
+    function setupModernHome() {
+        try {
+            var tb = nfModernToolbar();
+            if (!tb) return;
+            var fav = tb.querySelector('a.MuiButton-sizeMedium[href*="home?tab=1"]');
+            var home = tb.querySelector('.nf-nav-home');
+            if (!fav) { if (home && home.parentNode) home.parentNode.removeChild(home); return; }
+            if (!home) {
+                home = document.createElement('a');
+                home.href = '#/home';
+                home.textContent = nfL().home;
+            }
+            if (home.parentNode !== fav.parentNode) fav.parentNode.insertBefore(home, fav);
+            // MUI's own classes, so the bar's nav rules style it as one of theirs —
+            // minus the "current" colour pair the Favorites button carries on /home.
+            var cls = fav.className.replace(/MuiButton-(color|text)Primary/g, 'MuiButton-$1Inherit') + ' nf-nav-home';
+            if (isHomePage() && !/[?&]tab=1\b/.test(location.hash)) cls += ' nf-nav-active';
+            if (home.className !== cls) home.className = cls;
+        } catch (e) {}
+    }
+
     // ============ Real Play-button wiring ============
     // The theme's ▶ buttons (hero billboard, hover/touch popup) are anchors to the
     // detail page — the theme has no access to jellyfin's playbackManager module.
@@ -3391,6 +3511,7 @@
         addButton();
         setupLogoHome(nfHdr);
         setupModernLogo();
+        setupModernHome();
         // Cheap: a single window.__nfHeaderScroll read once the listener is armed.
         // Here as well as in init() because at init the header does not exist yet.
         setupHeaderScroll();

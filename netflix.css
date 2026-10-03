@@ -2595,7 +2595,35 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
 }
 /* Netflix rows show no text under the artwork — title/match live in the hover popup. */
 .nf-genre-section .nf-card .cardText { display: none !important; }
-.nf-genre-section .nf-card .cardBox { padding-bottom: 0 !important; }
+/* margin: stock's `.cardBox { margin: 0.6em }` and `.cardBox-bottompadded
+   { margin-bottom: 1.8em !important }` were never reset here, so the artwork sat
+   inside its own tile: 198px of picture in a 216px slot, 9px to the right of the
+   heading above it, with 24px between tiles where the ladder asks for 0.4vw — and
+   27px of dead margin under every shelf. Continue Watching, which is this theme's
+   own markup, always showed what the rows were meant to look like. */
+.nf-genre-section .nf-card .cardBox { margin: 0 !important; padding-bottom: 0 !important; }
+/* A tile with no title in its artwork gets one (headerButton.js: nfCardTitleHtml).
+   The logo goes where Netflix composes it on boxart — lower left, over the dark
+   end of the picture — and a title with no logo is set in type on a short scrim.
+   Decoration only: the click belongs to the tile underneath. */
+.nf-card .nf-card-logo {
+    position: absolute; left: 7%; bottom: 9%; z-index: 1;
+    max-width: 56%; max-height: 40%;
+    object-fit: contain; object-position: left bottom;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.75));
+    pointer-events: none;
+}
+.nf-card .nf-card-name {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
+    padding: 26% 8% 7%;
+    background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0) 100%);
+    border-radius: 0 0 var(--card-radius) var(--card-radius);
+    font-family: var(--font-netflix); font-size: var(--nf-t-ui); font-weight: var(--nf-w-bold);
+    line-height: 1.15; letter-spacing: var(--nf-track-head); color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    pointer-events: none;
+}
 .nf-genre-section .sectionTitle,
 .nf-cw-section .sectionTitle {
     display: flex; align-items: center;
@@ -2969,14 +2997,19 @@ html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !import
 .nf-row-page.active { background: #b3b3b3; }
 @media (max-width: 768px), (hover: none) { .nf-row-pages { display: none; } }
 
-/* Netflix's red NEW flag on freshly added artwork. */
+/* Netflix's "Recently Added" badge: centred on the tile's bottom edge, flush, with
+   only its top corners rounded — it reads as a tab on the artwork, not a sticker in
+   its corner. (It used to be a NEW flag in the top-left, where Jellyfin puts its own
+   indicators and where it covered the title art of half the boxart it sat on.)
+   `left: 50%` + translate rather than auto margins: the badge is shrink-to-fit. */
 .nf-new-flag {
-    position: absolute; top: 0; inset-inline-start: 0; z-index: 2;
+    position: absolute; left: 50%; bottom: 0; z-index: 2;
+    -webkit-transform: translateX(-50%); transform: translateX(-50%);
+    max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     background: var(--accent-red); color: #fff;
-    /* ONE small-caps label spec across the theme (see also .selectLabel and the
-       settings-panel section headers) — it used to be four unrelated specs. */
-    font-family: var(--font-netflix); font-size: var(--nf-t-micro); font-weight: var(--nf-w-semi);
-    letter-spacing: var(--nf-track-caps); padding: 2px 7px; border-radius: 0 0 var(--r-badge) 0;
+    font-family: var(--font-netflix); font-size: 0.7rem; font-weight: var(--nf-w-bold);
+    line-height: 1.5; letter-spacing: 0.01em; padding: 0 8px;
+    border-radius: var(--r-badge) var(--r-badge) 0 0;
     pointer-events: none;
 }
 
@@ -3886,11 +3919,28 @@ html:has(.videoPlayerContainer) .backgroundContainer:not(.withBackdrop) { backgr
 /* --- 5. Hero choreography: when the trailer starts, the title logo shrinks toward
    the corner and the synopsis fades — Netflix's exact move. Restored on the next
    slide (headerButton.js toggles .nf-clip-on). --- */
-.nf-hero-logo, .nf-hero-title { transition: transform 1s var(--nf-ease-out); transform-origin: left bottom; }
+/* The copy has to TRAVEL as well as shrink. The synopsis fades but keeps its box,
+   so a title that only scaled left a hole the height of three lines of text
+   between the metadata and the buttons for as long as the clip ran.
+   headerButton.js measures that height into --nf-hero-drop when the clip starts;
+   title and metadata slide down by it and land on the buttons, which is what
+   Netflix's billboard does. Transform only — nothing here re-lays-out. */
+.nf-hero-logo, .nf-hero-title, .nf-hero-meta { transition: transform 1s var(--nf-ease-out); transform-origin: left bottom; }
 .nf-hero-overview { transition: opacity 0.8s ease; }
-.nf-hero-slide.nf-clip-on .nf-hero-logo { transform: scale(0.82); }
-.nf-hero-slide.nf-clip-on .nf-hero-title { transform: scale(0.88); }
+.nf-hero-slide.nf-clip-on .nf-hero-logo { transform: translateY(var(--nf-hero-drop, 0px)) scale(0.82); }
+.nf-hero-slide.nf-clip-on .nf-hero-title { transform: translateY(var(--nf-hero-drop, 0px)) scale(0.88); }
+.nf-hero-slide.nf-clip-on .nf-hero-meta { transform: translateY(var(--nf-hero-drop, 0px)); }
 .nf-hero-slide.nf-clip-on .nf-hero-overview { opacity: 0; }
+/* A logo the script found to be dark-on-dark (nfToneLogo) is redrawn in white:
+   brightness(0) flattens every opaque pixel to black, invert turns that white, and
+   the shadow goes on after so it stays dark. Applies to the billboard, the detail
+   page's logo and the tile overlays alike. */
+.nf-hero-logo.nf-logo-dark,
+.nf-card-logo.nf-logo-dark,
+.detailLogo.nf-logo-dark {
+    -webkit-filter: brightness(0) invert(1) drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+    filter: brightness(0) invert(1) drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+}
 
 /* --- 6. Typography: crisper rendering; the Inter variable font (loaded by
    CssGenerator) gets optical sizing so big titles and small captions are each
@@ -3935,7 +3985,7 @@ body { font-optical-sizing: auto; }
        `html:not(.layout-tv):not(.layout-mobile) .backgroundContainer` (0,3,1), so a
        bare .backgroundContainer reset (0,1,0) would silently lose to it. */
     .backgroundContainer { transition: none !important; }
-    .nf-hero-logo, .nf-hero-title, .nf-hero-overview { transition: none; }
+    .nf-hero-logo, .nf-hero-title, .nf-hero-meta, .nf-hero-overview { transition: none; }
 }
 
 /* =============================================
@@ -4066,7 +4116,10 @@ body { font-optical-sizing: auto; }
         display: block !important;
         margin-top: 6px; padding: 0;
         font-size: 0.8rem; line-height: 1.25; font-weight: var(--nf-w-med);
-        color: var(--nf-text-2) !important; text-align: start;
+        color: var(--nf-text-2) !important;
+        /* important: stock's .cardTextCentered centres these, so the genre rows
+           ran centred titles under tiles while Continue Watching ranged left. */
+        text-align: left !important; text-align: start !important;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     /* A permanently-visible 30px ✕ on every Continue Watching tile is one mistap
@@ -4146,6 +4199,11 @@ body { font-optical-sizing: auto; }
    `html ` prefixes raise specificity just enough to beat the same selectors
    re-declared by CssGenerator, which is appended after this sheet. */
 @media (hover: none) {
+    /* No hover means no zoom, so the clearance every shelf reserves above and below
+       its tiles to contain that zoom is pure dead space here — 44px a row, which on
+       a phone is the difference between seeing two shelves and seeing three. The
+       title's pull-back is derived from the same token and follows on its own. */
+    :root { --nf-zoom-pad: 8px; }
     html .card:hover { transform: none !important; box-shadow: none !important; z-index: auto !important; will-change: auto !important; }
     .card:hover .cardScalable { transform: none !important; box-shadow: none !important; }
     .card:hover .cardImageContainer { filter: none !important; }
@@ -4606,6 +4664,14 @@ html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-
 html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-colorPrimary:hover {
     color: var(--text-main);
     background-color: transparent;
+}
+/* The "Home" entry headerButton.js adds ahead of Favorites (setupModernHome). It
+   borrows MUI's classes, so everything above already styles it; this is only its
+   "current" state, which React never sets on a node it does not own. */
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-home.nf-nav-active,
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-home.nf-nav-active:hover {
+    color: var(--text-main);
+    font-weight: var(--nf-w-med);
 }
 
 /* ===== home-avatar-red-disc (medium) — The user avatar is a 40px solid red disc ===== */
