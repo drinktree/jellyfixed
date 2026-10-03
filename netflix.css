@@ -5365,7 +5365,8 @@ html.nf-modern .MuiSlider-valueLabel {
    2. `.layout-mobile .itemName / .parentName / .itemMiscInfo / .mainDetailButtons`
       are centred. Netflix's mobile title page is ranged left, like every other
       block on this one.
-   3. The poster column reserved inside .infoWrapper (zeroed where that rule lives). */
+   3. The poster column reserved inside .infoWrapper (zeroed where that rule lives)
+      and again on the button row (below). */
 html .itemDetailPage .detailPagePrimaryContent {
     padding-left: 0 !important;
     padding-right: 0 !important;
@@ -5377,6 +5378,13 @@ html .itemDetailPage .mainDetailButtons {
     text-align: left !important;
     text-align: start !important;
     justify-content: flex-start !important;
+}
+/* The poster column again, this time as PADDING on the button row
+   (`.layout-mobile [dir] .mainDetailButtons { padding-left: 37.5% / 25% / 20% }`):
+   on a tablet the title sat on the rail and Play started a fifth of the screen in. */
+html .itemDetailPage .mainDetailButtons {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 /* On that layout the artwork is the in-flow band, not a fixed backdrop behind the
    page — so the wrapper's top padding, which on desktop is the window the picture
