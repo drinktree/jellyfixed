@@ -225,7 +225,7 @@ body, .mainDrawer, .dialog {
 }
 
 /* Hide Jellyfin branding */
-.pageTitleWithLogo, .pageTitleWithDefaultLogo, .headerLogo {
+.pageTitleWithLogo, .pageTitleWithDefaultLogo {
     display: none !important;
 }
 
@@ -354,7 +354,7 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
 .emby-tabs-slider:not(.hide) { display: flex !important; }
 .emby-tabs-slider > .emby-tab-button { margin-inline-end: 8px !important; }
 .emby-tabs-slider > .emby-tab-button:last-child { margin-inline-end: 0 !important; }
-.emby-tab-button::after, .emby-tab-button .tabButtonActive-bg { display: none !important; }
+.emby-tab-button::after { display: none !important; }
 
 /* Header right — plain white icons with Netflix's roomier spacing */
 .headerRight {
@@ -1370,27 +1370,17 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
    muted-grey lines — six steps inside 2.4px, which reads as one smudge. Now three
    real steps: the metadata line leads, everything secondary is one tier, field
    descriptions are the caption tier. */
-.mediaInfoItem, .itemGenres, .itemStudios {
+.mediaInfoItem, .itemGenres {
     font-family: var(--font-netflix) !important;
     color: var(--text-muted) !important;
     font-size: var(--nf-t-meta) !important;
 }
 
-.mediaInfoItem a, .itemGenres a, .itemStudios a { color: var(--text-muted) !important; transition: color 0.2s ease !important; }
-.mediaInfoItem a:hover, .itemGenres a:hover, .itemStudios a:hover { color: var(--text-main) !important; }
+.mediaInfoItem a, .itemGenres a { color: var(--text-muted) !important; transition: color 0.2s ease !important; }
+.mediaInfoItem a:hover, .itemGenres a:hover { color: var(--text-main) !important; }
 
 /* Detail sections (seasons, cast, similar) */
 .detailSection { padding: 0 4% !important; }
-
-/* .detailPageContent exists on season pages in JELLYFIN 10.11 only (live-verified
-   there — an earlier audit wrongly called it dead everywhere). Jellyfin 12.0
-   deletes the wrapper entirely, so this rule is a no-op there and the rail moved
-   to `.detailPageSecondaryContainer.padded-left`; see the cancel rule further
-   down. Kept because one stylesheet still has to read correctly on both. */
-.detailPageContent {
-    padding-left: 4% !important;
-    padding-right: 4% !important;
-}
 
 /* ONE rail for the primary column. .detailPagePrimaryContainer already carries
    the page's 4% gutter and .detailRibbon (title, metadata, Play button) sits on
@@ -1521,7 +1511,7 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 #similarCollapsible .cardText:last-child { padding-bottom: 10px !important; }
 
 /* --- DESCRIPTION "Mehr anzeigen" button — quiet white, never red --- */
-.itemOverview-seeMore, .detailSectionContent .overview-expand {
+.detailSectionContent .overview-expand {
     color: #fff !important;
     font-family: var(--font-netflix) !important;
     font-weight: var(--nf-w-semi) !important;
@@ -1529,7 +1519,7 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
     cursor: pointer !important;
 }
 
-.itemOverview-seeMore:hover, .detailSectionContent .overview-expand:hover {
+.detailSectionContent .overview-expand:hover {
     color: var(--nf-text-2) !important;
     text-decoration: underline !important;
 }
@@ -1631,16 +1621,6 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 .detailPageSecondaryContainer .verticalSection {
     padding: 0 4% !important;
 }
-/* …but NOT when .detailPageContent already supplied the rail. That wrapper carries
-   its own `padding: 0 4%` (load-bearing on season pages, keep it), so a nested 4%
-   compounds: 4% of the viewport plus 4% of the remaining 92% = 7.68%. Cast, More
-   Like This and Special Features were hanging off a 7.7% rail while the title,
-   metadata, synopsis and episode strip above them all hang off 4% — the whole
-   lower half of the page visibly stepped inward. */
-.detailPageSecondaryContainer .detailPageContent .verticalSection {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
 /* Jellyfin 12.0 deleted .detailPageContent and moved the rail onto the container
    itself as `padded-left`. That one is zeroed with every other `padded-*` on the
    detail page (see `.itemDetailPage .padded-left` near the top of the sheet), so
@@ -1700,22 +1680,6 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 /* (The stage, the profile gate and the shared sign-in card live in the
    "SESSION PAGES" block near the end of the sheet.) */
 
-.visual-card {
-    background-color: rgba(0,0,0,0.85) !important;
-    padding: 60px !important;
-    border-radius: 4px !important;   /* Netflix's login card is 4px */
-    max-width: 450px !important;
-}
-
-/* 10.11 login markup: plain form, no .visual-card — give it the Netflix box */
-#loginPage form, .loginPage form {
-    background: rgba(0, 0, 0, 0.75) !important;
-    padding: 48px 56px 56px !important;
-    border-radius: 4px !important;
-    max-width: 420px !important;
-    margin: 8vh auto 0 !important;
-}
-
 /* Kill the cyan accents: focused labels and checkboxes go Netflix */
 #loginPage .inputLabel, #loginPage .inputLabelFocused, #loginPage .inputLabelUnfocused,
 .inputLabelFocused { color: var(--text-muted) !important; }
@@ -1766,26 +1730,12 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
     background-color: var(--accent-red-hover) !important;
 }
 
-/* The sign-in card is the first screen anyone sees, and it was the least themed:
-   stock type inside a Netflix box, a browser-default placeholder, and 44px-short
-   controls. (The phone treatment lives in the RESPONSIVE section.) */
-#loginPage form h1, .loginPage form h1 {
-    font-size: 2rem !important; font-weight: var(--nf-w-bold) !important;
-    margin: 0 0 24px !important; color: var(--text-main) !important;
-    letter-spacing: var(--nf-track-head) !important;
-}
-#loginPage .inputContainer, .loginPage .inputContainer { margin-bottom: 16px !important; }
-#loginPage .inputContainer input, .loginPage .inputContainer input {
-    height: 50px !important; padding: 0 16px !important; font-size: 1rem !important;
-}
-#loginPage input::placeholder, .loginPage input::placeholder, .emby-input::placeholder {
+/* (Sign-in card geometry lives in the SESSION PAGES block; these two are what it
+   does not restate.) */
+#loginPage input::placeholder, .emby-input::placeholder {
     color: #8c8c8c !important; opacity: 1 !important;
 }
-#loginPage .raised.button-submit, .loginPage .raised.button-submit {
-    width: 100% !important; height: 48px !important;
-    margin-top: 24px !important; font-size: 1rem !important;
-}
-#loginPage .checkboxContainer, .loginPage .checkboxContainer {
+#loginPage .checkboxContainer {
     margin-top: 12px !important; font-size: 0.85rem !important; color: var(--nf-text-3) !important;
 }
 
@@ -1854,7 +1804,7 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
 }
 
 .button-flat, .emby-button { text-transform: none !important; font-family: var(--font-netflix) !important; }
-.button-accent, .fab { background-color: var(--accent-red) !important; }
+.fab { background-color: var(--accent-red) !important; }
 /* Stock signals keyboard focus on a raised button by SWAPPING ITS FILL to the
    secondary palette colour (`.raised:focus`), and the bridge makes that the
    accent. A confirm dialog focuses its first button on open, so "Cancel" stood
@@ -1921,15 +1871,6 @@ a[data-role="button"]:focus {
 @keyframes nfFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
-}
-
-/* Section titles — Netflix "explore more" arrow on hover */
-.sectionTitle-linkbutton {
-    transition: color 0.2s ease !important;
-}
-
-.sectionTitle-linkbutton:hover {
-    color: var(--text-main) !important;
 }
 
 /* =============================================
@@ -2144,7 +2085,7 @@ a[data-role="button"]:focus {
 }
 
 /* Netflix's search box: square, thin bright border, magnifier inside on the left. */
-.searchfields-txtSearch, #txtSearch {
+.searchfields-txtSearch {
     background-color: rgba(0,0,0,0.75) !important;
     border: 1px solid rgba(255,255,255,0.85) !important;
     color: white !important;
@@ -2155,11 +2096,11 @@ a[data-role="button"]:focus {
     font-size: 1rem !important;
     transition: border-color 0.2s ease, background-color 0.2s ease !important;
 }
-.searchfields-txtSearch::placeholder, #txtSearch::placeholder {
+.searchfields-txtSearch::placeholder {
     color: #8c8c8c !important;
     opacity: 1 !important;
 }
-.searchfields-txtSearch:focus, #txtSearch:focus {
+.searchfields-txtSearch:focus {
     border-color: white !important;
     background-color: rgba(0,0,0,0.9) !important;
     /* the global input:focus ring below would draw a SECOND ring 1px outside
@@ -2529,7 +2470,6 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
     padding: 0.4em 0.8em;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.nf-hero-rating { border: 1px solid rgba(255,255,255,0.45); border-radius: var(--r-badge); padding: 0 0.4em; font-size: 0.8rem; }
 .nf-hero-overview {
     font-family: var(--font-netflix);
     font-size: var(--nf-t-body); line-height: 1.42; color: var(--nf-text-2);
@@ -2909,23 +2849,23 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 /* Initial preloader / loading screen background — the full-page backdrop only.
    NOTE: the spinner element (.docspinner) is deliberately NOT given a background here,
    otherwise it paints a small black square next to our centered ring. */
-html.preload, #loadingSpinner { background-color: var(--bg-darker, #000) !important; }
+html.preload { background-color: var(--bg-darker, #000) !important; }
 
 /* Hide Jellyfin's native Material spinner arcs and box — our ::after ring replaces them
    (otherwise a black 122px square / a second spinner shows behind the ring). */
 .mdl-spinner__layer-1, .mdl-spinner__layer-2, .mdl-spinner__layer-3, .mdl-spinner__layer-4 { border-color: transparent !important; }
-.mdl-spinner__gap-patch, .mdl-spinner__circle { border-color: transparent !important; }
+.mdl-spinner__circle { border-color: transparent !important; }
 
 /* Netflix-style loading spinner — a centered rotating ring (user-supplied design).
    position:fixed so it sits dead-centre regardless of its container (fixes the loader
    stuck top-left); the rotate animation overrides transforms so we center via negative
    margins. Arcs use the accent red — the original #000 would be invisible on the black
    loading backdrop. Pure CSS, self-contained (no JS / companion plugin). */
-.docspinner, .loadingSpinner, .mainAnimatedPages > .loading {
+.docspinner, .mainAnimatedPages > .loading {
     background: transparent !important;
     box-shadow: none !important;
 }
-.docspinner::after, .loadingSpinner::after, .mainAnimatedPages > .loading::after {
+.docspinner::after, .mainAnimatedPages > .loading::after {
     content: '';
     position: fixed !important;
     top: 50% !important;
@@ -3210,7 +3150,6 @@ html:has(.videoPlayerContainer) header.MuiAppBar-root { z-index: 900 !important;
 html.nf-playing .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
 html.nf-playing .nf-hero-skel::after { animation: none !important; }
 html.nf-playing .docspinner::after,
-html.nf-playing .loadingSpinner::after,
 html.nf-playing .mainAnimatedPages > .loading::after { animation: none !important; }
 html.nf-playing .mainAnimatedPage { animation: none !important; }
 html.nf-playing .card,
@@ -3315,7 +3254,6 @@ html.transparentDocument .mainDrawer { background-color: #101010 !important; }
 html.transparentDocument .nf-hero-slide.active .nf-hero-bg { animation: none !important; }
 html.transparentDocument .nf-hero-skel::after { animation: none !important; }
 html.transparentDocument .docspinner::after,
-html.transparentDocument .loadingSpinner::after,
 html.transparentDocument .mainAnimatedPages > .loading::after { animation: none !important; }
 /* Deliberately NOT hiding .nf-hero / .nf-genre-section / .nf-nav-tabs on this gate.
    .transparentDocument covers BACKDROP-level transparency too (theme media and
@@ -3713,20 +3651,16 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
 /* --- Detail: genres as Netflix's quiet comma-separated links (stock already
    joins them with ', '; this just sets the quiet color + hover). Tags are
    covered by the .itemTags a rule earlier. */
-/* All four detail-group rows are the same component (.button-link anchors); only
-   .genres was themed, so Directors / Writers / Studios sat right under it in the
-   stock link voice. */
-.genresGroup .genres .button-link, .genres a.button-link,
-.directorsGroup .directors .button-link, .writersGroup .writers .button-link,
-.studiosGroup .studios .button-link {
+/* (10.11's .genresGroup / .directorsGroup / .writersGroup / .studiosGroup rows are
+   gone in 12.x — one React list emits `.detailsGroupItem` for all four, styled in
+   the 12.0 block further down — so only the generic genre link is left here.) */
+.genres a.button-link {
     background: none !important;
     padding: 0 !important;
     font-size: var(--nf-t-meta) !important;
     color: var(--nf-text-2) !important;
 }
-.genresGroup .genres .button-link:hover, .genres a.button-link:hover,
-.directorsGroup .directors .button-link:hover, .writersGroup .writers .button-link:hover,
-.studiosGroup .studios .button-link:hover {
+.genres a.button-link:hover {
     color: #fff !important;
     text-decoration: underline !important;
 }
@@ -3822,7 +3756,7 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
    these used to fall straight back to raw stock text at the top of a blank page —
    the moment the theme most obviously stopped existing, and the first thing a
    new user sees on an empty server. --- */
-.noItemsMessage, .centerMessage, .emptyMessage {
+.noItemsMessage, .centerMessage {
     font-family: var(--font-netflix) !important;
     text-align: center !important;
     color: var(--nf-text-3) !important;
@@ -3831,14 +3765,14 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
     margin-inline-start: auto !important;
     margin-inline-end: auto !important;
 }
-.noItemsMessage h1, .centerMessage h1, .emptyMessage h1 {
+.noItemsMessage h1, .centerMessage h1 {
     font-size: 1.5rem !important;
     font-weight: var(--nf-w-bold) !important;
     color: var(--text-main) !important;
     margin: 0 0 10px !important;
     line-height: 1.2 !important;
 }
-.noItemsMessage p, .centerMessage p, .emptyMessage p {
+.noItemsMessage p, .centerMessage p {
     font-size: 0.95rem !important;
     line-height: 1.45 !important;
     color: var(--nf-text-3) !important;
@@ -4200,16 +4134,7 @@ body { font-optical-sizing: auto; }
     .mainDetailButtons .btnPlaystate, .mainDetailButtons .btnUserRating, .mainDetailButtons .btnShare, .mainDetailButtons .btnMoreCommands { width: 44px !important; height: 44px !important; min-width: 44px !important; }
     #similarCollapsible .cardText { padding: 2px 6px !important; }
     #similarCollapsible .cardText-first { padding-top: 6px !important; }
-
-    /* ---- Login: 112px of a 390px screen went on horizontal padding alone. */
-    #loginPage form, .loginPage form {
-        background: transparent !important;
-        padding: 24px 20px 40px !important;
-        margin: 4vh auto 0 !important;
-        max-width: 100% !important;
-    }
-    .visual-card { padding: 28px 22px !important; max-width: none !important; }
-    #loginPage .inputContainer input, #loginPage .emby-input { min-height: 44px !important; }
+}
 }
 
 /* --- SHORT VIEWPORT (landscape phone, split-screen tablet, resized window) ----
@@ -4882,7 +4807,7 @@ html.nf-modern .MuiDrawer-modal .MuiDrawer-paper {
     left: auto !important;
     right: 14px !important;
 }
-[dir="rtl"] .searchfields-txtSearch, [dir="rtl"] #txtSearch {
+[dir="rtl"] .searchfields-txtSearch {
     padding: 0 44px 0 14px !important;
 }
 
@@ -5493,8 +5418,7 @@ html .itemDetailPage[data-nf-art="none"] .detailImageContainer .card:hover .card
     color: var(--text-main) !important;
     font-size: var(--nf-t-ui) !important;
 }
-.itemDetailPage [data-nf-list="rows"] .listItem .secondary,
-.itemDetailPage [data-nf-list="rows"] .listItemIndexNumberLeft { color: var(--nf-text-3) !important; }
+.itemDetailPage [data-nf-list="rows"] .listItem .secondary { color: var(--nf-text-3) !important; }
 
 /* --- More Like This: ranged left, like the episode panels -----------------------
    The same component — artwork on a panel that carries the text — rendered twice

@@ -10,7 +10,8 @@ namespace Jellyfin.Plugin.CustomTheme
     /// <summary>
     /// Builds the final stylesheet from <see cref="PluginConfiguration"/>.
     ///
-    /// Strategy: the embedded <c>netflix.css</c> base theme is emitted unchanged,
+    /// Strategy: the embedded <c>netflix.css</c> base theme is emitted with only its comments
+    /// and indentation removed (see <see cref="Compact"/>),
     /// then a generated block is appended. User colours/fonts are applied by
     /// re-declaring the CSS custom properties in a trailing <c>:root</c> rule — it
     /// has the same specificity as the base declaration but appears later, so it
@@ -159,8 +160,15 @@ namespace Jellyfin.Plugin.CustomTheme
               .Append(string.Join("&family=", families))
               .AppendLine("&display=swap');");
             sb.AppendLine();
-            sb.Append(baseCss);
-            sb.AppendLine();
+            // The base sheet goes out WITHOUT its comments. They are more than half of
+            // netflix.css — every rule there carries the reason it exists — and this
+            // string is delivered to every client inside the branding configuration,
+            // parsed on every page load and persisted by jellyfin-web 12's query cache.
+            // The documented source stays in the repository; the two marker lines let
+            // anyone reading the served sheet (and the test harness) find the seam.
+            sb.AppendLine(BaseStartMarker);
+            sb.Append(Compact(baseCss));
+            sb.AppendLine(BaseEndMarker);
             sb.AppendLine();
             var asmVersion = typeof(CssGenerator).Assembly.GetName().Version;
             var stamp = asmVersion == null
@@ -918,6 +926,107 @@ namespace Jellyfin.Plugin.CustomTheme
 .ct-save-btn { width: 100%; padding: 12px; background: var(--accent-red); color: #fff; border: none; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 16px; font-family: var(--font-netflix); }
 .ct-save-btn:hover { background: var(--accent-red-hover); }
 .ct-save-status { text-align: center; margin-top: 10px; font-size: 0.85rem; min-height: 20px; }");
+        }
+
+        internal const string BaseStartMarker = "/* === BASE THEME (netflix.css, comments stripped) === */";
+        internal const string BaseEndMarker = "/* === END OF BASE THEME === */";
+
+        /// <summary>
+        /// Removes comments, indentation and blank lines from a stylesheet. Nothing else:
+        /// no token is rewritten and no whitespace inside a line is touched, so the
+        /// result parses to exactly the same rules as the source.
+        /// Strings are skipped whole — the data: URIs in the sheet are quoted, and a
+        /// "/*" inside one must not open a comment. A comment is replaced by nothing
+        /// rather than by a space; in this sheet they sit on their own lines or after a
+        /// declaration's semicolon, never between two tokens that would fuse.
+        /// </summary>
+        internal static string Compact(string css)
+        {
+            var sb = new StringBuilder(css.Length / 2);
+            var quote = '\0';
+            var lineHasContent = false;
+            var i = 0;
+            var n = css.Length;
+            while (i < n)
+            {
+                var c = css[i];
+                if (quote != '\0')
+                {
+                    sb.Append(c);
+                    if (c == '\\' && i + 1 < n)
+                    {
+                        sb.Append(css[i + 1]);
+                        i += 2;
+                        continue;
+                    }
+
+                    if (c == quote)
+                    {
+                        quote = '\0';
+                    }
+
+                    i++;
+                    continue;
+                }
+
+                if (c == '"' || c == '\'')
+                {
+                    quote = c;
+                    sb.Append(c);
+                    lineHasContent = true;
+                    i++;
+                    continue;
+                }
+
+                if (c == '/' && i + 1 < n && css[i + 1] == '*')
+                {
+                    var end = css.IndexOf("*/", i + 2, System.StringComparison.Ordinal);
+                    i = end < 0 ? n : end + 2;
+                    continue;
+                }
+
+                if (c == '\r')
+                {
+                    i++;
+                    continue;
+                }
+
+                if (c == '\n')
+                {
+                    var len = sb.Length;
+                    while (len > 0 && (sb[len - 1] == ' ' || sb[len - 1] == '\t'))
+                    {
+                        len--;
+                    }
+
+                    sb.Length = len;
+                    if (lineHasContent)
+                    {
+                        sb.Append('\n');
+                    }
+
+                    lineHasContent = false;
+                    i++;
+                    continue;
+                }
+
+                if (!lineHasContent && (c == ' ' || c == '\t'))
+                {
+                    i++;
+                    continue;
+                }
+
+                sb.Append(c);
+                lineHasContent = true;
+                i++;
+            }
+
+            if (lineHasContent)
+            {
+                sb.Append('\n');
+            }
+
+            return sb.ToString();
         }
 
         private static string LoadBaseCss()
