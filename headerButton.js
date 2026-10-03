@@ -221,6 +221,25 @@
     // `.layout-desktop` under `max-width: 62.5em`, so stock deliberately reserves
     // the band and then leaves it empty. Netflix shows the artwork at every width,
     // so fill the band in that one gap and leave both stock paths alone.
+    // The detail page that is actually on screen. The view manager keeps earlier
+    // detail pages in the DOM, hidden, and every one of them owns an #itemBackdrop —
+    // so document.getElementById answers with whichever came FIRST, which stops
+    // being the visible one as soon as a second title has been opened.
+    function nfDetailPage() {
+        return document.querySelector('.itemDetailPage:not(.hide)');
+    }
+
+    // data-nf-art on the page says what artwork its header has to work with:
+    //   full — the fixed app backdrop is up (.backgroundContainer.withBackdrop)
+    //   band — only the in-flow #itemBackdrop band carries a picture
+    //   none — the title has no backdrop of its own or its parent's: albums,
+    //          artists, people, most playlists. The sheet then drops the empty
+    //          band and brings the cover back beside the title, instead of
+    //          opening the page on half a screen of flat black.
+    function nfSetArt(page, art) {
+        if (page && page.getAttribute('data-nf-art') !== art) page.setAttribute('data-nf-art', art);
+    }
+
     function setupNarrowBackdrop() {
         try {
             // Off a detail page the class has to COME OFF, not just stop being
@@ -231,7 +250,8 @@
                 document.documentElement.classList.remove('nf-inflow-backdrop');
                 return;
             }
-            var el = document.getElementById('itemBackdrop');
+            var page = nfDetailPage();
+            var el = page && page.querySelector('#itemBackdrop');
             if (!el) { document.documentElement.classList.remove('nf-inflow-backdrop'); return; }
             // The >=1000px path is live. Nothing to do — and if a resize brought it
             // up over a band WE filled, take ours back down: jellyfin re-runs
@@ -245,6 +265,7 @@
                     el.style.backgroundPosition = '';
                 }
                 document.documentElement.classList.remove('nf-inflow-backdrop');
+                nfSetArt(page, 'full');
                 return;
             }
             // The layout-mobile path is live: stock's imageLoader already put the
@@ -253,7 +274,16 @@
             var id = (location.hash.match(/[?&]id=([a-f0-9]+)/i) || [])[1];
             if (!id) return;
             if (el.style.backgroundImage && !el.getAttribute('data-nf-bd')) {
-                document.documentElement.classList.add('nf-inflow-backdrop');
+                // Stock's chain ends on the PRIMARY image, so for an album or a
+                // playlist this band is the cover, cropped to a letterbox. That
+                // is not a backdrop — the cover is shown whole beside the title.
+                if (/\/Images\/Primary/i.test(el.style.backgroundImage)) {
+                    document.documentElement.classList.remove('nf-inflow-backdrop');
+                    nfSetArt(page, 'none');
+                } else {
+                    document.documentElement.classList.add('nf-inflow-backdrop');
+                    nfSetArt(page, 'band');
+                }
                 return;
             }
             // Guard by ITEM ID rather than a boolean: in-app forward navigation
@@ -267,19 +297,31 @@
             if (!uid) return;
             el.setAttribute('data-nf-bd', id);
             ApiClient.getItem(uid, id).then(function (item) {
-                // Mirrors getItemBackdropImageUrl (utils/jellyfin-apiclient/backdropImage.ts):
-                // the item's own backdrop, else the parent's (how an episode or a
-                // season borrows the series art), else the primary image.
+                // Follows getItemBackdropImageUrl (utils/jellyfin-apiclient/backdropImage.ts)
+                // for the item's own backdrop and then the parent's (how an episode
+                // or a season borrows the series art) — but NOT its last step, the
+                // primary image: a square cover or a headshot stretched across a
+                // 40vh band is a crop of the wrong picture. Those pages take the
+                // cover header instead (data-nf-art="none").
                 var w = nfW(window.innerWidth || 1000);
                 var url = '';
                 if (item.BackdropImageTags && item.BackdropImageTags.length) {
                     url = ApiClient.getScaledImageUrl(item.Id, { type: 'Backdrop', index: 0, tag: item.BackdropImageTags[0], maxWidth: w });
                 } else if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length) {
                     url = ApiClient.getScaledImageUrl(item.ParentBackdropItemId, { type: 'Backdrop', index: 0, tag: item.ParentBackdropImageTags[0], maxWidth: w });
-                } else if (item.ImageTags && item.ImageTags.Primary) {
-                    url = ApiClient.getScaledImageUrl(item.Id, { type: 'Primary', tag: item.ImageTags.Primary, maxWidth: w });
                 }
-                if (!url) { el.removeAttribute('data-nf-bd'); return; }
+                if (!url) {
+                    // data-nf-bd STAYS on this id: it is the "already answered"
+                    // latch, and clearing it would re-ask the server on every
+                    // mutation frame for as long as the page is open. What does go
+                    // is any picture this function painted for the PREVIOUS title —
+                    // the element is reused across in-app navigation.
+                    if (el.getAttribute('data-nf-bd') !== id || location.hash.indexOf(id) === -1) return;
+                    el.style.backgroundImage = '';
+                    document.documentElement.classList.remove('nf-inflow-backdrop');
+                    nfSetArt(page, 'none');
+                    return;
+                }
                 // Decode before painting, or the band flashes its empty colour and
                 // then snaps. Re-check the route on load: a slow image must not
                 // paint itself over whatever page the user has moved on to.
@@ -294,6 +336,7 @@
                     el.style.backgroundAttachment = 'scroll';
                     el.style.backgroundPosition = 'top center';
                     document.documentElement.classList.add('nf-inflow-backdrop');
+                    nfSetArt(page, 'band');
                 };
                 pre.onerror = function () { el.removeAttribute('data-nf-bd'); };
                 pre.src = url;
@@ -307,6 +350,27 @@
     // Jellyfin Media Player or any mouse-only desktop episode 5 onward was simply
     // unreachable. Throttled because scrollWidth/clientWidth are forced-layout
     // reads and applyDynamic runs on every body-mutation frame.
+    // The episode strip turns a season's rows into a shelf of cards. Jellyfin renders
+    // an album's tracks and a playlist's entries into the SAME container with the
+    // same row markup, and as a shelf those became a sideways strip of song titles.
+    // Mark what the rows are, so the sheet only shelves episodes. Cheap: two id
+    // lookups under the one visible page, and an attribute write only on change.
+    function setupDetailLists() {
+        try {
+            if (!/#\/details/i.test(location.hash)) return;
+            var page = nfDetailPage();
+            if (!page) return;
+            ['listChildrenCollapsible', 'childrenCollapsible'].forEach(function (id) {
+                var sec = page.querySelector('#' + id);
+                if (!sec) return;
+                var first = sec.querySelector('.itemsContainer > .listItem');
+                var kind = !first ? '' : (first.getAttribute('data-type') === 'Episode' ? 'strip' : 'rows');
+                if ((sec.getAttribute('data-nf-list') || '') === kind) return;
+                if (kind) sec.setAttribute('data-nf-list', kind); else sec.removeAttribute('data-nf-list');
+            });
+        } catch (e) {}
+    }
+
     function setupDetailRowNav() {
         try {
             if (!/#\/details/i.test(location.hash)) return;
@@ -314,6 +378,8 @@
             if (now - nfLastDetailNav < 1000) return;
             nfLastDetailNav = now;
             document.querySelectorAll('.itemDetailPage .detailPagePrimaryContent #listChildrenCollapsible, .itemDetailPage .detailPagePrimaryContent #childrenCollapsible').forEach(function (sec) {
+                // A vertical list has nothing to page sideways.
+                if (sec.getAttribute('data-nf-list') === 'rows') return;
                 var strip = sec.querySelector('.itemsContainer');
                 if (!strip || strip._nfNav) return;
                 if (strip.scrollWidth <= strip.clientWidth + 4) return;   // nothing to page
@@ -3359,6 +3425,7 @@
         setupNarrowBackdrop();
         setupDetailClip();
         setupDetailAmbient();
+        setupDetailLists();
         setupDetailRowNav();
         // nfRescueStuckImages does a full-document querySelectorAll; it's a slow-path rescue
         // for images the lazy-loader dropped, not a per-frame concern — throttle it to ~1s so

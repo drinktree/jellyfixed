@@ -409,6 +409,15 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
    against the viewport edge. */
 .libraryPage .padded-left { padding-inline-start: var(--nf-gutter) !important; }
 .libraryPage .padded-right { padding-inline-end: var(--nf-gutter) !important; }
+/* …but the detail page is a `.libraryPage` too, and there the rail already lives
+   on .detailPagePrimaryContainer and on each .verticalSection. Re-adding it to
+   everything Jellyfin tags `padded-*` put a SECOND 4% on the ribbon — so the
+   title, the metadata line and the Play row sat 53px to the right of the logo
+   and the synopsis on the same page, and the ribbon (width:100% + padding)
+   overflowed the document sideways by 48px. Same specificity as the re-add, so
+   it wins on order and every more specific detail rule still wins over it. */
+.itemDetailPage .padded-left { padding-inline-start: 0 !important; }
+.itemDetailPage .padded-right { padding-inline-end: 0 !important; }
 
 /* Netflix's browse grid is uniform, untitled boxart — the name lives in the
    hover preview, exactly like the home rows. Without this, one click takes you
@@ -838,10 +847,19 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
 }
 
 /* Fix infoWrapper from old row layout */
+/* padding: on a MOBILE user agent stock reserves a poster column inside this
+   box — `.layout-mobile [dir] .infoWrapper { padding-left: 37.5% }`, stepping
+   down to 25 / 20 / 16.7% as the window widens — and floats the poster card into
+   it. This sheet hides that poster (below), so the reservation was empty space
+   that shoved the title, metadata and buttons a third of the screen to the right
+   and off its edge on every phone and tablet. `layoutManager.mobile` keys on the
+   user agent, not the width, so a narrow desktop window never showed it. */
 .infoWrapper {
     flex: none !important;
     width: 100% !important;
     max-width: 700px !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
 }
 
 /* Hide poster — Netflix never shows it on detail page */
@@ -927,86 +945,96 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
 /* =============================================
    TECHNICAL TRACK PICKERS — Version / Video / Audio / Subtitles
    =============================================
-   Stock markup (verified live on demo.jellyfin.org, Jellyfin 10.11):
-     form.trackSelections
+   Stock markup (jellyfin-web 10.11 and 12.x):
+     form.trackSelections[.hide]
        div.selectContainer.selectVideoContainer.trackSelectionFieldContainer[.hide]
-         label.selectLabel                 <- flex-basis 6.25em, line-height 1.75
+         label.selectLabel
          select.emby-select.detailTrackSelect
          div.selectArrowContainer          <- position:absolute, a SIBLING of the select
 
+   Rendered as ONE line of quiet spec fields — a small caps label over a plain
+   value — under the synopsis:
+
+       VIDEO             AUDIO                     SUBTITLES
+       1080p H264 SDR    English 5.1 - AAC  v      English  v
+
+   They used to be three stacked, boxed, 620px-wide form rows directly under the
+   Play button, which pushed the synopsis below the fold and read as a settings
+   form in the middle of a title page. Netflix carries the same facts as text in
+   its About block; these stay real <select>s, because choosing a track before
+   pressing Play is a thing Jellyfin can do and Netflix cannot.
+
    Three facts drive every rule here:
-   1. `.selectContainer` is a stock flex ROW — label in a fixed left column, control
-      beside it. The old treatment styled it as a vertical stack, so the label's
-      `margin-bottom` was dead and a 0.7rem/700 uppercase label sat baseline-mismatched
-      against a 0.82rem control on stock's line-height 1.75. That mismatch is what
-      reads as "the fonts are off" on this row.
-   2. NEVER declare `display` in this component. Jellyfin hides the pickers it does not
-      need with `.hide` (display:none !important, specificity 0,1,0); any !important
-      `display` of ours out-specifies it and reveals an empty "Version" picker on every
-      single-source item. Phone stacking below therefore uses flex-wrap + a 100% basis,
-      which `.hide` does not touch.
-   3. The VIDEO picker is set disabled UNCONDITIONALLY by jellyfin, and AUDIO/SUBTITLES
-      whenever there is only one track — so the row the user quoted is READ-ONLY. It
-      must not be painted as an interactive chip; it is a spec line, and it gets the
-      token this sheet reserves for exactly that (--nf-text-4, "disabled only").
-   Type sits on sizes the page already uses: the label matches .mediaInfoOfficialRating
-   (0.75rem) and the value matches .itemGenres / .mediaInfoItem (0.9rem), so the
-   component adds no new steps to an already-crowded 11-15px band. */
+   1. NEVER declare a bare `display` in this component. Jellyfin hides the form and
+      the pickers it does not need with `.hide` (display:none !important, specificity
+      0,1,0); any !important `display` of ours out-specifies it and reveals an empty
+      "Version" picker on every single-source item. The form's flex is therefore
+      gated on `:not(.hide)`, and the containers keep stock's own `display: flex`.
+   2. The VIDEO picker is set disabled UNCONDITIONALLY by jellyfin, and AUDIO/SUBTITLES
+      whenever there is only one track. A disabled field is a fact, an enabled one is
+      a choice: the enabled value carries a hairline underline and a chevron, the
+      disabled one neither.
+   3. Type sits on sizes the page already uses: the label is the micro-caps step and
+      the value the metadata step, so the row adds nothing to the type ramp. */
+.itemDetailPage .trackSelections:not(.hide) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+}
 .itemDetailPage .trackSelections {
     max-width: 100% !important;
-    margin: 2px 0 20px !important;
+    margin: 4px 0 14px !important;
 }
 .itemDetailPage .selectContainer {
-    align-items: center !important;
-    flex-wrap: wrap !important;
-    max-width: 620px !important;
-    margin: 0 0 8px !important;
+    flex: 0 1 auto !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 30px 12px 0 !important;
 }
 .itemDetailPage .selectContainer .selectLabel {
-    /* rem, not em: the rail must not shrink with the label's own font-size, and it
-       has to clear "SUBTITLES" in caps with tracking. */
-    flex: 0 0 6.5rem !important;
-    font-size: 0.75rem !important;
+    flex: 0 0 auto !important;
+    font-size: var(--nf-t-micro) !important;
     font-weight: var(--nf-w-semi) !important;
-    letter-spacing: 0.08em !important;
+    letter-spacing: var(--nf-track-caps) !important;
     text-transform: uppercase !important;
     line-height: 1.25 !important;
-    color: var(--nf-text-3) !important;
-    margin: 0 0.6em 0 0 !important;
+    color: var(--nf-text-4) !important;
+    margin: 0 0 3px !important;
     opacity: 1 !important;   /* colour belongs in `color`, not in opacity */
 }
 .itemDetailPage .selectContainer .emby-select {
-    flex: 1 1 0 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 19rem !important;
     min-width: 0 !important;
-    font-size: 0.9rem !important;
+    font-size: var(--nf-t-meta) !important;
     font-weight: 400 !important;
     line-height: 1.4 !important;
-    color: var(--text-muted) !important;
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 4px !important;
-    padding: 7px 30px 7px 11px !important;
+    color: var(--nf-text-2) !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.28) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 1px 22px 3px 0 !important;
     text-overflow: ellipsis !important;
-    transition: background 0.2s ease, border-color 0.2s ease !important;
+    cursor: pointer !important;
+    transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .itemDetailPage .selectContainer .emby-select:hover {
-    background: rgba(255,255,255,0.09) !important; border-color: rgba(255,255,255,0.22) !important;
+    color: var(--text-main) !important; border-bottom-color: #fff !important;
 }
-/* Read-only pickers keep the SAME box — only the contrast and the affordances
-   change. Stripping the box entirely (as v2.5.70 did) made the group incoherent:
-   VIDEO is always disabled and AUDIO usually is, so you got two flat text rows
-   next to one boxed Subtitles row — three rows that visibly did not match. The
-   box is what holds the row rhythm together; disabled-ness is carried by the
-   dimmer value, the missing chevron and the cursor. */
 .itemDetailPage .selectContainer .emby-select[disabled] {
-    background: rgba(255,255,255,0.03) !important;
-    border-color: rgba(255,255,255,0.07) !important;
-    box-shadow: none !important;
-    color: var(--nf-text-4) !important;
+    color: var(--nf-text-3) !important;
+    border-bottom-color: transparent !important;
+    padding-right: 0 !important;
     cursor: default !important;
+    opacity: 1 !important;
 }
 .itemDetailPage .selectContainer .emby-select[disabled]:hover {
-    background: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.07) !important;
+    color: var(--nf-text-3) !important; border-bottom-color: transparent !important;
 }
 /* Stock hides the chevron next to a disabled select with a NON-important rule, which
    our styling below would out-specify — put it back explicitly. */
@@ -1014,14 +1042,15 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
     display: none !important;
 }
 /* The chevron is an absolutely-positioned sibling pinned to the container's top with
-   stock geometry our box invalidates. `right` first: inset-inline-end is Chromium 87+
-   and JMP's QtWebEngine 5.15 would otherwise keep stock's 0.3em. */
+   stock geometry this layout invalidates. `right` first: inset-inline-end is
+   Chromium 87+ and JMP's QtWebEngine 5.15 would otherwise keep stock's 0.3em. */
 .itemDetailPage .selectContainer .selectArrowContainer {
     top: auto !important;
-    bottom: 7px !important;
-    right: 9px !important;
-    inset-inline-end: 9px !important;
+    bottom: 3px !important;
+    right: 0 !important;
+    inset-inline-end: 0 !important;
     color: var(--nf-text-3) !important;
+    pointer-events: none !important;
 }
 .itemDetailPage .selectContainer .selectArrowContainer .selectArrow {
     margin-top: 0 !important; font-size: 18px !important;
@@ -1057,7 +1086,12 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
    "1983PG-131h 22m" and the white Play button sat flush against the circular
    watched/favourite buttons. Margins are the only mechanism that works on every
    target, so the gaps above are zeroed and the spacing lives here. */
-.itemMiscInfo > * + * { margin-left: 8px !important; }
+/* Trailing margin on EVERY item, none leading. The match score is moved to the
+   front with flex `order`, so "first" and "last" in the DOM are not first and last
+   on screen: with `* + *` leading margins the row opened on an 8px indent, and a
+   title whose rating is its last DOM child lost stock's `:last-child` end margin
+   and read "87% Match2019". The bottom margin is the gap between wrapped lines. */
+.itemMiscInfo > * { margin: 0 0 4px !important; margin-inline-end: 14px !important; }
 .mainDetailButtons > * { margin: 0 10px 10px 0 !important; }
 .detailRibbon > * + * { margin-top: 12px !important; }
 
@@ -1084,6 +1118,16 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
 
 .btnPlay:hover, .btnResume:hover, .btnReplay:hover {
     background-color: rgba(255,255,255,0.75) !important;
+}
+/* ONE white button per page. "Replay" sits beside "Resume" on a half-watched title,
+   and painted white as well the two read as equals — two primaries, no hierarchy.
+   It takes the billboard's "More Info" grey: the same shape, clearly second. */
+.mainDetailButtons .btnReplay {
+    background-color: rgba(109,109,110,0.7) !important;
+    color: #fff !important;
+}
+.mainDetailButtons .btnReplay:hover {
+    background-color: rgba(109,109,110,0.4) !important;
 }
 
 /* Netflix-style text label on the primary play button (scoped to the detail
@@ -1398,6 +1442,18 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
     margin-bottom: -10px !important;
     margin-bottom: calc(12px - var(--nf-zoom-pad)) !important;
 }
+/* …which only holds if the content box really carries that clearance. The episode
+   and season strips do; the stock scrollers under Cast, Scenes, Collections and
+   More Like This carried none, so the -10px above dragged their first row of
+   artwork up INTO the heading (measured: -1px between the text and the tiles).
+   Give them the same clearance — it is also what stops `overflow-x: auto`
+   (which computes overflow-y to auto) slicing the top off a hovered tile. */
+.itemDetailPage [id$="Collapsible"] > .emby-scroller {
+    padding-top: 22px !important;
+    padding-top: var(--nf-zoom-pad) !important;
+    padding-bottom: 22px !important;
+    padding-bottom: var(--nf-zoom-pad) !important;
+}
 
 /* --- NEXT UP SECTION — Netflix "Als Nächstes" card --- */
 .nextUpSection .card {
@@ -1586,16 +1642,9 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
     padding-right: 0 !important;
 }
 /* Jellyfin 12.0 deleted .detailPageContent and moved the rail onto the container
-   itself as `padded-left`, so the cancel rule above can never fire there and the
-   SAME 7.7%-vs-4% step came straight back on every detail page. Zero the
-   container's own rail instead and let the 4% above stay the single one — that
-   also keeps the end edge, which `padded-left` alone would not. (0,3,0)+important
-   beats the `.libraryPage .padded-left` re-add at (0,2,0); inert on 10.11, where
-   this element carries no padding class. */
-.libraryPage .detailPageSecondaryContainer.padded-left {
-    padding-inline-start: 0 !important;
-    padding-left: 0 !important;
-}
+   itself as `padded-left`. That one is zeroed with every other `padded-*` on the
+   detail page (see `.itemDetailPage .padded-left` near the top of the sheet), so
+   the section's own 4% stays the single rail. */
 
 .detailPageSecondaryContainer .verticalSection .sectionTitle {
     text-align: left !important;
@@ -3407,10 +3456,18 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
 }
 .itemDetailPage .collectionItems .verticalSection { margin-bottom: var(--nf-row-gap) !important; }
 
+/* Everything from here to the end of the strip is gated on
+   `:not([data-nf-list="rows"])`. Jellyfin renders an album's tracks and a
+   playlist's entries into this same container with the same `.listItem` markup,
+   and shelved like episodes they became a sideways strip of song titles with a
+   track number over each. headerButton.js marks any list that is not episodes
+   (setupDetailLists) and those keep Jellyfin's vertical rows; a season's
+   episodes and a series' season cards are unmarked or "strip" and shelve as
+   before. :not() with an attribute selector is CSS3 — it parses everywhere. */
 /* (b) Horizontal scroll strip — covers both the .vertical-list (episodes) and
    .vertical-wrap (seasons) containers. Hidden scrollbar; bottom padding gives air. */
-.itemDetailPage #listChildrenCollapsible .itemsContainer,
-.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .itemsContainer {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .itemsContainer {
     display: flex !important;
     flex-flow: row nowrap !important;
     overflow-x: auto !important;
@@ -3423,29 +3480,29 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     padding: var(--nf-zoom-pad) 0 !important;
     scrollbar-width: none !important;
 }
-.itemDetailPage #listChildrenCollapsible .itemsContainer::-webkit-scrollbar,
-.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .itemsContainer::-webkit-scrollbar {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer::-webkit-scrollbar,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .itemsContainer::-webkit-scrollbar {
     display: none !important;
 }
 
 /* Native season / children cards just flow in the row. Spacing is the same
    margin-inline-end the home rows use (the strip's gap was ignored on
    Chromium <84 — episode tiles butted together on JMP). */
-.itemDetailPage #listChildrenCollapsible .card,
-.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .card {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .card,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .card {
     flex: 0 0 auto !important;
     margin: 0 !important;
     margin-inline-end: var(--nf-tile-gap) !important;
 }
-.itemDetailPage #listChildrenCollapsible .card:last-child,
-.itemDetailPage .detailPagePrimaryContent #childrenCollapsible .card:last-child {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .card:last-child,
+.itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .card:last-child {
     margin-inline-end: 0 !important;
 }
 /* Episode info-cards (.listItem) in the same strip need the same gutter. */
-.itemDetailPage #listChildrenCollapsible .itemsContainer > .listItem {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer > .listItem {
     margin-inline-end: var(--nf-tile-gap) !important;
 }
-.itemDetailPage #listChildrenCollapsible .itemsContainer > .listItem:last-child {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer > .listItem:last-child {
     margin-inline-end: 0 !important;
 }
 
@@ -3457,7 +3514,7 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
    Width comes off the shared tile ladder, so an episode card is exactly the same
    size as a home-row card: navigating Home -> Series -> Season no longer changes
    the tile scale twice. */
-.itemDetailPage #listChildrenCollapsible .listItem {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem {
     flex: 0 0 auto !important;
     width: clamp(220px, 19vw, 340px) !important;
     width: var(--nf-tile) !important;
@@ -3467,8 +3524,8 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     padding: 0 !important;
     background: transparent !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem:hover { background: transparent !important; }
-.itemDetailPage #listChildrenCollapsible .listItem .listItem-content {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem:hover { background: transparent !important; }
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItem-content {
     display: flex !important;
     flex-flow: column nowrap !important;
     align-items: stretch !important;
@@ -3483,8 +3540,8 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     overflow: hidden !important;
     transition: background 0.2s ease !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem:hover .listItem-content { background: #3a3a3a !important; }
-.itemDetailPage #listChildrenCollapsible .listItem .listItemImage {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem:hover .listItem-content { background: #3a3a3a !important; }
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemImage {
     width: 100% !important;
     aspect-ratio: 16 / 9 !important;
     height: auto !important;
@@ -3494,24 +3551,24 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     flex: 0 0 auto !important;
 }
 /* The stock play circle sits on every thumb at rest — Netflix reveals it on hover */
-.itemDetailPage #listChildrenCollapsible .listItem .listItemImageButton {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemImageButton {
     opacity: 0 !important;
     transition: opacity 0.2s ease !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem:hover .listItemImageButton {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem:hover .listItemImageButton {
     opacity: 1 !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem .listItemImageButton:focus-visible {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemImageButton:focus-visible {
     opacity: 1 !important;
 }
 /* Stock (listview.scss) turns this circle #00a4dc with a cyan wash on hover — inside
    the exact section the theme reveals it in. Keep it white on a dark disc. */
-.itemDetailPage #listChildrenCollapsible .listItem .listItemImageButton:hover {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemImageButton:hover {
     color: #fff !important;
     background: rgba(0,0,0,0.6) !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem .listItemBody { padding: 10px 12px 13px !important; }
-.itemDetailPage #listChildrenCollapsible .listItem .listItemBody > .listItemBodyText:first-child {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemBody { padding: 10px 12px 13px !important; }
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemBody > .listItemBodyText:first-child {
     display: -webkit-box !important;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -3523,11 +3580,19 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     line-height: 1.25 !important;
     color: #fff !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem .listViewUserDataButtons {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listViewUserDataButtons {
+    display: none !important;
+}
+/* The mobile layout appends a SECOND copy of the synopsis to every row —
+   `.listItem-bottomoverview`, unclamped, after the content wrapper. In a shelf it
+   has nowhere to go: the card is `height: 100%` of a row that the hidden copy had
+   already stretched, so every episode card on a phone was ~490px tall with its
+   text in the top 160. The card carries the clamped synopsis; drop the duplicate. */
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItem-bottomoverview {
     display: none !important;
 }
 /* Netflix's episode rows carry the synopsis — brought back, clamped to 2 lines. */
-.itemDetailPage #listChildrenCollapsible .listItem .listItem-overview {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItem-overview {
     display: -webkit-box !important;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -3538,7 +3603,7 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
     line-height: 1.35 !important;
     color: var(--nf-text-3) !important;
 }
-.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemMediaInfo {
     padding: 0 !important;
     margin: 0 !important;
     font-size: var(--nf-t-cap) !important;
@@ -3550,8 +3615,8 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
 }
 /* Netflix episode cards show the runtime alone — no end-time estimate, no
    match score in the card line. */
-.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo .endsAt,
-.itemDetailPage #listChildrenCollapsible .listItem .listItemMediaInfo .starRatingContainer {
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemMediaInfo .endsAt,
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemMediaInfo .starRatingContainer {
     display: none !important;
 }
 
@@ -4722,17 +4787,19 @@ html.nf-modern .MuiDrawer-paper .MuiListItemButton-root.Mui-selected {
     background-color: rgba(255,255,255,0.05) !important;
 }
 
-/* ===== P7 (medium) — Search results hang off their own rail — headers at 123px, cards at 113px, while the rest of the app sits at 64px ===== */
-/* The search page stacks three gutters. `.verticalSection` (line 381) already
-   carries the 4% rail; inside it the `.sectionTitle.padded-left` takes a SECOND
-   4% from the `.libraryPage .padded-left` re-add — and because it is a
-   percentage it resolves against the already-inset 1472px box, giving 58.9px,
-   so the header text lands at 122.9. Separately the card track takes stock's own
-   `max(3.3%, env(safe-area-inset-left))` from emby-scroller.scss:8 = 48.6px of
-   that same box, so cards land at 112.6. Three left edges on one page while the
-   app bar sits at 64.
+/* ===== ONE RAIL FOR EVERY STOCK ROW — search, Suggestions, Genres, Favorites, detail ===== */
+/* Jellyfin's own row markup stacks three gutters. `.verticalSection` already
+   carries the 4% rail; inside it the heading is tagged `padded-left` and takes a
+   SECOND 4% from the `.libraryPage .padded-left` re-add — a percentage of the
+   already-inset box — and the card track takes stock's own
+   `max(3.3%, env(safe-area-inset-left))` from emby-scroller.scss. Measured at
+   1440px: page title at 58, cards at 101, headings at 110 — three left edges on
+   one page, on the search results, on every sectioned library tab (Suggestions,
+   Genres, Upcoming, Favorites) and on the home Favorites tab. The stock END
+   padding on the scroller did the same on the right, which is also what left the
+   detail page's "More Like This" grid 44px short of the rail.
 
-   Fix by DELETING the two nested gutters, not by re-homing the rail onto the
+   Fix by DELETING the nested gutters, not by re-homing the rail onto the
    children: `.emby-scroller` is the scroll container (overflow-x: auto) and
    Chromium drops a scroll container's END padding from its scrollable overflow,
    so a gutter moved there survives on the start side and silently vanishes on
@@ -4741,16 +4808,14 @@ html.nf-modern .MuiDrawer-paper .MuiListItemButton-root.Mui-selected {
    window, against 1536 before). `.verticalSection`'s own `padding: 0 4%` is on a
    non-scrolling box, where both sides hold; leave it as the single rail.
    (0,3,0)+important beats the `.libraryPage .padded-left` re-add at (0,2,0), the
-   `.padded-left` reset at (0,1,0) and stock's `.emby-scroller` at (0,1,0).
-   Unscoped on purpose: `.searchResults` only ever exists on the search page, the
-   markup is identical in 10.11 and in 12.0's Legacy layout, and the empty state
-   is `.searchSuggestions` — a `.verticalSection` that is NOT inside
-   `.searchResults`, so it keeps its centred gutter untouched. */
-.searchResults .verticalSection .sectionTitle {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
-.searchResults .verticalSection .emby-scroller {
+   `.padded-left` reset at (0,1,0) and stock's `.emby-scroller` at (0,1,0). The
+   theme's own shelves (.nf-genre-section / .nf-cw-section) are excluded: they
+   zero the section and carry the gutter on their title and scroller instead.
+   The search page's empty state is `.searchSuggestions`, whose heading is
+   centred text — zeroing its padding changes nothing there. */
+.libraryPage .verticalSection:not(.nf-genre-section):not(.nf-cw-section) > .sectionTitle,
+.libraryPage .verticalSection:not(.nf-genre-section):not(.nf-cw-section) > .sectionTitleContainer,
+.libraryPage .verticalSection:not(.nf-genre-section):not(.nf-cw-section) .emby-scroller {
     padding-left: 0 !important;
     padding-right: 0 !important;
 }
@@ -5161,5 +5226,211 @@ html.nf-modern .MuiSlider-valueLabel {
     font-size: var(--nf-t-meta) !important;
 }
 
+
+/* =============================================
+   v3.1.0 — DETAIL PAGE: one header for every title, in every layout
+   ============================================= */
+
+/* --- The mobile layout -------------------------------------------------------
+   `layoutManager.mobile` keys on the USER AGENT, so everything in this group is
+   invisible in a narrow desktop window and only ever shows on a real phone or
+   tablet. Three stock rules, all aimed at a header this theme does not draw:
+
+   1. `.layout-mobile .detailPagePrimaryContent { padding: 0 5% !important }` —
+      important at (0,2,0), so it beat this sheet's own reset and set the synopsis,
+      the pickers and the tags 18px inside the title above them.
+   2. `.layout-mobile .itemName / .parentName / .itemMiscInfo / .mainDetailButtons`
+      are centred. Netflix's mobile title page is ranged left, like every other
+      block on this one.
+   3. The poster column reserved inside .infoWrapper (zeroed where that rule lives). */
+html .itemDetailPage .detailPagePrimaryContent {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+html .itemDetailPage .itemName,
+html .itemDetailPage .parentName,
+html .itemDetailPage .itemMiscInfo,
+html .itemDetailPage .mainDetailButtons {
+    text-align: left !important;
+    text-align: start !important;
+    justify-content: flex-start !important;
+}
+/* On that layout the artwork is the in-flow band, not a fixed backdrop behind the
+   page — so the wrapper's top padding, which on desktop is the window the picture
+   shows through, is 20vh of flat black BETWEEN the picture and the title. Close it
+   and let the title sit on the band's dissolve. Mobile only: on a narrow desktop
+   window the same class is set but the logo is positioned inside that padding. */
+html.layout-mobile.nf-inflow-backdrop .itemDetailPage .detailPageWrapperContainer {
+    padding-top: 0 !important;
+}
+html.layout-mobile.nf-inflow-backdrop .itemDetailPage .detailPagePrimaryContainer {
+    margin-top: -2.75rem !important;
+}
+
+/* --- No backdrop: the cover header -------------------------------------------
+   An album, an artist, a person, most playlists and many collections have no
+   backdrop. The page still reserved the 40vh band and the 30vh window under it,
+   so it opened on half a screen of flat black with the title at the fold and the
+   cover — the one picture these items do have — hidden. headerButton.js marks
+   such a page data-nf-art="none"; the band goes, and Jellyfin's own poster card
+   (already rendered, only hidden by this sheet) comes back beside the title.
+   The (0,4,1) on the container beats `.layout-mobile .hide-mobile`, which hides
+   this copy of the card on phones with an important display:none. */
+.itemDetailPage[data-nf-art="none"] #itemBackdrop { display: none !important; }
+.itemDetailPage[data-nf-art="none"] .detailPageWrapperContainer {
+    padding-top: 2.5rem !important;
+    min-height: 0 !important;
+}
+/* Legacy layout: its header is fixed OVER the page rather than above it. */
+html:not(.nf-modern) .itemDetailPage[data-nf-art="none"] .detailPageWrapperContainer {
+    padding-top: calc(var(--nav-height) + 2rem) !important;
+}
+.itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: flex-end !important;
+}
+html .itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer > .detailImageContainer {
+    display: block !important;
+    flex: 0 0 auto !important;
+    width: 232px !important;
+    max-width: 42vw !important;
+    padding: 0 !important;
+    margin: 0 32px 20px 0 !important;
+}
+.itemDetailPage[data-nf-art="none"] .detailImageContainer .card {
+    position: static !important;
+    float: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    filter: none !important;
+}
+.itemDetailPage[data-nf-art="none"] .detailImageContainer .cardBox {
+    margin: 0 !important;
+    border-radius: var(--card-radius) !important;
+    box-shadow: var(--e-3) !important;
+}
+.itemDetailPage[data-nf-art="none"] .detailImageContainer .cardScalable,
+.itemDetailPage[data-nf-art="none"] .detailImageContainer .cardImageContainer {
+    border-radius: var(--card-radius) !important;
+}
+/* The card is the picture here, not a tile: it must not zoom, lift or open a
+   preview, and its hover overlay would cover the art with nothing to click. */
+html .itemDetailPage[data-nf-art="none"] .detailImageContainer .card:hover .cardScalable { transform: none !important; }
+.itemDetailPage[data-nf-art="none"] .detailImageContainer .cardOverlayContainer,
+.itemDetailPage[data-nf-art="none"] .detailImageContainer .cardText { display: none !important; }
+.itemDetailPage[data-nf-art="none"] .detailRibbon {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    margin-top: 0 !important;
+}
+.itemDetailPage[data-nf-art="none"] .detailPagePrimaryContent { flex: 0 0 100% !important; }
+@media (max-width: 559px) {
+    .itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+    html .itemDetailPage[data-nf-art="none"] .detailPagePrimaryContainer > .detailImageContainer {
+        width: 46vw !important;
+        max-width: 46vw !important;
+        margin: 0 0 16px !important;
+    }
+    .itemDetailPage[data-nf-art="none"] .detailRibbon { flex: 0 0 auto !important; width: 100% !important; }
+}
+
+/* --- Lists that are not episodes ---------------------------------------------
+   Track lists and playlist entries (marked data-nf-list="rows", see the episode
+   strip block) keep Jellyfin's vertical rows, on the page rail and no wider than
+   a line of text can be scanned across. */
+/* margin: stock centres a vertical list with `margin: 0 auto`, which hung the
+   tracks off an edge of their own, 130px inside the rail the title sits on. */
+.itemDetailPage [data-nf-list="rows"] .itemsContainer {
+    max-width: 1100px !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+.itemDetailPage [data-nf-list="rows"] .listItem {
+    padding: 6px 8px !important;
+    border-bottom: 1px solid var(--nf-hairline) !important;
+    border-radius: 0 !important;
+}
+.itemDetailPage [data-nf-list="rows"] .listItem:last-child { border-bottom-color: transparent !important; }
+.itemDetailPage [data-nf-list="rows"] .listItemBodyText:first-child {
+    color: var(--text-main) !important;
+    font-size: var(--nf-t-ui) !important;
+}
+.itemDetailPage [data-nf-list="rows"] .listItem .secondary,
+.itemDetailPage [data-nf-list="rows"] .listItemIndexNumberLeft { color: var(--nf-text-3) !important; }
+
+/* --- More Like This: ranged left, like the episode panels -----------------------
+   The same component — artwork on a panel that carries the text — rendered twice
+   on one page with two alignments: episode panels ranged left, these centred by
+   stock's `.cardTextCentered`. Netflix's own More Like This panels range left. */
+#similarCollapsible .cardText {
+    text-align: left !important;
+    text-align: start !important;
+    justify-content: flex-start !important;
+}
+
+/* --- Two columns on a wide page -------------------------------------------------
+   Netflix sets the synopsis on the left and the facts — cast, genres, "this
+   title is" — in a narrower column to its right. Jellyfin stacks everything in
+   one 700px column, which left the right half of a desktop page empty and put
+   Director / Writers / Studio / Genres a full screen below the synopsis they
+   belong beside. One grid on the section does it without touching the DOM:
+
+       col 1 (<=700px)                       col 2 (<=400px)     col 3 (rest)
+       tagline, synopsis, tags, links        Director …          (empty)
+       Video / Audio / Subtitles             Writers  …
+
+   The third, flexible track is what lets everything else in the section — the
+   episode strip, Next Up, a collection's titles — span the whole rail with
+   `1 / -1`: without it a full-span item is only as wide as the two text tracks.
+   `:not(.hide)` per gotcha S. Grid placement is Chromium 57, so this holds on
+   every engine the theme supports. */
+@media (min-width: 1100px) {
+    .itemDetailPage .detailPagePrimaryContent { max-width: none !important; }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection:not(.hide) {
+        display: grid !important;
+        grid-template-columns: minmax(0, 700px) minmax(0, 400px) minmax(0, 1fr);
+        grid-column-gap: 5%;
+        column-gap: 5%;
+        align-items: start;
+    }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > * { grid-column: 1 / -1; min-width: 0; }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > .detailSectionContent { grid-column: 1; grid-row: 1; }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > .trackSelections { grid-column: 1; grid-row: 2; }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > .recordingFields { grid-column: 1; grid-row: 3; }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > .itemDetailsGroup {
+        grid-column: 2; grid-row: 1 / span 3;
+        /* level with the first line of the synopsis, not with the tagline above it */
+        margin-top: 2px !important;
+    }
+    /* The strips no longer have a 700px column to break out of. 92vw was that
+       breakout — and vw counts a classic scrollbar, so it ran ~14px past the rail. */
+    .itemDetailPage .detailPagePrimaryContent #listChildrenCollapsible,
+    .itemDetailPage .detailPagePrimaryContent #childrenCollapsible,
+    .itemDetailPage .detailPagePrimaryContent .collectionItems {
+        width: auto !important;
+    }
+}
+
+/* --- Phones: Netflix's stacked actions ---------------------------------------------
+   One full-width primary, the secondary under it, then the round actions. */
+@media (max-width: 559px) {
+    /* The row has to be given the width first: it is `width: auto` inside a
+       left-ranged column, so a 100% basis resolved against its own content. */
+    .itemDetailPage .mainDetailButtons { width: 100% !important; }
+    .mainDetailButtons .btnPlay,
+    .mainDetailButtons .btnResume,
+    .mainDetailButtons .btnReplay {
+        flex: 1 1 100% !important;
+        justify-content: center !important;
+        margin: 0 0 8px !important;
+    }
+}
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */
