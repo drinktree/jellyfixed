@@ -298,6 +298,25 @@ namespace Jellyfin.Plugin.CustomTheme
             "html.nf-modern header.MuiAppBar-root .MuiToolbar-root a.MuiButton-sizeLarge"
         };
 
+        /// <summary>
+        /// The Modern layout's navigation drawer opens on the same home link, with the
+        /// stock Jellyfin icon as an &lt;img&gt; inside its ListItemIcon — on a phone it is
+        /// the first thing in the menu, and it was the one place the product's own mark
+        /// still showed through the theme. The icon slot takes the configured logo.
+        /// </summary>
+        private const string DrawerLogoHost =
+            "html.nf-modern .MuiDrawer-paper a.MuiListItemButton-root[href=\"#/\"] .MuiListItemIcon-root";
+
+        /// <summary>
+        /// The "netflix" mark as a shape rather than a letter. The base sheet draws the
+        /// legacy header's .nf-logo this way for the reason given there — a font's Black
+        /// "N" stretched 10% reads as a stretched font — but the Modern hosts were still
+        /// getting the letter, on the layout every 12.x client now defaults to. Same path,
+        /// same 19x30 box, tinted with the configured accent through the mask.
+        /// </summary>
+        private const string MarkMask =
+            "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 186 300'%3E%3Cpath d='M0 0h66l54 190V0h66v300h-66L66 110v190H0z'/%3E%3C/svg%3E\")";
+
         /// <summary>Joins every logo host into one selector list, appending
         /// <paramref name="suffix"/> (e.g. "::before") to each.</summary>
         private static string LogoHosts(string suffix = "")
@@ -313,6 +332,7 @@ namespace Jellyfin.Plugin.CustomTheme
             {
                 sb.AppendLine(".headerLeft::before { display: none !important; }");
                 sb.AppendLine($"{LogoHosts()} {{ display: none !important; }}");
+                sb.AppendLine($"{DrawerLogoHost} {{ display: none !important; }}");
                 return;
             }
 
@@ -382,6 +402,32 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.AppendLine($"{LogoHosts()} {{ font-size: 0 !important; min-width: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }}");
             sb.AppendLine($"{LogoHosts(" .MuiButton-startIcon")} {{ display: none !important; }}");
             sb.AppendLine($"{LogoHosts("::before")} {{\n    {appearance}\n}}");
+
+            // The drawer's home row: the stock icon goes, the configured logo takes its
+            // slot. "jellyfin" is the stock icon, so that style leaves the row alone.
+            if (style != "jellyfin")
+            {
+                sb.AppendLine($"{DrawerLogoHost} > img {{ display: none !important; }}");
+                sb.AppendLine($"{DrawerLogoHost}::before {{\n    {appearance}\n}}");
+            }
+
+            // The shape upgrade for the default mark, on every Modern host. Gated on
+            // mask support so an engine without it keeps the letter emitted above;
+            // `transform: none` undoes that letter's 10% stretch.
+            if (style == "netflix")
+            {
+                sb.AppendLine("@supports ((-webkit-mask-image: linear-gradient(#000,#000)) or (mask-image: linear-gradient(#000,#000))) {");
+                sb.AppendLine($"{LogoHosts("::before")}, {DrawerLogoHost}::before {{");
+                sb.AppendLine("    content: '' !important; display: block !important; width: 19px !important; height: 30px !important;");
+                sb.AppendLine("    font-size: 0 !important; letter-spacing: normal !important; transform: none !important;");
+                sb.AppendLine("    background-color: var(--accent-red) !important;");
+                sb.AppendLine($"    -webkit-mask-image: {MarkMask}; mask-image: {MarkMask};");
+                sb.AppendLine("    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;");
+                sb.AppendLine("    -webkit-mask-position: center; mask-position: center;");
+                sb.AppendLine("    -webkit-mask-size: contain; mask-size: contain;");
+                sb.AppendLine("}");
+                sb.AppendLine("}");
+            }
         }
 
         private static void AppendElements(StringBuilder sb, PluginConfiguration config)

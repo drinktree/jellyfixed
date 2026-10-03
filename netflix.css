@@ -1719,6 +1719,12 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 /* Kill the cyan accents: focused labels and checkboxes go Netflix */
 #loginPage .inputLabel, #loginPage .inputLabelFocused, #loginPage .inputLabelUnfocused,
 .inputLabelFocused { color: var(--text-muted) !important; }
+/* Stock paints all THREE focused-label classes from --jf-palette-secondary-main,
+   which the palette bridge maps to the accent — and only the input one was
+   answered above. A focused <select> or <textarea> therefore got a red label,
+   which in a form reads as a validation error on a field nobody has touched.
+   Focus is one step brighter than rest; the field's own ring does the rest. */
+.selectLabelFocused, .textareaLabelFocused { color: var(--nf-text-2) !important; }
 input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !important; }
 /* The filled box of a checked Jellyfin checkbox is .checkboxOutline (default
    #00a4dc cyan). It is a sibling AFTER the input, not a descendant of the label
@@ -1849,6 +1855,31 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
 
 .button-flat, .emby-button { text-transform: none !important; font-family: var(--font-netflix) !important; }
 .button-accent, .fab { background-color: var(--accent-red) !important; }
+/* Stock signals keyboard focus on a raised button by SWAPPING ITS FILL to the
+   secondary palette colour (`.raised:focus`), and the bridge makes that the
+   accent. A confirm dialog focuses its first button on open, so "Cancel" stood
+   as a solid red button beside a solid red "Delete" — the safe choice and the
+   destructive one, indistinguishable. Focus in this theme is the white ring
+   (:focus-visible above, html.nf-kb on engines without it); the fill stays what
+   the button is. Submit and delete keep their own colours. */
+.raised:not(.button-submit):not(.button-delete):focus,
+a[data-role="button"]:focus {
+    background: var(--jf-palette-Button-inheritContainedBg, #303030) !important;
+}
+.raised.button-delete:focus {
+    background: var(--jf-palette-error-main, #c62828) !important;
+}
+/* Inside a dialog a FAB is a row tool (Edit Images' search / add beside each
+   heading), not the page's one floating action: four red discs in a panel whose
+   only real primary is the button in its footer. Neutral ring, like every other
+   round control in the theme. */
+.dialog .fab {
+    background-color: var(--nf-ring-fill) !important;
+    border: 1px solid rgba(255,255,255,0.4) !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+.dialog .fab:hover { border-color: #fff !important; background-color: rgba(255,255,255,0.12) !important; }
 
 /* Scrollbar styling lives in one place in the DESIGN REFINEMENTS section below
    (two competing blocks used to shadow each other). */
@@ -3406,6 +3437,32 @@ html:has(.videoPlayerContainer) .backdropContainer { display: none !important; }
 }
 /* (The ≥769px OSD control-bar inset lives in the responsive tail at the end of
    this sheet, per the responsive-overrides-at-END rule.) */
+
+/* --- Player: subtitles stand clear of the controls ------------------------------
+   Jellyfin draws its own subtitle line in a fixed box at the bottom of the screen
+   and its control bar in another, and never tells the first about the second: with
+   the controls up, the caption ran straight through the seek bar and its chapter
+   ticks. Netflix lifts the line for as long as the controls are showing.
+   One transform on the caption box, on the controls' show/hide edge — nothing per
+   frame, and nothing on .videoOsdBottom or the seek bubble (gotcha P). The
+   `[style*="bottom"]` half is how a bottom-anchored line is told from one the
+   user moved to the top (subtitleappearancehelper writes `bottom: 0` or `top: 0`
+   inline), which must not be pushed off the screen.
+   Standalone :has() rule: engines without it keep stock behaviour, and the
+   desktop app is not among the affected — mpv draws its subtitles natively. */
+.videoSubtitles { transition: transform 0.25s ease-out; }
+html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .videoSubtitles[style*="bottom"] {
+    -webkit-transform: translateY(-6.5rem);
+    transform: translateY(-6.5rem);
+}
+/* The same lift for the browser's NATIVE cue box, which is what most direct-play and
+   HLS sessions actually use (Jellyfin only builds .videoSubtitles for the formats it
+   renders itself). The cue container is a shadow pseudo-element; its own rule, because
+   an engine that does not know the pseudo drops the whole selector list it is in. */
+html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .videoPlayerContainer video::-webkit-media-text-track-container {
+    -webkit-transform: translateY(-6.5rem);
+    transform: translateY(-6.5rem);
+}
 
 /* --- Detail: "More Like This" as a static boxart grid, not a side-scroller.
    (10.11 markup: #similarCollapsible > .emby-scroller > .scrollSlider.similarContent) */
