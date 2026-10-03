@@ -1697,7 +1697,8 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
    LOGIN PAGE
    ============================================= */
 
-#loginPage { background-color: var(--bg-darker) !important; }
+/* (The stage, the profile gate and the shared sign-in card live in the
+   "SESSION PAGES" block near the end of the sheet.) */
 
 .visual-card {
     background-color: rgba(0,0,0,0.85) !important;
@@ -1862,7 +1863,6 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
 
 .adminDrawerLogo { display: none !important; }
 .detailButton-content { font-family: var(--font-netflix) !important; text-transform: none !important; }
-.selectServer, .loginPage .readOnlyContent { background-color: var(--bg-darker) !important; }
 
 /* =============================================
    SMOOTH PAGE TRANSITIONS
@@ -4374,7 +4374,7 @@ html.nf-modern header.MuiAppBar-root.MuiAppBar-colorTransparent {
    is simply solid, which is what Netflix does on its own browse pages.
    The playing states are excluded so this never outranks the OSD carve-out
    below, which it would otherwise beat at (0,7,2) vs (0,3,2). */
-html.nf-modern:not(.nf-hero-top):not(.nf-detail-page):not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root.MuiAppBar-colorTransparent {
+html.nf-modern:not(.nf-hero-top):not(.nf-detail-page):not(.nf-session):not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root.MuiAppBar-colorTransparent {
     background-color: var(--bg-dark) !important;
     background-image: none !important;
 }
@@ -5551,6 +5551,314 @@ html.nf-modern header.MuiAppBar-root .MuiButton-containedPrimary:not(.MuiButtonG
     .alphaPicker-fixed-right ~ * .verticalSection {
         padding-right: 34px !important;
     }
+}
+
+/* =============================================
+   v3.1.0 — SESSION PAGES: sign-in, the profile gate, password recovery, servers
+   =============================================
+   The first screens anyone sees, and until now the least designed: a flat black
+   page under a #141414 bar, a 24px "Please sign in", user tiles with 11px grey
+   names, and a stack of grey slabs twice as wide as the form above them.
+
+   One stage and two pieces of furniture cover all five routes:
+     * the GATE  — Netflix's "Who's watching?": a large quiet heading, a centred
+                   row of square profile tiles whose names light up on hover, and
+                   small outlined secondary actions underneath;
+     * the CARD  — Netflix's sign-in panel: one 450px column holding the heading,
+                   the fields, a red primary and a grey secondary.
+   html.nf-session is stamped by headerButton.js on these routes; it is only used
+   for the app bar, which lives outside the page element. */
+
+/* --- The stage. The page itself is transparent: with no splash image that leaves
+   the flat page colour, which is what Netflix's own gate stands on. When the admin
+   has switched the splash screen on (Dashboard > General), Jellyfin raises a
+   collage of the library's posters as this route's backdrop — and that collage,
+   dimmed, IS Netflix's sign-in background.
+   The dimming goes on .backgroundContainer, not on the page: the page starts under
+   the app bar, so a scrim painted there left the top 48px of the collage at full
+   brightness. Flat through the middle, where the tiles and their grey labels sit,
+   and heavier at both ends. */
+.standalonePage {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+html.nf-session .backgroundContainer.withBackdrop {
+    background-image: linear-gradient(180deg,
+        rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.74) 20%, rgba(0,0,0,0.74) 72%, rgba(0,0,0,0.92) 100%) !important;
+    /* The detail page lifts this layer to z-index 1, above its own backdrop and
+       below its z-index-3 content. A sign-in page has no z-index of its own, so at
+       1 the scrim would paint OVER the form. Back in tree order it sits under it. */
+    z-index: 0 !important;
+}
+html.nf-session.nf-modern header.MuiAppBar-root.MuiAppBar-colorTransparent {
+    background-image: none !important;
+}
+/* The bar is cleared over the stage. On Modern that is the `:not(.nf-session)` in
+   the solid-bar rule further up (the bar is colorTransparent at scrollTop 0 and
+   these pages never scroll); the legacy header needs saying outright. */
+html.nf-session .skinHeader {
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
+/* `w-100` plus the section's own 4% rail, content-box: the server row was 115%
+   of the page and its "centred" heading sat 57px right of centre. */
+#selectServerPage .verticalSection {
+    box-sizing: border-box !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: 100% !important;
+}
+/* Centre the content in the height that is left. The inner wrapper already carries
+   auto block margins (.margin-auto-y); they only centre once the page is a column
+   flex container. :not(.hide) per gotcha S. */
+.standalonePage:not(.hide) {
+    display: flex !important;
+    flex-direction: column !important;
+}
+.standalonePage > .padded-bottom-page,
+.standalonePage > .margin-auto-y {
+    margin-top: auto !important;
+    margin-bottom: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding-bottom: 6vh !important;
+}
+
+/* --- The gate ---------------------------------------------------------------- */
+#loginPage .visualLoginForm h1,
+#selectServerPage h1.sectionTitle {
+    font-family: var(--font-netflix) !important;
+    font-size: 2.2rem !important;
+    font-size: clamp(1.7rem, 3.5vw, 3.4rem) !important;
+    font-weight: var(--nf-w-med) !important;
+    letter-spacing: var(--nf-track-display) !important;
+    line-height: 1.1 !important;
+    color: var(--text-main) !important;
+    margin: 0 0 0.9em !important;
+    padding: 0 !important;
+    text-align: center !important;
+}
+#loginPage #divUsers,
+#selectServerPage .servers {
+    justify-content: center !important;
+    padding: 0 var(--nf-gutter) !important;
+}
+/* A profile tile: the picture is the control, the name is its label. Sized off the
+   viewport the way Netflix sizes them (10vw, floored and capped), in rem-free px so
+   the Font Size option cannot inflate the artwork. */
+#loginPage #divUsers .card,
+#selectServerPage .servers .card {
+    width: 144px !important;
+    width: clamp(92px, 11vw, 190px) !important;
+    min-width: 0 !important;
+    margin: 0 1vw 1.4em !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    cursor: pointer !important;
+}
+#loginPage #divUsers .cardBox,
+#selectServerPage .servers .cardBox {
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+}
+#loginPage #divUsers .cardScalable,
+#selectServerPage .servers .cardScalable {
+    border-radius: var(--card-radius) !important;
+    overflow: hidden !important;
+    box-shadow: 0 0 0 0 rgba(229,229,229,0) !important;
+    transition: box-shadow 0.15s ease !important;
+}
+/* Hover and keyboard focus draw Netflix's white ring; the tile never zooms and never
+   opens a preview. The `html ` prefix out-ranks the zoom CssGenerator appends after
+   this sheet. Standalone :focus rule — these are <button>s, so it is the real
+   keyboard state, and :focus-visible is unknown to Chromium 83. */
+html #loginPage #divUsers .card:hover .cardScalable,
+html #selectServerPage .servers .card:hover .cardScalable {
+    transform: none !important;
+    box-shadow: 0 0 0 3px #e5e5e5 !important;
+}
+html #loginPage #divUsers .card:focus .cardScalable,
+html #selectServerPage .servers .card:focus .cardScalable {
+    transform: none !important;
+    box-shadow: 0 0 0 3px #e5e5e5 !important;
+}
+html #loginPage #divUsers .card:hover,
+html #selectServerPage .servers .card:hover { transform: none !important; box-shadow: none !important; }
+#loginPage #divUsers .cardFooter,
+#selectServerPage .servers .cardFooter {
+    background: transparent !important;
+    padding: 0.65em 0 0 !important;
+}
+#loginPage #divUsers .cardText,
+#selectServerPage .servers .cardText {
+    font-family: var(--font-netflix) !important;
+    font-size: 1rem !important;
+    font-size: clamp(0.85rem, 1.3vw, 1.2rem) !important;
+    font-weight: var(--nf-w-reg) !important;
+    /* one step lighter than Netflix's #808080: these can sit on a dimmed collage */
+    color: var(--nf-text-3) !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7) !important;
+    text-align: center !important;
+    padding: 0 !important;
+    transition: color 0.15s ease !important;
+}
+#loginPage #divUsers .card:hover .cardText,
+#loginPage #divUsers .card:focus .cardText,
+#selectServerPage .servers .card:hover .cardText,
+#selectServerPage .servers .card:focus .cardText { color: var(--text-main) !important; }
+
+/* Secondary actions: Netflix's "Manage Profiles" — a small outlined label, not a
+   full-width slab. A wrapping centred row; margins, not flex gap (Chromium 83).
+   No `display` on the buttons: Jellyfin hides the ones that do not apply (Quick
+   Connect, Change Server) with `.hide`, and as flex items they shrink to their
+   label on their own. */
+#loginPage .readOnlyContent {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    max-width: none !important;
+    width: auto !important;
+    margin: 2.2em auto 0 !important;
+    padding: 0 var(--nf-gutter) !important;
+    background: transparent !important;
+}
+#loginPage .readOnlyContent > .raised,
+#selectServerPage .btnAddServer {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    margin: 0 0.5em 0.75em !important;
+    padding: 0.6em 1.5em !important;
+    background: rgba(0,0,0,0.35) !important;
+    border: 1px solid var(--nf-text-4) !important;
+    border-radius: var(--r-badge) !important;
+    box-shadow: none !important;
+    color: var(--nf-text-3) !important;
+    font-family: var(--font-netflix) !important;
+    font-size: var(--nf-t-cap) !important;
+    font-weight: var(--nf-w-med) !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    transition: color 0.15s ease, border-color 0.15s ease !important;
+}
+#loginPage .readOnlyContent > .raised:hover,
+#loginPage .readOnlyContent > .raised:focus,
+#selectServerPage .btnAddServer:hover,
+#selectServerPage .btnAddServer:focus {
+    color: var(--text-main) !important;
+    border-color: var(--text-main) !important;
+    background: rgba(0,0,0,0.35) !important;
+}
+#loginPage .loginDisclaimerContainer {
+    flex: 0 0 100% !important;
+    margin-top: 1.4em !important;
+    text-align: center !important;
+    color: var(--nf-text-3) !important;
+    font-size: var(--nf-t-cap) !important;
+}
+
+/* --- The card ---------------------------------------------------------------- */
+#loginPage form.manualLoginForm,
+.standalonePage .forgotPasswordForm,
+.standalonePage .forgotPasswordPinForm,
+.standalonePage .addServerForm {
+    background: rgba(0,0,0,0.75) !important;
+    border-radius: var(--card-radius) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 450px !important;
+    margin: 0 auto !important;
+    padding: 48px 56px 44px !important;
+    text-align: left !important;
+    text-align: start !important;
+}
+.standalonePage form h1 {
+    font-family: var(--font-netflix) !important;
+    font-size: 2rem !important;
+    font-weight: var(--nf-w-bold) !important;
+    letter-spacing: var(--nf-track-head) !important;
+    line-height: 1.15 !important;
+    color: var(--text-main) !important;
+    margin: 0 0 26px !important;
+    padding: 0 !important;
+    text-align: left !important;
+    text-align: start !important;
+}
+/* The login heading sits in a centring flex wrapper tagged padded-left/right. */
+#loginPage form.manualLoginForm > .padded-left {
+    justify-content: flex-start !important;
+    padding: 0 !important;
+}
+.standalonePage form .inputContainer { margin-bottom: 16px !important; }
+.standalonePage form .inputContainer input,
+.standalonePage form .emby-input {
+    height: 50px !important;
+    padding: 0 16px !important;
+    font-size: 1rem !important;
+}
+.standalonePage form .fieldDescription {
+    color: var(--nf-text-3) !important;
+    font-size: var(--nf-t-cap) !important;
+    margin-top: 6px !important;
+}
+/* Primary: Jellyfin spells it three ways across these five forms. */
+.standalonePage form .raised.button-submit,
+.standalonePage form .raised.submit,
+.standalonePage form button[type="submit"].raised {
+    background-color: var(--accent-red) !important;
+    color: #fff !important;
+    width: 100% !important;
+    height: 48px !important;
+    margin: 22px 0 0 !important;
+    border-radius: var(--card-radius) !important;
+    font-family: var(--font-netflix) !important;
+    font-size: 1rem !important;
+    font-weight: var(--nf-w-bold) !important;
+    text-transform: none !important;
+    box-shadow: none !important;
+}
+.standalonePage form .raised.button-submit:hover,
+.standalonePage form .raised.submit:hover,
+.standalonePage form button[type="submit"].raised:hover { background-color: var(--accent-red-hover) !important; }
+/* Secondary: Netflix's grey "Use a sign-in code" face. */
+.standalonePage form .raised.cancel,
+.standalonePage form .raised.button-cancel {
+    background-color: rgba(128,128,128,0.4) !important;
+    color: #fff !important;
+    width: 100% !important;
+    height: 48px !important;
+    margin: 12px 0 0 !important;
+    border-radius: var(--card-radius) !important;
+    font-family: var(--font-netflix) !important;
+    font-size: 1rem !important;
+    font-weight: var(--nf-w-med) !important;
+    text-transform: none !important;
+    box-shadow: none !important;
+}
+.standalonePage form .raised.cancel:hover,
+.standalonePage form .raised.button-cancel:hover { background-color: rgba(128,128,128,0.3) !important; }
+/* The card stands alone: with the form open, the row of outlined actions under it
+   is the "or" — give it the same air the card has above. */
+#loginPage form.manualLoginForm:not(.hide) ~ .readOnlyContent { margin-top: 1.6em !important; }
+
+@media (max-width: 559px) {
+    #loginPage form.manualLoginForm,
+    .standalonePage .forgotPasswordForm,
+    .standalonePage .forgotPasswordPinForm,
+    .standalonePage .addServerForm {
+        background: transparent !important;
+        max-width: 100% !important;
+        padding: 8px 6vw 24px !important;
+    }
+    #loginPage #divUsers .card,
+    #selectServerPage .servers .card {
+        width: 34vw !important;
+        margin: 0 3vw 1.4em !important;
+    }
+    #loginPage .visualLoginForm h1 { font-size: 1.9rem !important; }
 }
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */

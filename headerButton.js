@@ -3493,6 +3493,9 @@
         // drops the whole rule on Jellyfin Media Player's QtWebEngine, and the
         // bar's colour is not something that may silently fall back.
         document.documentElement.classList.toggle('nf-detail-page', /#\/details/i.test(location.hash));
+        // The sign-in routes: the app bar sits outside the page element, so the
+        // sheet needs a root class to clear the bar over the gate's backdrop.
+        document.documentElement.classList.toggle('nf-session', /^#\/(login|selectserver|addserver|forgotpassword|forgotpasswordpin)\b/i.test(location.hash));
         // EDGE-triggered teardown. Everything else here is an entry guard, which only
         // stops the NEXT clip — an in-flight one kept decoding and streaming under the
         // player for up to 30s. .videoPlayerContainer being inserted is itself a body
