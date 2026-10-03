@@ -375,7 +375,7 @@
         try {
             if (!/#\/details/i.test(location.hash)) return;
             var now = Date.now();
-            if (now - nfLastDetailNav < 1000) return;
+            if (!nfSettlePass && now - nfLastDetailNav < 1000) return;
             nfLastDetailNav = now;
             document.querySelectorAll('.itemDetailPage .detailPagePrimaryContent #listChildrenCollapsible, .itemDetailPage .detailPagePrimaryContent #childrenCollapsible').forEach(function (sec) {
                 // A vertical list has nothing to page sideways.
@@ -2923,7 +2923,7 @@
             // frame (a 100-card library grid is ~2500 elements). The generated CSS
             // fail-opens after 2.5s, so a 250ms floor is invisible.
             var now = Date.now();
-            if (now - nfLastMatchScan < 250) return;
+            if (!nfSettlePass && now - nfLastMatchScan < 250) return;
             nfLastMatchScan = now;
             // .starRatingValue is the classic markup; detail pages render the value
             // directly inside .starRatingContainer (verified live on 10.11).
@@ -3312,6 +3312,9 @@
     // The observer is disconnected outright and replaced by one cheap poll whose
     // ONLY job is to notice that playback ended and wire everything back up.
     var nfObserver = null;
+    // True only inside the trailing settle pass (see scheduleDynamic): the scanners
+    // that throttle themselves run unconditionally there.
+    var nfSettlePass = false;
     var nfSuspended = false;
     var nfResumePoll = null;
     function nfObserveBody() {
@@ -3650,7 +3653,23 @@
         // EVERY feature (nav tabs, hero, genre rows, ...) gets retried as the
         // home page renders asynchronously — not just on the single init() pass.
         var dynScheduled = false;
+        // A trailing "settle" pass ~300ms after the LAST mutation of a burst, with
+        // the scanners' own throttles lifted (nfSettlePass). Several of them limit
+        // themselves — the match score to one scan per 250ms, the detail row
+        // chevrons to one per second — which is right while the DOM is churning and
+        // wrong at the end of it: a page that renders in one burst and then goes
+        // quiet (a phone: no hover, no preview clips) never got the pass that would
+        // have seen its new elements. The rating stayed hidden for the generated
+        // sheet's 2.5s fail-open and then showed a raw "8.1" instead of "81% Match".
+        // Only childList mutations re-arm it and a settle pass adds no nodes of its
+        // own once the page is built, so it cannot keep itself alive.
+        var dynTrail = 0;
         function scheduleDynamic() {
+            clearTimeout(dynTrail);
+            dynTrail = setTimeout(function () {
+                nfSettlePass = true;
+                try { applyDynamic(); } finally { nfSettlePass = false; }
+            }, 320);
             if (dynScheduled) return;
             dynScheduled = true;
             requestAnimationFrame(function () { dynScheduled = false; applyDynamic(); });
