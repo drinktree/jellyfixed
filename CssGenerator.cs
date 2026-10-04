@@ -215,10 +215,23 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine($"    --nf-track-head: {tracking};");
             }
 
-            // One step up from the page background — the raised surface MUI paints
-            // menus, dialogs and the scrolled app bar with (the theme's own
-            // --nf-surface is the same relationship, hard-coded for the default #141414).
-            var surface = Lighten(bg, 0.03);
+            // Surfaces are STEPS ABOVE THE PAGE, re-derived from whatever the page is.
+            // On Netflix's #141414 they are +4 / +27 / +38 per channel — #181818,
+            // #2f2f2f, #3a3a3a, the base sheet's own literals. On a near-black page the
+            // first step has to be bigger or a menu has no edge at all, so OLED black
+            // gets +15 / +30 / +42. The base sheet used to hard-code all three greys
+            // AND the page colour inside every fade, which is why OLED black (or any
+            // seasonal background) was full of grey slabs and banded seams.
+            var nearBlack = Luma(bg) < 12;
+            var surface = Lift(bg, nearBlack ? 15 : 4);
+            var surfaceHi = Lift(bg, nearBlack ? 30 : 27);
+            var surfaceHover = Lift(bg, nearBlack ? 42 : 38);
+            sb.AppendLine($"    --nf-bg-rgb: {CommaChannels(bg, "20,20,20")};");
+            sb.AppendLine($"    --nf-surface: {surface};");
+            sb.AppendLine($"    --nf-surface-rgb: {CommaChannels(surface, "24,24,24")};");
+            sb.AppendLine($"    --nf-surface-hi: {surfaceHi};");
+            sb.AppendLine($"    --nf-surface-hover: {surfaceHover};");
+            sb.AppendLine($"    --nf-accent-rgb: {CommaChannels(accent, "229,9,20")};");
 
             // --- Jellyfin 12.0 palette bridge ---------------------------------------
             // 12.0 rebuilt every theme on one MUI base whose colours come from ~200
@@ -487,6 +500,7 @@ namespace Jellyfin.Plugin.CustomTheme
                 // A fixed, full-width backdrop-filter re-blurs the framebuffer on every scroll
                 // frame — the largest recurring GPU cost on the page. Off on touch WebViews.
                 sb.AppendLine("@media (hover: none) { .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; } }");
+                AppendModernBarGlass(sb, 0.8, "blur(16px) saturate(120%)");
             }
 
             if (config.SpoilerMode)
@@ -574,9 +588,17 @@ namespace Jellyfin.Plugin.CustomTheme
             // shape rules here and are excluded from the native rule.
             if (config.CardStyle == "portrait")
             {
-                sb.AppendLine(".card.overflowBackdropCard:not(.nf-card) .cardPadder { padding-bottom: 150% !important; }");
-                sb.AppendLine(".card.overflowBackdropCard:not(.nf-card) .cardImageContainer { background-position: center !important; }");
+                // Only the theme's own shelves change shape: they re-render with poster
+                // art. Jellyfin's native backdrop cards are NOT reshaped any more — their
+                // artwork is a landscape still baked into the markup, and forcing it
+                // into 2:3 centre-cropped it (the series page's "Next Up" was a slice
+                // out of the middle of an episode still, three times too tall).
                 sb.AppendLine(".nf-genre-section .cardPadder-overflowBackdrop { padding-bottom: 150% !important; }");
+                // Landscape things on a portrait grid — Continue Watching, the episode
+                // strip — span TWO poster columns. At one column they were postage
+                // stamps (188px stills beside 281px-tall posters); at two they are the
+                // row's feature tiles and their edges land on the poster grid.
+                sb.AppendLine(":root { --nf-tile-wide: calc(2 * var(--nf-tile) + var(--nf-tile-gap)); }");
                 // A 2:3 tile is 1.5x as tall as a 16:9 one, so the 1.2 hover zoom
                 // overflows the row scroller by 0.15 x tile width instead of 0.056 —
                 // past the base sheet's 22px clearance from ~978px up, and the
@@ -663,9 +685,38 @@ namespace Jellyfin.Plugin.CustomTheme
             // only emitted by this option, so the display:none release is safe.
             if (config.AmbientGlow)
             {
-                sb.AppendLine("body::after { content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse at 50% 0%, rgba(229,9,20,0.06) 0%, transparent 60%), radial-gradient(ellipse at 80% 50%, rgba(229,9,20,0.03) 0%, transparent 50%); pointer-events: none; z-index: 0; }");
+                // ONE light, from the top of the screen, in the configured accent, eased
+                // over six stops. It used to be two hard-coded red radials — one of them
+                // off-centre at mid-screen — which on a dark page read as maroon stains
+                // between the shelves rather than as light, and stayed Netflix red
+                // whatever accent was chosen.
+                sb.AppendLine("body::after { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 78vh; background: radial-gradient(ellipse 85% 100% at 50% 0%, rgba(var(--nf-accent-rgb),0.11) 0%, rgba(var(--nf-accent-rgb),0.085) 14%, rgba(var(--nf-accent-rgb),0.055) 32%, rgba(var(--nf-accent-rgb),0.028) 52%, rgba(var(--nf-accent-rgb),0.01) 74%, rgba(var(--nf-accent-rgb),0) 100%); pointer-events: none; z-index: 0; }");
                 sb.AppendLine("@media (hover: none) { body::after { display: none !important; } }");
             }
+        }
+
+        /// <summary>
+        /// Header blur / glass for the 12.x Modern app bar. The options only ever styled
+        /// the legacy <c>.skinHeader</c>, which Modern keeps in the DOM but never paints —
+        /// so on the layout every 12.x client defaults to, switching them on did nothing.
+        /// Only the bar's SOLID state takes it (scrolled, or any page with no artwork at
+        /// the top): over the billboard it is transparent and has nothing to frost.
+        /// Never during playback, and never on touch, where a fixed backdrop-filter is
+        /// re-sampled on every frame of a fling.
+        /// </summary>
+        private static void AppendModernBarGlass(StringBuilder sb, double alpha, string filter)
+        {
+            var a = alpha.ToString("0.##", CultureInfo.InvariantCulture);
+            sb.AppendLine("@media (hover: hover) {");
+            sb.AppendLine("html.nf-modern:not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root:not(.MuiAppBar-colorTransparent),");
+            sb.AppendLine("html.nf-modern:not(.nf-hero-top):not(.nf-detail-page):not(.nf-session):not(.nf-playing):not(.transparentDocument) header.MuiAppBar-root.MuiAppBar-colorTransparent {");
+            sb.AppendLine($"    background-color: rgba(var(--nf-bg-rgb), {a}) !important;");
+            sb.AppendLine($"    backdrop-filter: {filter} !important; -webkit-backdrop-filter: {filter} !important;");
+            // The pane's lower edge. Without it a frosted bar ends wherever the picture
+            // under it happens to change, and reads as a smear rather than as glass.
+            sb.AppendLine("    box-shadow: inset 0 -1px 0 rgba(255,255,255,0.07) !important;");
+            sb.AppendLine("}");
+            sb.AppendLine("}");
         }
 
         /// <summary>
@@ -723,7 +774,7 @@ namespace Jellyfin.Plugin.CustomTheme
             if (!config.AmbientColor)
             {
                 sb.AppendLine(".backgroundContainer:not(.withBackdrop) { background-image: none !important; }");
-                sb.AppendLine(".detailPageSecondaryContainer { background-image: linear-gradient(to bottom, var(--bg-dark) 0%, #181818 14%, #181818 86%, var(--bg-dark) 100%) !important; }");
+                sb.AppendLine(".detailPageSecondaryContainer { background-image: none !important; }");
             }
 
             if (config.CleanHome && config.GenreRows)
@@ -843,23 +894,51 @@ namespace Jellyfin.Plugin.CustomTheme
 
             if (config.GlassEffect)
             {
-                sb.AppendLine(@".skinHeader { backdrop-filter: blur(16px) saturate(140%) !important; -webkit-backdrop-filter: blur(16px) saturate(140%) !important; background: rgba(10,10,10,0.55) !important; }
-.dialog, .formDialog, .actionSheet, .ct-overlay { backdrop-filter: blur(20px) saturate(160%) !important; -webkit-backdrop-filter: blur(20px) saturate(160%) !important; background: rgba(26,26,26,0.78) !important; }
-.mainDrawer { backdrop-filter: blur(18px) !important; -webkit-backdrop-filter: blur(18px) !important; background: rgba(10,10,10,0.6) !important; }");
+                // Two weights of glass. A menu is small and momentary: it can be thin, and
+                // the page showing through it is the point. A dialog is a form someone
+                // reads and fills in — at the same 0.78 over a saturated backdrop its
+                // fields sat on a moving wash of whatever artwork was behind it. It gets
+                // a near-opaque pane with only a breath of the page in it. All of them
+                // tint from the configured surface, not from a fixed #1a1a1a (which on
+                // an OLED-black page made every pane a lighter grey than the page).
+                sb.AppendLine(@".skinHeader { backdrop-filter: blur(16px) saturate(140%) !important; -webkit-backdrop-filter: blur(16px) saturate(140%) !important; background: rgba(var(--nf-bg-rgb),0.6) !important; }
+.dialog, .formDialog { backdrop-filter: blur(28px) saturate(125%) !important; -webkit-backdrop-filter: blur(28px) saturate(125%) !important; background: rgba(var(--nf-surface-rgb),0.9) !important; }
+.dialog.actionSheet, .actionSheet, .ct-overlay { backdrop-filter: blur(22px) saturate(140%) !important; -webkit-backdrop-filter: blur(22px) saturate(140%) !important; background: rgba(var(--nf-surface-rgb),0.76) !important; }
+.mainDrawer { backdrop-filter: blur(18px) !important; -webkit-backdrop-filter: blur(18px) !important; background: rgba(var(--nf-bg-rgb),0.62) !important; }");
                 // The fixed header's glass re-blurs the framebuffer every scroll frame; on touch
                 // drop it to a flat opaque bar. The drawer/dialog blurs go too: blur(18-20px)
                 // behind a transform-animated surface re-samples the framebuffer per frame of
                 // the open/close animation, on exactly the WebViews least able to afford it —
                 // and the drawer is the PRIMARY navigation on phones.
-                sb.AppendLine("@media (hover: none) { .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(10,10,10,0.92) !important; } }");
-                sb.AppendLine("@media (hover: none) { .dialog, .formDialog, .actionSheet, .ct-overlay { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(26,26,26,0.96) !important; } }");
-                sb.AppendLine("@media (hover: none) { .mainDrawer { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(10,10,10,0.96) !important; } }");
+                sb.AppendLine("@media (hover: none) { .skinHeader { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(var(--nf-bg-rgb),0.92) !important; } }");
+                sb.AppendLine("@media (hover: none) { .dialog, .formDialog, .dialog.actionSheet, .actionSheet, .ct-overlay { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(var(--nf-surface-rgb),0.97) !important; } }");
+                sb.AppendLine("@media (hover: none) { .mainDrawer { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(var(--nf-bg-rgb),0.96) !important; } }");
+                AppendModernBarGlass(sb, 0.7, "blur(24px) saturate(130%)");
+                // The 12.x layout's own panels. Every menu, popover and dialog there is
+                // a MUI Paper, which none of the selectors above reach — so with glass
+                // switched on, Jellyfin's legacy action sheets were frosted and the
+                // menus two clicks away were opaque slabs. Pointer devices only, for
+                // the same reason as the header.
+                sb.AppendLine(@"@media (hover: hover) {
+html.nf-modern .MuiPopover-paper, html.nf-modern .MuiMenu-paper, html.nf-modern .MuiDrawer-paper {
+    background-color: rgba(var(--nf-surface-rgb), 0.76) !important;
+    backdrop-filter: blur(22px) saturate(140%) !important; -webkit-backdrop-filter: blur(22px) saturate(140%) !important;
+}
+html.nf-modern .MuiDialog-paper {
+    background-color: rgba(var(--nf-surface-rgb), 0.9) !important;
+    backdrop-filter: blur(28px) saturate(125%) !important; -webkit-backdrop-filter: blur(28px) saturate(125%) !important;
+}
+}");
             }
 
             if (config.OledBlack)
             {
+                // The placeholder under artwork that has not arrived yet. On the image
+                // container only: painted on .cardBox as well (as it was) it drew a
+                // near-black RECTANGLE behind every round cast portrait and behind the
+                // text under every card — visible on any OLED panel as boxes.
                 sb.AppendLine(@":root { --bg-darker: #000000; }
-.cardBox, .card .cardImageContainer { background-color: #0a0a0a !important; }");
+.card .cardImageContainer { background-color: #0a0a0a !important; }");
             }
 
             // Detail page polish (always on — lightweight). Covers series: seasons + episode list.
@@ -1084,6 +1163,48 @@ namespace Jellyfin.Plugin.CustomTheme
             g = (int)(g + ((255 - g) * amount));
             b = (int)(b + ((255 - b) * amount));
             return string.Create(CultureInfo.InvariantCulture, $"#{r:X2}{g:X2}{b:X2}");
+        }
+
+        private static bool TryRgb(string hex, out int r, out int g, out int b)
+        {
+            r = g = b = 0;
+            return !string.IsNullOrEmpty(hex) && hex.Length == 7 && hex[0] == '#'
+                && int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out r)
+                && int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out g)
+                && int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b);
+        }
+
+        /// <summary>Adds <paramref name="step"/> to every channel (clamped). Unlike
+        /// <see cref="Lighten"/>, which mixes toward white and therefore moves a black
+        /// page by almost nothing, this is an absolute step — which is what an
+        /// elevation is. Returns the input unchanged if it is not #RRGGBB.</summary>
+        private static string Lift(string hex, int step)
+        {
+            if (!TryRgb(hex, out var r, out var g, out var b))
+            {
+                return hex;
+            }
+
+            r = System.Math.Min(255, r + step);
+            g = System.Math.Min(255, g + step);
+            b = System.Math.Min(255, b + step);
+            return string.Create(CultureInfo.InvariantCulture, $"#{r:X2}{g:X2}{b:X2}");
+        }
+
+        /// <summary>Mean channel value, 0-255; 20 for anything that is not #RRGGBB (the
+        /// default page), so a named or functional colour takes the default steps.</summary>
+        private static int Luma(string hex)
+        {
+            return TryRgb(hex, out var r, out var g, out var b) ? (r + g + b) / 3 : 20;
+        }
+
+        /// <summary>"R,G,B" for use as <c>rgba(var(--x), alpha)</c> — the comma form,
+        /// which is what lets a gradient fade INTO a configurable colour.</summary>
+        private static string CommaChannels(string hex, string fallback)
+        {
+            return TryRgb(hex, out var r, out var g, out var b)
+                ? string.Create(CultureInfo.InvariantCulture, $"{r},{g},{b}")
+                : fallback;
         }
 
         private static string SanitizeLetter(string letter)

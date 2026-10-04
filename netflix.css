@@ -8,6 +8,15 @@
     --accent-red: #E50914;
     --accent-red-hover: #C11119;   /* Netflix's real hover token — red DARKENS */
     --bg-dark: #141414;
+    /* The page colour again, as bare channels. A gradient that dissolves INTO the
+       page has to be written rgba(<page>, alpha), and a colour variable cannot sit
+       inside rgba() — but a channel list can. Every such fade in this sheet used to
+       hard-code Netflix's 20,20,20, so with the background set to anything else
+       (OLED black, a seasonal preset, a custom colour) each one ended in a grey
+       band where it met the real page: under the billboard, at both ends of every
+       shelf, behind the synopsis. CssGenerator re-emits this with the configured
+       colour. */
+    --nf-bg-rgb: 20,20,20;
     --bg-darker: #000000;
     --text-main: #FFFFFF;
     --text-muted: #B3B3B3;
@@ -25,8 +34,14 @@
     --nf-text-4: #808080;         /* disabled only */
 
     /* Surfaces + edges */
+    /* Surfaces are steps ABOVE the page, not fixed greys: CssGenerator re-derives
+       all three from the configured background (on OLED black a #181818 slab is a
+       visible grey panel; the same step up from #000 is not). */
     --nf-surface: #181818;        /* modals, preview card, menus */
-    --nf-surface-hi: #2f2f2f;     /* hovered menu row, ghost button */
+    --nf-surface-hi: #2f2f2f;     /* info panels, ghost button */
+    --nf-surface-hover: #3a3a3a;  /* the hovered state of a -hi panel */
+    --nf-surface-rgb: 24,24,24;   /* --nf-surface as channels, for translucent panels */
+    --nf-accent-rgb: 229,9,20;    /* --accent-red as channels, for tints and glows */
     --nf-hairline: rgba(255,255,255,0.15);
     --nf-divider: #404040;
 
@@ -94,6 +109,11 @@
        scrollbar guessing. --nf-row-gap is the shelf-to-shelf rhythm. */
     --nf-tile-gap: 4px;
     --nf-tile: calc((100% - 5 * var(--nf-tile-gap)) / 6);
+    /* The width of a LANDSCAPE tile — Continue Watching, the episode strip. The
+       same as a row tile until the Card Style is portrait, where CssGenerator makes
+       it two poster columns plus their gap: a 16:9 still at one poster column is a
+       postage stamp beside posters half again as tall. */
+    --nf-tile-wide: var(--nf-tile);
     /* Whole-column count for the STATIC grids (More Like This). Same rung the tile
        ladder divides by, so a jawbone poster is exactly one home tile wide. Plain
        integers, so no @supports tier is needed. */
@@ -186,7 +206,7 @@ body, .mainDrawer, .dialog {
    ============================================= */
 
 .skinHeader {
-    background: #141414 !important;
+    background: var(--bg-dark) !important;
     height: var(--nav-height) !important;
     padding: 0 !important;
     box-shadow: none !important;
@@ -632,7 +652,7 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
 /* …and the stock scroll buttons now read like the theme's own row chevrons:
    flat, dark, revealed on row hover, with the ICON growing rather than the box. */
 .emby-scrollbuttons-button {
-    background: rgba(20,20,20,0.6) !important;
+    background: rgba(var(--nf-bg-rgb),0.6) !important;
     color: #fff !important;
     border: none !important;
     border-radius: var(--r-badge) !important;
@@ -649,7 +669,7 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
    and ONE unsupported selector invalidates a whole comma list — joined to the rule
    above it would leave every native row's scroll buttons permanently invisible. */
 .emby-scrollbuttons-button:focus-visible { opacity: 1 !important; }
-.emby-scrollbuttons-button:hover { background: rgba(20,20,20,0.85) !important; transform: none !important; }
+.emby-scrollbuttons-button:hover { background: rgba(var(--nf-bg-rgb),0.85) !important; transform: none !important; }
 .emby-scrollbuttons-button .material-icons { font-size: 28px !important; transition: transform 0.15s ease !important; }
 .emby-scrollbuttons-button:hover .material-icons { transform: scale(1.25) !important; }
 /* No pointer = no hover reveal: never leave a row with zero affordance. */
@@ -695,9 +715,9 @@ html:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage #itemBackdrop:
     position: absolute; inset: 0;
     pointer-events: none;
     background: linear-gradient(180deg,
-        rgba(20,20,20,0) 55%, rgba(20,20,20,.06) 62%, rgba(20,20,20,.16) 69%,
-        rgba(20,20,20,.30) 76%, rgba(20,20,20,.52) 83%, rgba(20,20,20,.74) 90%,
-        rgba(20,20,20,.9) 96%, var(--bg-dark) 100%);
+        rgba(var(--nf-bg-rgb),0) 55%, rgba(var(--nf-bg-rgb),.06) 62%, rgba(var(--nf-bg-rgb),.16) 69%,
+        rgba(var(--nf-bg-rgb),.30) 76%, rgba(var(--nf-bg-rgb),.52) 83%, rgba(var(--nf-bg-rgb),.74) 90%,
+        rgba(var(--nf-bg-rgb),.9) 96%, var(--bg-dark) 100%);
 }
 
 /* The same dissolve, reached WITHOUT :has(). headerButton.js stamps
@@ -718,9 +738,9 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
     top: 0; right: 0; bottom: 0; left: 0;
     pointer-events: none;
     background: linear-gradient(180deg,
-        rgba(20,20,20,0) 55%, rgba(20,20,20,.06) 62%, rgba(20,20,20,.16) 69%,
-        rgba(20,20,20,.30) 76%, rgba(20,20,20,.52) 83%, rgba(20,20,20,.74) 90%,
-        rgba(20,20,20,.9) 96%, var(--bg-dark) 100%);
+        rgba(var(--nf-bg-rgb),0) 55%, rgba(var(--nf-bg-rgb),.06) 62%, rgba(var(--nf-bg-rgb),.16) 69%,
+        rgba(var(--nf-bg-rgb),.30) 76%, rgba(var(--nf-bg-rgb),.52) 83%, rgba(var(--nf-bg-rgb),.74) 90%,
+        rgba(var(--nf-bg-rgb),.9) 96%, var(--bg-dark) 100%);
 }
 
 /* .backgroundContainer is a sibling of .backdropContainer (NOT inside .itemDetailPage).
@@ -732,9 +752,9 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
        left a visible tonal step where the art met the page. */
     background-image:
         linear-gradient(180deg,
-            rgba(20,20,20,0) 38%, rgba(20,20,20,.05) 48%, rgba(20,20,20,.14) 56%,
-            rgba(20,20,20,.28) 64%, rgba(20,20,20,.46) 72%, rgba(20,20,20,.66) 80%,
-            rgba(20,20,20,.84) 88%, rgba(20,20,20,.96) 95%, var(--bg-dark) 100%),
+            rgba(var(--nf-bg-rgb),0) 38%, rgba(var(--nf-bg-rgb),.05) 48%, rgba(var(--nf-bg-rgb),.14) 56%,
+            rgba(var(--nf-bg-rgb),.28) 64%, rgba(var(--nf-bg-rgb),.46) 72%, rgba(var(--nf-bg-rgb),.66) 80%,
+            rgba(var(--nf-bg-rgb),.84) 88%, rgba(var(--nf-bg-rgb),.96) 95%, var(--bg-dark) 100%),
         /* The COPY scrim. Netflix lays the title, match score, synopsis and
            buttons directly over the artwork and keeps them readable with a wide
            left-to-right vignette, not with a box behind the text. The old 35%
@@ -742,7 +762,7 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
            now that the art is full-bleed the copy column runs to roughly 45% of
            the viewport, so the scrim has to cover it — three stops, easing out,
            so there is no visible edge where it ends. */
-        linear-gradient(to right, rgba(20,20,20,0.92) 0%, rgba(20,20,20,0.75) 26%, rgba(20,20,20,0.35) 46%, transparent 62%),
+        linear-gradient(to right, rgba(var(--nf-bg-rgb),0.92) 0%, rgba(var(--nf-bg-rgb),0.75) 26%, rgba(var(--nf-bg-rgb),0.35) 46%, transparent 62%),
         linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 15%) !important;
     z-index: 1 !important;
     pointer-events: none !important;
@@ -952,10 +972,10 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
          select.emby-select.detailTrackSelect
          div.selectArrowContainer          <- position:absolute, a SIBLING of the select
 
-   Rendered as ONE line of quiet spec fields — a small caps label over a plain
+   Rendered as ONE line of quiet spec fields — a small grey label over a plain
    value — under the synopsis:
 
-       VIDEO             AUDIO                     SUBTITLES
+       Video             Audio                     Subtitles
        1080p H264 SDR    English 5.1 - AAC  v      English  v
 
    They used to be three stacked, boxed, 620px-wide form rows directly under the
@@ -974,7 +994,7 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
       whenever there is only one track. A disabled field is a fact, an enabled one is
       a choice: the enabled value carries a hairline underline and a chevron, the
       disabled one neither.
-   3. Type sits on sizes the page already uses: the label is the micro-caps step and
+   3. Type sits on sizes the page already uses: the label is the caption step and
       the value the metadata step, so the row adds nothing to the type ramp. */
 .itemDetailPage .trackSelections:not(.hide) {
     display: flex !important;
@@ -995,10 +1015,12 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
 }
 .itemDetailPage .selectContainer .selectLabel {
     flex: 0 0 auto !important;
-    font-size: var(--nf-t-micro) !important;
-    font-weight: var(--nf-w-semi) !important;
-    letter-spacing: var(--nf-track-caps) !important;
-    text-transform: uppercase !important;
+    /* The label voice of the facts beside it — plain grey, sentence case — one
+       step down, because here it sits above its value rather than before it. */
+    font-size: var(--nf-t-cap) !important;
+    font-weight: var(--nf-w-reg) !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
     line-height: 1.25 !important;
     color: var(--nf-text-4) !important;
     margin: 0 0 3px !important;
@@ -1209,12 +1231,12 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
 }
 
 .mainDetailButtons .btnUserRating.ratingbutton-withrating {
-    border-color: #E50914 !important;
-    background-color: rgba(229, 9, 20, 0.15) !important;
+    border-color: var(--accent-red) !important;
+    background-color: rgba(var(--nf-accent-rgb), 0.15) !important;
 }
 
 .mainDetailButtons .btnUserRating.ratingbutton-withrating .detailButton-icon {
-    color: #E50914 !important;
+    color: var(--accent-red) !important;
 }
 
 /* Circle buttons — show icon only, hide any text labels */
@@ -1360,10 +1382,44 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
    punctuation between two links read louder than the links themselves. */
 .itemTags, .itemExternalLinks {
     font-size: var(--nf-t-meta) !important;
-    color: var(--nf-text-3) !important;
+    line-height: 1.5 !important;
+    color: var(--nf-text-4) !important;
 }
-.itemTags a, .itemExternalLinks a { color: var(--text-muted) !important; transition: color 0.2s ease !important; }
-.itemTags a:hover, .itemExternalLinks a:hover { color: var(--text-main) !important; }
+/* Regular weight: these are stock .emby-button links, which arrive at 600 — and
+   thirty keywords in semibold is the loudest block on a page whose synopsis is
+   set in regular. Same voice as the facts beside them, one tier quieter. */
+.itemTags a, .itemExternalLinks a {
+    color: var(--nf-text-3) !important;
+    font-weight: var(--nf-w-reg) !important;
+    transition: color 0.2s ease !important;
+}
+.itemTags a:hover, .itemExternalLinks a:hover { color: var(--text-main) !important; text-decoration: underline !important; }
+
+/* --- Tags: two lines, then "more" ------------------------------------------------
+   A title carries as many keywords as its metadata provider knows — thirty is
+   ordinary — and Jellyfin prints all of them: four lines of comma-separated links
+   between the synopsis and everything else on the page. Netflix names three moods
+   and ends the line in "more". headerButton.js (nfClampTags) does the same with
+   what is already there: the links that do not fit on two lines move into
+   .nf-tags-rest and a "more" control takes their place in the sentence, straight
+   after the last comma. No clipping box and no ellipsis, so nothing is ever cut
+   mid-word and the control always sits where the reading stopped. */
+.itemTags { max-width: 700px; margin: 0 0 6px !important; }
+.itemTags .nf-tags-rest { display: none; }
+.itemTags.nf-tags-open .nf-tags-rest { display: inline; }
+.itemTags .nf-tags-more {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-style: italic;
+    color: var(--nf-text-2);
+    cursor: pointer;
+}
+.itemTags .nf-tags-more:hover { color: #fff; text-decoration: underline; }
+.itemTags.nf-tags-open .nf-tags-more { display: none; }
 
 /* Metadata (genres, studio) */
 /* The detail column used to run 15.2 / 14.4 / 13.6 / 12.8 / 12 px in consecutive
@@ -1397,11 +1453,12 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
 .detailPageSecondaryContainer {
     position: relative;
     z-index: 3;
-    /* BOTH edges dissolve into --bg-dark. The old ramp faded in from --bg-dark at
-       the top but ended at #181818 at the bottom, against a #141414 page — a hard
-       horizontal step under the last section. */
-    background: linear-gradient(to bottom,
-        var(--bg-dark) 0%, #181818 14%, #181818 86%, var(--bg-dark) 100%) !important;
+    /* The page colour, flat. This used to lift to #181818 through the middle —
+       four steps above Netflix's #141414, so close to invisible there, and a
+       plainly visible grey slab under Cast and More Like This on any other
+       background. It only ever had to be OPAQUE (the artwork is fixed behind it);
+       it never had to be a different colour from the page it is part of. */
+    background: var(--bg-dark) !important;
     padding-top: 40px !important;
     padding-bottom: 56px !important;
 }
@@ -1446,9 +1503,23 @@ html.nf-inflow-backdrop .itemDetailPage #itemBackdrop::after {
 }
 
 /* --- NEXT UP SECTION — Netflix "Als Nächstes" card --- */
+/* The one tile on the page that says "carry on here", so it is the feature tile:
+   two columns of the row grid and the gap between them, whatever the card style
+   (two landscape tiles, or two posters — which is also what Continue Watching
+   spans on the portrait style). At a single column it was a 215px thumbnail alone
+   under a heading. The percentage resolves against the section, which is the
+   page rail; the card box's own trailing gutter goes, so the picture — not the
+   card around it — is what lands on the grid. */
 .nextUpSection .card {
-    max-width: 350px !important;
+    width: 350px !important;
+    width: calc(2 * var(--nf-tile) + var(--nf-tile-gap)) !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-right: var(--nf-tile-gap) !important;
 }
+[dir="rtl"] .nextUpSection .card { margin-right: 0 !important; margin-left: var(--nf-tile-gap) !important; }
+.nextUpSection .card > .cardBox { margin-left: 0 !important; margin-right: 0 !important; }
+.nextUpSection .nextUpItems { max-width: none !important; }
 
 .nextUpSection .card .cardScalable {
     border-radius: var(--card-radius) !important;
@@ -1517,6 +1588,17 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
     font-weight: var(--nf-w-semi) !important;
     transition: color 0.2s ease !important;
     cursor: pointer !important;
+    /* A text button has no face, so its padding is invisible — and stock's
+       0.9em + 0.3em of it set the words 19px to the right of the paragraph they
+       belong to. Start padding and margin go; the hit area keeps the other three. */
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+}
+[dir="rtl"] .detailSectionContent .overview-expand {
+    padding-left: 1em !important;
+    margin-left: 0.3em !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
 }
 
 .detailSectionContent .overview-expand:hover {
@@ -1540,8 +1622,9 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 
 /* --- EXTERNAL LINKS (IMDb, TMDB etc) --- */
 .itemExternalLinks {
-    margin-top: 4px !important;
+    margin-top: 2px !important;
     margin-bottom: 16px !important;
+    font-size: var(--nf-t-cap) !important;
 }
 
 .itemExternalLinks a {
@@ -1639,6 +1722,12 @@ html #similarCollapsible .card:hover .cardScalable { transform: none !important;
 .personCard .cardPadder {
     padding-bottom: 100% !important;
 }
+/* The circle belongs to the portrait, never to the card. Stock gives every card
+   `contain: paint`, and paint containment clips to the box's ROUNDED edge — so a
+   50% radius on the card (it arrives through --card-radius on the cast row) cut
+   an ellipse out of the name underneath: the longest name in a row lost the
+   first stroke of its first letter. */
+.card.personCard { border-radius: 0 !important; }
 
 .personCard .cardScalable {
     border-radius: 50% !important;
@@ -1754,7 +1843,7 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
    Push the drawer's items below the header, and make the header solid #141414
    while the drawer is open so the top reads cleanly (no see-through collision). */
 .mainDrawer-scrollContainer { padding-top: var(--nav-height) !important; }
-body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; }
+body:has(.mainDrawer.drawer-open) .skinHeader { background: var(--bg-dark) !important; }
 /* Gated off during playback: a filter on .mainAnimatedPages creates a containing
    block that re-anchors the fixed OSD bar away from the viewport.
    (nf-playing too — transparentDocument alone misses one real playback state.)
@@ -1784,7 +1873,7 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
 /* Dialogs — dark Netflix style (6px surface radius, like the preview card) */
 .dialog {
     border-radius: var(--r-surface) !important;
-    background-color: #181818 !important;
+    background-color: var(--nf-surface) !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
     box-shadow: var(--e-4) !important;
 }
@@ -1794,12 +1883,12 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: #141414 !important; 
     border: none !important;
 }
 .formDialogHeader {
-    background-color: #181818 !important;
+    background-color: var(--nf-surface) !important;
     font-family: var(--font-netflix) !important;
     border-bottom: 1px solid rgba(255,255,255,0.06) !important;
 }
 .formDialogFooter {
-    background-color: #181818 !important;
+    background-color: var(--nf-surface) !important;
     border-top: 1px solid rgba(255,255,255,0.06) !important;
 }
 
@@ -1916,6 +2005,28 @@ a[data-role="button"]:focus {
 .emby-select:hover, .emby-select:focus {
     border-color: rgba(255,255,255,0.4) !important;
 }
+/* One field in a form. The caption size above is right for a lone picker in a
+   toolbar or a sheet; in a form it put a 12px select between two 16px text fields
+   (Edit metadata: Title, Original title, then "Original language" a third
+   smaller), under a label in a different colour, above a textarea with a third
+   kind of border. A select and a textarea in a form take the text field's size,
+   fill and label. The detail page's track pickers are a form too, but their own
+   rules are more specific and still win. */
+form .emby-select,
+.formDialogContent .emby-select {
+    font-size: 110% !important;
+    /* stock's 0.5em would stand the select 7px taller than the text field beside it */
+    padding-top: 0.34em !important;
+    padding-bottom: 0.34em !important;
+}
+.emby-textarea {
+    background-color: #333 !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    border-radius: 4px !important;
+    color: #fff !important;
+    font-family: var(--font-netflix) !important;
+}
+.selectLabel, .textareaLabel { color: var(--text-muted) !important; }
 
 /* =============================================
    PLAYBACK & VIDEO PLAYER
@@ -2328,7 +2439,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
        way Netflix does; capped at 3vh so it can never reach the controls band. */
     margin: calc(var(--nav-height) * -1 - 10px) 0 -3vh;
     overflow: hidden;
-    background: #0b0b0b;
+    background: var(--bg-dark);
 }
 .nf-hero-slide {
     position: absolute; inset: 0;
@@ -2341,7 +2452,7 @@ html.nf-hero-top .page.homePage { padding-top: 0 !important; }
    guarantees the last stretch is truly #141414 under the overlapping row. */
 .nf-hero::before {
     content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 7vh;
-    background: linear-gradient(180deg, rgba(20,20,20,0) 0%, rgba(20,20,20,.92) 55%, var(--bg-dark) 100%);
+    background: linear-gradient(180deg, rgba(var(--nf-bg-rgb),0) 0%, rgba(var(--nf-bg-rgb),.92) 55%, var(--bg-dark) 100%);
     z-index: 2; pointer-events: none;
 }
 .nf-hero-slide.active { opacity: 1; pointer-events: auto; }
@@ -2405,9 +2516,9 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
     background:
         /* bottom vignette, eased over 13 stops so there is no Mach banding */
         linear-gradient(180deg,
-            rgba(20,20,20,0) 42%, rgba(20,20,20,.06) 52%, rgba(20,20,20,.16) 60%,
-            rgba(20,20,20,.30) 68%, rgba(20,20,20,.48) 76%, rgba(20,20,20,.68) 84%,
-            rgba(20,20,20,.86) 90%, rgba(20,20,20,.97) 95%, var(--bg-dark) 98%),
+            rgba(var(--nf-bg-rgb),0) 42%, rgba(var(--nf-bg-rgb),.06) 52%, rgba(var(--nf-bg-rgb),.16) 60%,
+            rgba(var(--nf-bg-rgb),.30) 68%, rgba(var(--nf-bg-rgb),.48) 76%, rgba(var(--nf-bg-rgb),.68) 84%,
+            rgba(var(--nf-bg-rgb),.86) 90%, rgba(var(--nf-bg-rgb),.97) 95%, var(--bg-dark) 98%),
         /* angled directional scrim — darkest at the bottom-left corner where the
            copy lives, fully clear by ~55%, exactly as Netflix builds it */
         /* clears at 72%, not 55%: at 16:9 the top of the copy block projects to
@@ -2518,6 +2629,9 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
     position: absolute; right: calc(9rem + 24px); bottom: var(--nf-hero-baseline); z-index: 6;
     display: flex; align-items: center;
 }
+/* A slide with no certification has no plate to clear (headerButton.js marks the
+   hero): the controls go to the page rail instead of floating beside a gap. */
+.nf-hero.nf-hero-noplate .nf-hero-controls { right: var(--nf-gutter); }
 /* Margins, not flex gap (ignored on Chromium <84 — the circles touched on JMP). */
 .nf-hero-controls > * { margin-inline-start: 14px; }
 .nf-hero-controls > :first-child { margin-inline-start: 0; }
@@ -2714,7 +2828,7 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
 .nf-pop {
     position: fixed; z-index: 10010; /* above the fixed header (10000) */
     overflow: hidden;
-    background: #181818;
+    background: var(--nf-surface);
     font-family: var(--font-netflix);
     /* Grows outward from the tile's centre (headerButton.js centres it on the
        card), so the tile reads as expanding in place. Scaling from `bottom`
@@ -2730,7 +2844,7 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
    frame-less video element paints solid black over the artwork. */
 .nf-pop-media video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.45s ease; }
 .nf-pop-media video.show { opacity: 1; }
-.nf-pop-fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, #181818 2%, transparent 55%); }
+.nf-pop-fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, var(--nf-surface) 2%, transparent 55%); }
 .nf-pop-info { padding: 10px 16px 16px; }
 .nf-pop-actions { display: flex; align-items: center; margin-bottom: 12px; }
 /* Margins, not flex gap (ignored on Chromium <84). */
@@ -2767,6 +2881,12 @@ html:has(.videoPlayerContainer) video[data-nf-preview] { display: none !importan
 .nf-pop-meta { row-gap: 9px; }
 .nf-pop-meta > * { margin-inline-end: 9px; }
 .nf-pop-meta > :last-child { margin-inline-end: 0; }
+/* Runtime and the HD plate wrap as ONE unit. In German the match label is long
+   enough that the row breaks on a narrow popup, and it used to break before the
+   last item — leaving "HD" on a line by itself under the row it belongs to. */
+.nf-pop-tail { display: inline-flex; align-items: center; white-space: nowrap; }
+.nf-pop-tail > * { margin-inline-end: 9px; }
+.nf-pop-tail > :last-child { margin-inline-end: 0; }
 .nf-pop-match { color: #46d369; font-weight: var(--nf-w-bold); }
 .nf-pop-rating { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.72rem; }
 .nf-pop-hd { border: 1px solid rgba(255,255,255,0.4); padding: 0 0.4em; border-radius: var(--r-badge); font-size: 0.66rem; color: var(--nf-text-3); }
@@ -2798,7 +2918,7 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 .nf-cw-card {
     flex: 0 0 auto; text-decoration: none; position: relative;
     width: clamp(165px, 15.2vw, 285px);
-    width: var(--nf-tile);
+    width: var(--nf-tile-wide);
     /* Long-press reveals the remove button on phones (headerButton.js adds
        .nf-lp); suppress iOS's link preview so the hold reads as the gesture. */
     -webkit-touch-callout: none;
@@ -2900,7 +3020,10 @@ html.preload { background-color: var(--bg-darker, #000) !important; }
     background: var(--nf-surface) !important;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    box-shadow: rgba(0, 0, 0, 0.75) 0px 3px 10px;
+    /* A hairline first, then the shadow. On Netflix's #141414 the panel is a step
+       lighter than the page and the shadow does the rest; on a black page a drop
+       shadow is black on black and the panel's lower half had no edge at all. */
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.07), rgba(0, 0, 0, 0.75) 0px 3px 10px;
     border-radius: var(--r-surface);
 }
 .nf-pop-media { border-radius: var(--r-surface) var(--r-surface) 0 0; }
@@ -2943,11 +3066,11 @@ html.preload { background-color: var(--bg-darker, #000) !important; }
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
     opacity: 0; transition: opacity 0.2s ease, background 0.2s ease;
-    background: rgba(20,20,20,0.5);
+    background: rgba(var(--nf-bg-rgb),0.5);
 }
 .nf-row-arrow-back { left: 0; border-radius: 0 var(--card-radius) var(--card-radius) 0; }
 .nf-row-arrow-fwd { right: 0; border-radius: var(--card-radius) 0 0 var(--card-radius); }
-.nf-row-arrow:hover { background: rgba(20,20,20,0.7); }
+.nf-row-arrow:hover { background: rgba(var(--nf-bg-rgb),0.7); }
 .nf-row-wrap:hover .nf-row-arrow { opacity: 1; }
 .nf-row-arrow:focus-visible { opacity: 1; }   /* standalone — see the note above */
 .nf-at-start .nf-row-arrow-back, .nf-at-end .nf-row-arrow-fwd { visibility: hidden; }
@@ -3033,7 +3156,7 @@ html.preload { background-color: var(--bg-darker, #000) !important; }
    set by the client while the player is up, so app-wide menus keep their look. */
 html.transparentDocument .actionSheet,
 html.nf-playing .actionSheet {
-    background: rgba(20,20,20,0.96) !important;
+    background: rgba(var(--nf-bg-rgb),0.96) !important;
     border: 1px solid rgba(255,255,255,0.12) !important;
     border-radius: 6px !important;
 }
@@ -3213,7 +3336,7 @@ html.nf-playing .mainDrawer {
     -webkit-backdrop-filter: none !important;
 }
 html.nf-playing .dialog,
-html.nf-playing .formDialog { background-color: #181818 !important; }
+html.nf-playing .formDialog { background-color: var(--nf-surface) !important; }
 html.nf-playing .mainDrawer { background-color: #101010 !important; }
 html:has(.videoPlayerContainer) .actionSheet { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 html:has(.videoPlayerContainer) .dialog { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
@@ -3246,7 +3369,7 @@ html.transparentDocument .mainDrawer {
     -webkit-backdrop-filter: none !important;
 }
 html.transparentDocument .dialog,
-html.transparentDocument .formDialog { background-color: #181818 !important; }
+html.transparentDocument .formDialog { background-color: var(--nf-surface) !important; }
 html.transparentDocument .mainDrawer { background-color: #101010 !important; }
 /* Same reasoning for the theme's own infinite animations and the retained backdrop
    bitmap: a running animation keeps the compositor producing frames even when nothing
@@ -3421,13 +3544,25 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
     /* Off the shared token, so the Card-Size / Card-Style presets move this grid
        with the rows instead of leaving it frozen at the default counts. */
     grid-template-columns: repeat(var(--nf-cols), minmax(0, 1fr));
-    gap: 14px !important;
+    /* 1.2em is the gutter stock puts between every pair of cards on this page
+       (`.itemsContainer > .card > .cardBox { margin-right: 1.2em }`): the cast row
+       and the season row above this grid already stand on it. */
+    gap: 1.2em !important;
     white-space: normal !important;
     transform: none !important;
 }
 @media (max-width:  799px) { #similarCollapsible .scrollSlider { gap: 10px !important; } }
 @media (max-width:  499px) { #similarCollapsible .scrollSlider { gap: 8px !important; } }
 #similarCollapsible .scrollSlider > .card { width: auto !important; min-width: 0 !important; }
+/* The grid's own gap is the gutter. Stock's 1.2em end margin on the card box was
+   still there INSIDE every cell: the visible gap was gap + margin (32px beside the
+   18px of the rows above), every poster was 18px narrower than its column, and the
+   last column stopped 18px short of the rail the rest of the page ends on. */
+#similarCollapsible .scrollSlider > .card > .cardBox {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
+}
 
 /* ===== EPISODE & SEASON OVERVIEWS as full-width Netflix card rows =====
    VERIFIED live on demo.jellyfin.org (Jellyfin 10.11) with this theme injected — both a
@@ -3513,18 +3648,15 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
     display: none !important;
 }
 
-/* Native season / children cards just flow in the row. Spacing is the same
-   margin-inline-end the home rows use (the strip's gap was ignored on
-   Chromium <84 — episode tiles butted together on JMP). */
+/* Native season / children cards just flow in the row. No margin of their own:
+   a stock card already carries its gutter on the card box (1.2em at the end), the
+   same one the cast row and More Like This stand on. This rule used to add the
+   home rows' tile gap on top of it, so the season posters alone on the page sat
+   25px apart beside rows spaced at 18. */
 .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .card,
 .itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .card {
     flex: 0 0 auto !important;
     margin: 0 !important;
-    margin-inline-end: var(--nf-tile-gap) !important;
-}
-.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .card:last-child,
-.itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .card:last-child {
-    margin-inline-end: 0 !important;
 }
 /* Episode info-cards (.listItem) in the same strip need the same gutter. */
 .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer > .listItem {
@@ -3545,7 +3677,7 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
 .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem {
     flex: 0 0 auto !important;
     width: clamp(220px, 19vw, 340px) !important;
-    width: var(--nf-tile) !important;
+    width: var(--nf-tile-wide) !important;
     display: block !important;
     align-self: stretch !important;
     border-bottom: none !important;
@@ -3568,7 +3700,7 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
     overflow: hidden !important;
     transition: background 0.2s ease !important;
 }
-.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem:hover .listItem-content { background: #3a3a3a !important; }
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem:hover .listItem-content { background: var(--nf-surface-hover) !important; }
 .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .listItem .listItemImage {
     width: 100% !important;
     aspect-ratio: 16 / 9 !important;
@@ -3676,30 +3808,57 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
 .itemDetailsGroup .detailsGroupItem .button-link {
     background: none !important;
     padding: 0 !important;
-    font-size: var(--nf-t-meta) !important;
+    font-size: inherit !important;
+    /* Regular, like Netflix's own value links. Stock's .emby-button brings 600,
+       which set four lines of names in bold beside a regular-weight synopsis. */
+    font-weight: var(--nf-w-reg) !important;
     color: var(--nf-text-2) !important;
 }
 .itemDetailsGroup .detailsGroupItem .button-link:hover {
     color: #fff !important;
     text-decoration: underline !important;
 }
-/* The row's label is a DIV with class "label" in 10.11 and an MUI Typography <p>
-   in 12.0, so the `label` TYPE selector elsewhere in this sheet never matched it
-   either way. Same micro-label spec as everywhere; the margin reset kills the
-   block margin Typography brings and the theme never had. */
-.itemDetailsGroup .detailsGroupItem .label {
-    color: var(--nf-text-3) !important;
-    font-size: var(--nf-t-micro) !important;
-    text-transform: uppercase !important;
-    letter-spacing: var(--nf-track-caps) !important;
-    font-weight: var(--nf-w-semi) !important;
-    /* BLOCK margins only. Stock gives this label `margin: 0 0.6em 0 0` — the only
-       gutter between it and its value — and 12.0 renders it as an MUI Typography
-       <p>, which brings a block margin the theme never had. Zeroing the shorthand
-       would take the gutter with it. */
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
+/* "Director: Christopher Nolan" — a grey label that runs straight into its values,
+   which is how Netflix sets Cast / Genres / This Movie Is.
+
+   It used to be a column: a fixed-width, tracked small-caps label on the left and
+   the values beside it. The width was stock's `flex-basis: 6.25em`, which resolves
+   against the LABEL's own font size — 70px at the micro-caps step. "DIRECTOR" fits
+   in that; "REGISSEUR" does not, so in German (and any language with a longer
+   word) the label ran into its value with nothing between them. A label that is
+   part of the sentence has no width to get wrong, in any language.
+
+   The row is a block and both children are inline, so stock's flex values are
+   simply inert. The label is a DIV with class "label" in 10.11 and an MUI
+   Typography <p> in 12.x; `margin: 0` removes the block margin the <p> brings and
+   the 0.6em gutter the column needed. */
+.itemDetailsGroup .detailsGroupItem {
+    display: block !important;
+    max-width: none !important;
+    margin: 0 0 9px !important;
+    font-size: var(--nf-t-meta) !important;
+    line-height: 1.5 !important;
+    /* This column stands at the edge of the artwork's fade, and scrolls up over
+       the artwork itself. Invisible on the page ground; over a bright still it is
+       what keeps a grey label readable. */
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
 }
+.itemDetailsGroup .detailsGroupItem .label {
+    display: inline !important;
+    margin: 0 !important;
+    color: var(--nf-text-4) !important;
+    font-size: inherit !important;
+    font-weight: var(--nf-w-reg) !important;
+    line-height: inherit !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+}
+/* The colon is punctuation, so it is typeset per language: French sets a narrow
+   no-break space before it. The trailing no-break space keeps the label attached
+   to its first value at a line end. */
+.itemDetailsGroup .detailsGroupItem .label::after { content: ":\00a0"; }
+html[lang^="fr"] .itemDetailsGroup .detailsGroupItem .label::after { content: "\202f:\00a0"; }
+.itemDetailsGroup .detailsGroupItem .focuscontainer-x { display: inline !important; }
 
 /* --- Menus: action sheets ('...' menus, playback settings) — Netflix-dark,
    no cyan. The .dialog base styling already applies; polish the items. */
@@ -3817,10 +3976,14 @@ html:has(.videoOsdBottom-maincontrols:not(.videoOsdBottom-hidden):not(.hide)) .v
 .backgroundContainer:not(.withBackdrop) {
     background-image: radial-gradient(120% 60% at 50% 0%, var(--nf-ambient-glow, transparent) 0%, transparent 45%) !important;
 }
+/* The pool of colour sits INSIDE the container, so it is zero at every edge. It
+   used to be centred on the top edge — full strength exactly where the container
+   begins — and the page above it carries no tint, so the join was a straight
+   horizontal line across the page (+9 levels on a black ground, measured). */
 .detailPageSecondaryContainer {
     background-image:
-        radial-gradient(90% 60% at 22% 0%, var(--nf-ambient-glow, transparent) 0%, transparent 58%),
-        linear-gradient(to bottom, var(--bg-dark) 0%, #181818 14%, #181818 86%, var(--bg-dark) 100%) !important;
+        radial-gradient(ellipse 62% 380px at 22% 380px, var(--nf-ambient-glow, transparent) 0%, transparent 100%) !important;
+    background-repeat: no-repeat !important;
 }
 
 /* --- 2. Film grain: a near-invisible cinema-print texture over everything. It
@@ -3891,10 +4054,10 @@ html:has(.videoPlayerContainer) .backgroundContainer:not(.withBackdrop) { backgr
     z-index: 5;
     pointer-events: none;
 }
-.nf-row-wrap::before { inset-inline-start: 0; background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
-.nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
-[dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
-[dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark) 0%, rgba(20,20,20,0.35) 45%, transparent 100%); }
+.nf-row-wrap::before { inset-inline-start: 0; background: linear-gradient(to right, var(--bg-dark) 0%, rgba(var(--nf-bg-rgb),0.35) 45%, transparent 100%); }
+.nf-row-wrap::after { inset-inline-end: 0; background: linear-gradient(to left, var(--bg-dark) 0%, rgba(var(--nf-bg-rgb),0.35) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::before { background: linear-gradient(to left, var(--bg-dark) 0%, rgba(var(--nf-bg-rgb),0.35) 45%, transparent 100%); }
+[dir="rtl"] .nf-row-wrap::after { background: linear-gradient(to right, var(--bg-dark) 0%, rgba(var(--nf-bg-rgb),0.35) 45%, transparent 100%); }
 /* The fades assume a flat --bg-dark page. On a detail page the row sits over the
    backdrop art, where they paint two opaque dark bars across the picture. */
 .itemDetailPage .nf-row-wrap::before,
@@ -4922,12 +5085,12 @@ html.nf-modern .MuiTooltip-arrow::before {
    only ships on the 3.x/12.0 lane now, so there is no 10.11 case to protect. */
 .itemDetailPage .detailPagePrimaryContainer {
     background-image: linear-gradient(to bottom,
-        rgba(20,20,20,0)    0px,
-        rgba(20,20,20,.30)  30px,
-        rgba(20,20,20,.60)  62px,
-        rgba(20,20,20,.82)  96px,
-        rgba(20,20,20,.94) 130px,
-        rgba(20,20,20,.99) 168px,
+        rgba(var(--nf-bg-rgb),0)    0px,
+        rgba(var(--nf-bg-rgb),.30)  30px,
+        rgba(var(--nf-bg-rgb),.60)  62px,
+        rgba(var(--nf-bg-rgb),.82)  96px,
+        rgba(var(--nf-bg-rgb),.94) 130px,
+        rgba(var(--nf-bg-rgb),.99) 168px,
         var(--bg-dark)     200px) !important;
 }
 
@@ -5271,7 +5434,7 @@ html.nf-modern .MuiSlider-valueLabel {
 .itemDetailsGroup .detailsGroupItem .focuscontainer-x,
 .itemDetailsGroup .detailsGroupItem .focuscontainer-x > span {
     color: var(--nf-text-3) !important;
-    font-size: var(--nf-t-meta) !important;
+    font-size: inherit !important;
 }
 
 
@@ -5911,6 +6074,317 @@ html.nf-modern .nowPlayingPage .remoteControlContent { padding-top: 1.75rem !imp
 .nowPlayingPage .nowPlayingPageImage {
     border-radius: var(--card-radius) !important;
     box-shadow: var(--e-3) !important;
+}
+
+/* =============================================
+   v3.1.1 — FINISH: one voice, one gutter, both rails
+   =============================================
+   Reviewed at full size, in German, on an OLED-black page with portrait boxart —
+   a configuration the earlier passes never looked at. None of this is new design;
+   it is the existing design made to agree with itself from page to page. */
+
+/* --- Captions range left ---------------------------------------------------------
+   Stock centres the text under a card (`.cardTextCentered`). Everything else on
+   these pages hangs off a left edge — row titles, the synopsis, the facts, the
+   More Like This panels, the episode cards — so a centred caption under a poster
+   was the one line on the page with no edge to stand on, and a long title lost
+   BOTH ends to the ellipsis instead of one. Round portraits keep their centred
+   name: a circle has an axis, not an edge. Scoped to the library pages; the
+   sign-in tiles are centred by design. */
+.libraryPage .card:not(.personCard) .cardText {
+    text-align: left !important;
+    text-align: start !important;
+}
+
+/* --- A browse grid ends on the rail --------------------------------------------
+   Stock gives every card box a 1.2em margin at its END and none at its start, so
+   a wrapping grid begins on the left rail and stops 1.2em short of the right one:
+   the posters ended 18px inside the avatar, the toolbar and every row above them.
+   The grid carries its own rail as end padding, so the padding gives the margin
+   back: the last column's trailing gutter then falls inside the page gutter,
+   where nothing is. (Padding, not a negative margin — the grid box already spans
+   the window, and pulling it out by 1.2em widened the document by exactly that.)
+   Wide screens only: on a phone the gutter is narrower than the margin hidden in it. */
+@media (min-width: 800px) {
+    [dir="ltr"] .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap.padded-right { padding-right: calc(var(--nf-gutter) - 1.2em) !important; }
+    [dir="rtl"] .libraryPage:not(.itemDetailPage):not(.homePage) .itemsContainer.vertical-wrap.padded-right { padding-left: calc(var(--nf-gutter) - 1.2em) !important; }
+}
+
+/* --- Rows run off the page, not into a wall ---------------------------------------
+   The home shelves bleed: tiles slide in from under one window edge and out under
+   the other, and the last one peeking past the rail is what says "there is more".
+   Every other row in the app stopped dead at the rail — the cast, the chapters,
+   the episode strip, search results — clipped by a box exactly as wide as the
+   text column. A row of eight cast portraits that happened to fit showed no sign
+   of the eleven more behind it.
+
+   Same geometry as the home rows: the scroll frame is pulled out to the window
+   edges and padded back in by the same amount, so the first tile still starts on
+   the rail and everything else is free to run past it. The frame's containing
+   block is the rail-wide box (92% of the page, from .verticalSection's or the
+   primary container's 4% each side), so 4/92 of it is exactly the gutter: no vw,
+   which would count a classic scrollbar and overflow the page by its width.
+   Jellyfin's own scroller measures the frame's CONTENT box, so paging and the end
+   stop still land on the rail (verified: the last tile parks at 1613 of 1680).
+   Not on TV, where the 10-foot layout has its own overscan margins, and not the
+   More Like This grid, which is not a row. */
+html:not(.layout-tv) .libraryPage .verticalSection:not(.nf-genre-section):not(.nf-cw-section):not(#similarCollapsible) .emby-scroller {
+    margin-left: -4.347826% !important;
+    margin-right: -4.347826% !important;
+    padding-left: 4.347826% !important;
+    padding-right: 4.347826% !important;
+}
+/* The END padding gives back the last tile's trailing gutter (stock's 1.2em on
+   every card box), or the row would park 1.2em short of the rail. It has to be
+   done here: the gutter sits INSIDE a card of fixed width, so zeroing it makes
+   the last picture 1.2em wider than its neighbours, and a negative margin on the
+   card does not shorten the track Jellyfin's scroller measures. A negative
+   result (a phone, where the gutter is the smaller of the two) clamps to zero. */
+html[dir="ltr"]:not(.layout-tv) .libraryPage .verticalSection:not(.nf-genre-section):not(.nf-cw-section):not(#similarCollapsible) .emby-scroller { padding-right: calc(4.347826% - 1.2em) !important; }
+html[dir="rtl"]:not(.layout-tv) .libraryPage .verticalSection:not(.nf-genre-section):not(.nf-cw-section):not(#similarCollapsible) .emby-scroller { padding-left: calc(4.347826% - 1.2em) !important; }
+
+/* On touch layouts Jellyfin scrolls these rows natively, and there the frame's end
+   padding is only counted past the frame's own in-flow child. That child, the
+   slider, is a flex row exactly as wide as the frame with its cards overflowing
+   it — so the padding was measured from the slider's edge, not from the last
+   card, and the row ended against the glass. Let the slider be as wide as its
+   cards and the end padding lands after the last one. Not for the desktop
+   layout: there Jellyfin's scroller measures the slider itself as the track. */
+html.layout-mobile .libraryPage .verticalSection:not(.nf-genre-section):not(.nf-cw-section):not(#similarCollapsible) .emby-scroller > .scrollSlider {
+    width: -webkit-max-content !important;
+    width: max-content !important;
+    min-width: 100% !important;
+}
+
+/* The episode and season strips are the theme's own scroll boxes. Once
+   headerButton.js has wrapped one for its chevrons the WRAP is what bleeds — so
+   the chevrons stand in the gutters, as on the home rows, instead of lying over
+   the first and last card — and the strip inside it pads back in by the plain 4%
+   (its containing block is then the full page width). Before that, and wherever
+   there are no chevrons at all, the strip does both itself. */
+html:not(.layout-tv) .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer,
+html:not(.layout-tv) .itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .itemsContainer {
+    margin-left: -4.347826% !important;
+    margin-right: -4.347826% !important;
+    padding-left: 4.347826% !important;
+    padding-right: 4.347826% !important;
+}
+html:not(.layout-tv) .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .nf-row-wrap,
+html:not(.layout-tv) .itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .nf-row-wrap {
+    margin-left: -4.347826% !important;
+    margin-right: -4.347826% !important;
+}
+html:not(.layout-tv) .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .nf-row-wrap > .itemsContainer,
+html:not(.layout-tv) .itemDetailPage .detailPagePrimaryContent #childrenCollapsible:not([data-nf-list="rows"]) .nf-row-wrap > .itemsContainer {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 4% !important;
+    padding-right: 4% !important;
+}
+/* A strip of stock cards (seasons, a person's titles) ends on the rail too. This
+   box scrolls natively, where a negative end margin on the last card does take
+   its trailing gutter out of the scrollable width. */
+html[dir="ltr"]:not(.layout-tv) .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer > .card:last-child { margin-right: -1.2em !important; }
+html[dir="rtl"]:not(.layout-tv) .itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .itemsContainer > .card:last-child { margin-left: -1.2em !important; }
+
+/* --- A person's titles: the heading row --------------------------------------------
+   On a person's page each list of titles has its heading in a wrapper with a
+   "More" button beside it. Stock builds that button as a raised button INSIDE a
+   link that is itself styled as a button — padding on both — so a row with one
+   was 110px tall where a row without was 57, and both stood further from their
+   pictures (50px and 77px) than any other heading on the detail page (12px). The
+   heading keeps the page's one distance, and "More" becomes what it is: a link.
+   position/z-index keep the link above the strip's top padding, which the
+   negative margin pulls up over this row. */
+/* Scoped to the strip: the negative margin answers the strip's own top padding
+   (its hover clearance). A collection's lists use the same heading wrapper over a
+   plain wrapping grid that has no such padding — there the same margin pulled
+   the posters up into the heading. */
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .sectionTitleContainer-cards {
+    position: relative;
+    z-index: 1;
+    padding-top: 0 !important;
+    margin: 0 0 -10px !important;
+    margin: 0 0 calc(12px - var(--nf-zoom-pad)) !important;
+}
+.itemDetailPage #listChildrenCollapsible:not([data-nf-list="rows"]) .sectionTitleContainer-cards > .sectionTitle { margin-bottom: 0 !important; }
+.itemDetailPage .sectionTitleContainer-cards > .clearLink {
+    padding: 0 !important;
+    margin: 0 0 0 14px !important;
+    background: none !important;
+    vertical-align: baseline !important;
+}
+[dir="rtl"] .itemDetailPage .sectionTitleContainer-cards > .clearLink { margin: 0 14px 0 0 !important; }
+.itemDetailPage .sectionTitleContainer-cards .raised.more {
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    color: var(--nf-text-3) !important;
+    font-size: var(--nf-t-cap) !important;
+    font-weight: var(--nf-w-semi) !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    transition: color 0.2s ease !important;
+}
+.itemDetailPage .sectionTitleContainer-cards .raised.more:hover { color: #fff !important; }
+
+/* --- A person's dates, a series' air time -------------------------------------------
+   "Born: …", "Birthplace: …", "Died: …" and a series' "Airs …" line are four
+   unstyled paragraphs: body-size type, and the birthplace link in stock's 600 —
+   the heaviest words on a person's page after their name. They are facts, so they
+   take the facts' size and weight. (The label cannot be greyed separately: it is
+   one translated string with its value, not an element.) */
+.itemDetailPage #itemBirthday,
+.itemDetailPage #itemBirthLocation,
+.itemDetailPage #itemDeathDate,
+.itemDetailPage #seriesAirTime {
+    margin: 0 0 6px !important;
+    font-size: var(--nf-t-meta) !important;
+    line-height: 1.5 !important;
+    color: var(--nf-text-3) !important;
+}
+.itemDetailPage #itemBirthLocation a,
+.itemDetailPage #seriesAirTime a {
+    color: var(--nf-text-2) !important;
+    font-weight: var(--nf-w-reg) !important;
+}
+.itemDetailPage #itemBirthLocation a:hover,
+.itemDetailPage #seriesAirTime a:hover { color: #fff !important; text-decoration: underline !important; }
+
+/* --- A collection's grid ends on the rail --------------------------------------
+   Same trailing 1.2em as the browse grid above, but this grid sits INSIDE the
+   rail-wide column, so here the margin can be pulled out into the gutter. */
+@media (min-width: 800px) {
+    [dir="ltr"] .itemDetailPage .collectionItems .itemsContainer.vertical-wrap { margin-right: -1.2em !important; }
+    [dir="rtl"] .itemDetailPage .collectionItems .itemsContainer.vertical-wrap { margin-left: -1.2em !important; }
+}
+
+/* --- No backdrop AND no cover -------------------------------------------------
+   The cover header brings the poster back beside the title. An artist nobody has
+   uploaded a picture for, or a collection without a poster, has none — and the
+   slot was drawn anyway, as a blank dark square holding the title 264px off the
+   rail. headerButton.js marks it (nfMarkAbout → data-nf-cover="none") and the
+   slot goes: the title, its facts and its buttons stand on the rail by
+   themselves. Doubled class: this has to beat the cover header's own
+   display:block at the same specificity, whatever order the two end up in. */
+html .itemDetailPage[data-nf-art="none"][data-nf-cover="none"] .detailPagePrimaryContainer > .detailImageContainer.detailImageContainer {
+    display: none !important;
+}
+/* …and then the title block has to claim the whole line itself. Beside a cover it
+   is `flex: 1 1 0` and the cover's width is what pushes the About block onto the
+   next line; with no cover a zero-basis item and a 100% one FIT on one line, so
+   the title block was laid out zero pixels wide on top of the content. (Row
+   layout only: on a phone the container is a column and already stacks.) */
+@media (min-width: 560px) {
+    .itemDetailPage[data-nf-art="none"][data-nf-cover="none"] .detailRibbon { flex: 0 0 100% !important; }
+}
+
+/* --- A comma never starts a line --------------------------------------------------
+   The links in the facts, the tags and the external links are stock .emby-button
+   anchors: `display: inline-flex`, which makes each one an atomic box — and a
+   line may break on either side of an atomic box whatever the characters next to
+   it are. So a list could wrap between a name and the comma that follows it and
+   open the next line with ", Horror". As plain inline text a line only breaks at
+   its spaces, and the comma stays with the word it belongs to. (The containers,
+   not these anchors, are what Jellyfin hides with .hide.) */
+.itemDetailsGroup .detailsGroupItem .button-link,
+.itemTags a,
+.itemExternalLinks a,
+.itemDetailPage #itemBirthLocation a {
+    display: inline !important;
+}
+
+/* --- Below the two-column width: read first, configure second ---------------------
+   Jellyfin's markup puts the track pickers BEFORE the synopsis. On a wide page
+   the grid above places them under it; on a phone, a tablet or a narrow window
+   there is no grid, so the first thing under the Play button was "Video 1080p
+   H264 SDR / Audio / Subtitles" and the synopsis came after the form. Same order
+   as the wide page, without touching the DOM: the section becomes a column and
+   the two blocks are ordered ahead of everything else, which keeps its own
+   order. `:not(.hide)` per gotcha S. */
+@media (max-width: 1099px) {
+    .itemDetailPage .detailPagePrimaryContent > .detailSection:not(.hide) {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > * { min-width: 0; }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > .detailSectionContent { order: -2; }
+    .itemDetailPage .detailPagePrimaryContent > .detailSection > .trackSelections { order: -1; }
+}
+
+/* --- Chapters ------------------------------------------------------------------
+   Stock prints the chapter's name and time in an opaque black box in the corner
+   of the frame — a sticker on the picture. A scrim across the foot of the tile
+   carries both instead: the name where a caption goes, the time ranged right in
+   figures that do not jitter from tile to tile. */
+.chapterCard .innerCardFooter {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    max-width: none !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: space-between !important;
+    padding: 30px 10px 8px !important;
+    background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.6) 42%, rgba(0,0,0,0) 100%) !important;
+    pointer-events: none;
+}
+.chapterCard .innerCardFooter > .cardText {
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+}
+.chapterCard .innerCardFooter > .cardText:first-child {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    color: #fff !important;
+    font-size: var(--nf-t-meta) !important;
+    font-weight: var(--nf-w-semi) !important;
+}
+.chapterCard .innerCardFooter > .cardText:last-child {
+    flex: 0 0 auto !important;
+    margin-left: 12px !important;
+    color: var(--nf-text-3) !important;
+    font-size: var(--nf-t-cap) !important;
+    font-variant-numeric: tabular-nums;
+}
+[dir="rtl"] .chapterCard .innerCardFooter > .cardText:last-child { margin-left: 0 !important; margin-right: 12px !important; }
+
+/* --- A heart is an outline until it is a favourite -----------------------------
+   Jellyfin draws the same SOLID heart in both states and tells them apart by
+   colour alone, so an album of eight tracks opened on eight filled white hearts —
+   which reads as eight favourites. The icon font carries the outline glyph
+   (favorite_border, U+E87E); the button carries its state as an attribute. The
+   filled heart takes the accent, on every surface, instead of stock's fixed red. */
+[data-isfavorite="false"] > .material-icons.favorite::before,
+[data-isfavorite="false"] .detailButton-icon.favorite::before {
+    content: "\e87e" !important;
+}
+.ratingbutton-icon-withrating { color: var(--accent-red) !important; }
+
+/* Row actions are furniture: quiet until the pointer is on them. */
+.listItem .listViewUserDataButtons .listItemButton { color: var(--nf-text-3) !important; transition: color 0.2s ease !important; }
+.listItem .listViewUserDataButtons .listItemButton:hover { color: #fff !important; }
+.listItem .listViewUserDataButtons .listItemButton .ratingbutton-icon-withrating { color: var(--accent-red) !important; }
+
+/* --- A title with nothing to read beside its facts -----------------------------
+   The two-column About puts the facts in a second column, level with the synopsis.
+   An album, a playlist or a bare file has no synopsis, tagline or tags — and then
+   the facts hung alone at mid-page, to the right of nothing ("Genre: Electronic"
+   floating above the durations of a track list). headerButton.js marks that page
+   (setupDetailLists → data-nf-about="bare") and the facts take the first column,
+   where the reader already is. An attribute, not :has(): this has to hold on the
+   engines that do not have it. */
+@media (min-width: 1100px) {
+    .itemDetailPage[data-nf-about="bare"] .detailPagePrimaryContent > .detailSection > .itemDetailsGroup {
+        grid-column: 1;
+        grid-row: 4;
+        margin-top: 0 !important;
+        margin-bottom: 14px !important;
+    }
 }
 
 /* === END OF BASE THEME — runtime options are appended by CssGenerator === */

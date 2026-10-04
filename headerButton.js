@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.1.0';
+    var NF_JS_VERSION = '3.1.1';
 
     // ---- Keyboard-focus state (html.nf-kb) ----
     // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
@@ -52,9 +52,9 @@
     // (detail play button, tooltips) are driven via custom properties below.
     var LOCALES = {
         en: { home: 'Home', play: 'Play', moreInfo: 'More Info', myList: 'My List', like: 'Like', cw: 'Continue Watching', season: 'Season', seasons: 'Seasons', sound: 'Toggle sound', pause: 'Pause', slide: 'Slide', themeSettings: 'Theme settings', scrollBack: 'Scroll left', scrollFwd: 'Scroll right', labelPlay: 'Play', labelResume: 'Resume', labelReplay: 'Replay', tipWatched: 'Watched', tipFavorite: 'Favorite', tipMore: 'More',
-             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'Recently Added', minLeft: '{0} min left', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Remove from row', page: 'Page' },
+             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'Recently Added', match: '{0}% Match', minLeft: '{0} min left', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Remove from row', page: 'Page', more: 'more' },
         de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr',
-             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'Neu hinzugefügt', minLeft: 'Noch {0} Min.', hourAbbr: '{0} Std.', minAbbr: '{0} Min.', removeRow: 'Aus Zeile entfernen', page: 'Seite' }
+             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'Neu hinzugefügt', match: '{0} % Übereinstimmung', minLeft: 'Noch {0} Min.', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Aus Zeile entfernen', page: 'Seite', more: 'mehr' }
     };
     function nfL() {
         var l = (document.documentElement.getAttribute('lang') || navigator.language || 'en').toLowerCase();
@@ -368,7 +368,110 @@
                 if ((sec.getAttribute('data-nf-list') || '') === kind) return;
                 if (kind) sec.setAttribute('data-nf-list', kind); else sec.removeAttribute('data-nf-list');
             });
+            nfMarkAbout(page);
+            nfClampTags(page);
         } catch (e) {}
+    }
+
+    // data-nf-about="bare": the About column has nothing to read — no synopsis,
+    // tagline, tags, track pickers or life dates — so the facts beside it would
+    // hang alone in the second column (an album's "Genre: Electronic" floating
+    // over its track list). The sheet then sets them in the first column. Class
+    // and text reads only, no layout: this runs on every mutation frame.
+    var NF_ABOUT_CONTENT = '.overview:not(.hide), .tagline:not(.hide), .itemTags:not(.hide), ' +
+        '.trackSelections:not(.hide), #itemBirthday:not(.hide), #itemBirthLocation:not(.hide), ' +
+        '#itemDeathDate:not(.hide), #seriesAirTime:not(.hide)';
+    function nfMarkAbout(page) {
+        var sec = page.querySelector('.detailPagePrimaryContent > .detailSection');
+        if (!sec) return;
+        var bare = true;
+        var nodes = sec.querySelectorAll(NF_ABOUT_CONTENT);
+        for (var i = 0; i < nodes.length; i++) {
+            if (/\S/.test(nodes[i].textContent || '')) { bare = false; break; }
+        }
+        var want = bare ? 'bare' : '';
+        if ((page.getAttribute('data-nf-about') || '') !== want) {
+            if (want) page.setAttribute('data-nf-about', want); else page.removeAttribute('data-nf-about');
+        }
+        // data-nf-cover="none": the title has no poster either. Jellyfin still builds
+        // the image card, with an EMPTY data-src (a loaded one has had the attribute
+        // removed by the lazy loader; one still loading carries its URL), and the
+        // cover header would show it as a blank square beside the title.
+        var img = page.querySelector('.detailImageContainer .cardImageContainer');
+        var cover = (img && img.getAttribute('data-src') === '') ? 'none' : '';
+        if ((page.getAttribute('data-nf-cover') || '') !== cover) {
+            if (cover) page.setAttribute('data-nf-cover', cover); else page.removeAttribute('data-nf-cover');
+        }
+    }
+
+    // Tags: two lines, then "more". A metadata provider hands over every keyword it
+    // has — thirty is ordinary — and Jellyfin prints them all between the synopsis
+    // and the rest of the page. The links that do not fit on two lines move into a
+    // hidden span and a "more" control takes their place in the sentence, after the
+    // last comma — Netflix's "Cast: A, B, C, more".
+    // Judged once per render AND per layout epoch. Jellyfin rebuilds the list with
+    // innerHTML, which drops everything added here and replaces the first link, so
+    // a new first link means a new list. nfLayoutEpoch moves when the window is
+    // resized or a webfont arrives: where the second line ends depends on both, and
+    // a list measured in the fallback face wrapped its control onto a third line
+    // the moment Inter loaded. The layout reads happen only on those two signals.
+    var nfLayoutEpoch = 0;
+    function nfClampTags(page) {
+        var tags = page.querySelector('.itemTags');
+        if (!tags) return;
+        var first = tags.querySelector('a');
+        var sameList = tags._nfFirst === first;
+        if (sameList && tags._nfEpoch === nfLayoutEpoch) return;
+        tags._nfFirst = first;
+        tags._nfEpoch = nfLayoutEpoch;
+        // Opened by the reader: it stays open for as long as this list is on screen.
+        if (sameList && tags.classList.contains('nf-tags-open')) return;
+        tags.classList.remove('nf-tags-open');
+        // Put back whatever an earlier pass moved, so the list is measured whole.
+        var oldRest = tags.querySelector('.nf-tags-rest');
+        if (oldRest) {
+            while (oldRest.firstChild) tags.insertBefore(oldRest.firstChild, oldRest);
+            tags.removeChild(oldRest);
+        }
+        var oldMore = tags.querySelector('.nf-tags-more');
+        if (oldMore) tags.removeChild(oldMore);
+        if (!first || tags.classList.contains('hide')) return;
+
+        var links = tags.querySelectorAll('a');
+        var top0 = first.offsetTop;
+        var lh = parseFloat(getComputedStyle(tags).lineHeight) || 20;
+        var limit = top0 + lh * 1.5;                 // anything starting below this is line three
+        var keep = links.length;
+        for (var i = 0; i < links.length; i++) {
+            if (links[i].offsetTop >= limit) { keep = i; break; }
+        }
+        if (keep >= links.length || keep < 1) return;
+
+        var rest = document.createElement('span');
+        rest.className = 'nf-tags-rest';
+        var more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'nf-tags-more';
+        more.textContent = nfL().more;
+        more.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            tags.classList.add('nf-tags-open');
+        });
+        // Everything from link `keep` on goes into the rest; the comma before it
+        // stays, so the control reads as the next item in the list.
+        var node = links[keep];
+        while (node) { var next = node.nextSibling; rest.appendChild(node); node = next; }
+        tags.appendChild(more);
+        tags.appendChild(rest);
+        // The control itself needs room on line two: hand back links until it has it.
+        for (var guard = 0; guard < 8 && more.offsetTop >= limit && keep > 1; guard++) {
+            keep--;
+            var link = links[keep];
+            var comma = link.nextSibling;            // the ", " that followed it
+            if (comma && comma.nodeType === 3) rest.insertBefore(comma, rest.firstChild);
+            rest.insertBefore(link, rest.firstChild);
+        }
     }
 
     function setupDetailRowNav() {
@@ -581,6 +684,13 @@
         var vw = window.innerWidth || 1280;
         return Math.ceil((vw * 0.92) / nfTilesAcross());
     }
+    // --nf-tile-wide: Continue Watching and the episode strip. One row tile, except
+    // on the portrait card style, where CssGenerator makes it two poster columns —
+    // and a still requested at one column's width would be upscaled 2x.
+    function nfWideTileCssWidth() {
+        var w = nfTileCssWidth();
+        return cfg('CardStyle', 'mixed') === 'portrait' ? w * 2 + 6 : w;
+    }
 
     // ---- Lazy row artwork: a home build used to fire ~120 thumbnail requests at
     // once. Cards carry data-nf-bg; one shared observer fills them near-viewport,
@@ -785,13 +895,14 @@
     function matchHtml(rating, cls) {
         var n = parseFloat(rating);
         if (isNaN(n) || n < 0 || n > 10) return '';
-        return '<span class="' + cls + '">' + Math.round(n * 10) + '% Match</span>';
+        return '<span class="' + cls + '">' + nfL().match.replace('{0}', Math.round(n * 10)) + '</span>';
     }
 
-    // Netflix-style runtime text from RunTimeTicks: "1 Std. 42 Min." (de) /
-    // "1h 42m" (en) — same LOCALES mechanism as every other UI string. The English
-    // form is Netflix's own and the one Jellyfin prints on the detail page; the
-    // popup used to say "1 h 42 min", so one runtime read two ways a click apart.
+    // Runtime text from RunTimeTicks: "1h 42m", in every language. That is the form
+    // Jellyfin itself prints on the detail page, the episode cards and the lists,
+    // and it does not translate it — so the German popup's "1 Std. 42 Min." was one
+    // runtime read two ways a click apart. Still routed through LOCALES, so a
+    // language whose Jellyfin output differs can say so in one place.
     function nfRuntimeText(ticks) {
         var mins = Math.round((parseInt(ticks, 10) || 0) / 600000000);
         if (mins <= 0) return '';
@@ -836,9 +947,29 @@
         var host = legacy ? legacy.querySelector('.headerRight') : nfModernToolbar();
         if (!host) return;
 
+        // Modern: the button belongs immediately before the user menu. The toolbar is
+        // built in stages, and "before the last child" — which is what this used to
+        // do, once — meant before whatever happened to be last at that moment: on a
+        // page whose avatar box had not rendered yet that was the search/cast group,
+        // so the palette ended up beside the nav tabs on some page loads and beside
+        // the avatar on others. Anchor on the avatar's own box, and re-home an
+        // existing button the first time that box is there.
+        var anchor = null;
+        if (!legacy) {
+            var avatar = host.querySelector('.MuiAvatar-root');
+            anchor = avatar;
+            while (anchor && anchor.parentNode !== host) anchor = anchor.parentNode;
+            if (!anchor) anchor = host.lastElementChild;
+        }
+
         var existing = document.querySelector('.ct-settings-btn');
         if (existing) {
-            if (host.contains(existing)) return;
+            if (host.contains(existing)) {
+                if (!legacy && anchor && anchor !== existing && existing.nextElementSibling !== anchor) {
+                    host.insertBefore(existing, anchor);
+                }
+                return;
+            }
             existing.remove();
         }
 
@@ -857,13 +988,11 @@
             return;
         }
 
-        // Modern: the toolbar's last child is the user-menu Box (or, on a public
-        // path, the buttons Box) — both are safe insertion points, and sitting
-        // before the avatar matches where the button lives in the legacy header.
+        // Modern: before the user-menu Box (or, on a public path with no avatar, the
+        // last Box) — which matches where the button lives in the legacy header.
         // MUI's utility classes carry no CSS of their own, so the button is styled
         // by the theme's own .ct-settings-btn rules, not by borrowing MuiIconButton.
-        var last = host.lastElementChild;
-        if (last) host.insertBefore(btn, last);
+        if (anchor) host.insertBefore(btn, anchor);
         else host.appendChild(btn);
     }
 
@@ -1421,6 +1550,7 @@
 
         var cur = 0, paused = false;
         var slideEls = hero.querySelectorAll('.nf-hero-slide');
+        if (slideEls[0]) hero.classList.toggle('nf-hero-noplate', !slideEls[0].querySelector('.nf-hero-maturity'));
         var dotEls = hero.querySelectorAll('.nf-hero-dot');
         var clipTimer = null;
         // Preload slide 1's backdrop (loadSlideBg is hoisted) so the first rotation is ready.
@@ -1516,6 +1646,10 @@
             loadSlideBg(cur); loadSlideBg((cur + 1) % slideEls.length);
             for (var i = 0; i < slideEls.length; i++) { slideEls[i].classList.toggle('active', i === cur); }
             for (var j = 0; j < dotEls.length; j++) { dotEls[j].classList.toggle('active', j === cur); }
+            // The controls sit to the left of the slide's maturity plate. A title with
+            // no certification has no plate, and they were left hanging 170px in from
+            // the edge with nothing beside them.
+            hero.classList.toggle('nf-hero-noplate', !slideEls[cur].querySelector('.nf-hero-maturity'));
             // A fresh slide's clip always starts muted — resync the mute icon.
             var mi = hero.querySelector('.nf-hero-mute .material-icons');
             if (mi) mi.textContent = 'volume_off';
@@ -2076,12 +2210,13 @@
     // ============ Continue Watching row (home page) — own sharp landscape cards ============
     var cwBusy = false;
 
-    function cwImage(item) {
+    function cwImage(item, wide) {
         var t = item.ImageTags || {};
         // Prefer the Thumb image: it's the landscape asset WITH title art (Netflix boxart
         // style). Backdrops are textless by design (TMDB/fanart guidelines), so they only
         // serve as fallback. For episodes, the series' Thumb (ParentThumb) comes next.
-        var w = nfTileCssWidth();   // the tile's REAL width at this viewport + card size
+        // the tile's REAL width at this viewport + card size (`wide`: a --nf-tile-wide tile)
+        var w = wide ? nfWideTileCssWidth() : nfTileCssWidth();
         if (t.Thumb) return nfImg(item.Id, 'Thumb', t.Thumb, w);
         if (item.ParentThumbItemId && item.ParentThumbImageTag) return nfImg(item.ParentThumbItemId, 'Thumb', item.ParentThumbImageTag, w);
         if (item.BackdropImageTags && item.BackdropImageTags.length) return nfImg(item.Id, 'Backdrop', item.BackdropImageTags[0], w);
@@ -2138,7 +2273,7 @@
                         ' data-serverid="' + (sid || '') + '" data-type="' + (item.Type || '') + '"' +
                         ' data-mediatype="Video" data-isfolder="false"' +
                         ' aria-label="' + esc(name || '') + (sub ? ' — ' + esc(sub) : '') + '">' +
-                        '<div class="nf-cw-thumb" data-nf-bg="' + esc(cwImage(item)) + '">' +
+                        '<div class="nf-cw-thumb" data-nf-bg="' + esc(cwImage(item, true)) + '">' +
                             '<div class="nf-cw-play"><span class="material-icons" aria-hidden="true">play_arrow</span></div>' +
                             '<button type="button" class="nf-cw-remove" title="' + nfL().removeRow + '" aria-label="' + nfL().removeRow + '"><span class="material-icons" aria-hidden="true">close</span></button>' +
                             '<div class="nf-cw-prog"><i style="width:' + Math.max(2, Math.min(100, pct)) + '%"></i></div>' +
@@ -2577,7 +2712,12 @@
             var cr = card.getBoundingClientRect();
             if (!cr.width) return;
             var vw = window.innerWidth;
-            var Wp = Math.max(cr.width * 1.6, 300);
+            // 1.6x the tile, as Netflix's mini-modal is — but that is a rule for a tile
+            // of ordinary width. Continue Watching on the portrait card style spans
+            // two poster columns (~380px), and 1.6x of that was a 610px panel that
+            // covered the billboard's buttons. Past ~260px the popup only has to
+            // clear the tile it grew out of.
+            var Wp = Math.max(Math.min(cr.width * 1.6, Math.max(cr.width + 48, 420)), 300);
             var left = Math.min(Math.max(cr.left + cr.width / 2 - Wp / 2, 8), vw - Wp - 8);
             var top = Math.max(cr.top - 36, 72);
 
@@ -2620,7 +2760,7 @@
                         '<button type="button" class="nf-pop-btn nf-pop-like" title="' + nfL().like + '" aria-label="' + nfL().like + '"><span class="material-icons" aria-hidden="true">thumb_up_off_alt</span></button>' +
                         '<a class="nf-pop-btn more" href="' + detailUrl + '" title="' + nfL().moreInfo + '" aria-label="' + nfL().moreInfo + '"><span class="material-icons" aria-hidden="true">expand_more</span></a>' +
                     '</div>' +
-                    '<div class="nf-pop-meta">' + match + rating + extra + hd + '</div>' +
+                    '<div class="nf-pop-meta">' + match + rating + ((extra || hd) ? '<span class="nf-pop-tail">' + extra + hd + '</span>' : '') + '</div>' +
                     (genres ? '<div class="nf-pop-genres">' + genres + '</div>' : '') +
                 '</div>';
 
@@ -2945,7 +3085,7 @@
                 // by the generated CSS to stop the "7.8 -> 78% Match" text flicker.
                 if (isNaN(n) || n < 0 || n > 10) { el.dataset.ctMatch = '0'; return; }
                 el.dataset.ctMatch = '1';
-                var label = Math.round(n * 10) + '% Match';
+                var label = nfL().match.replace('{0}', Math.round(n * 10));
                 // Rewrite the numeric TEXT NODE, not textContent: textContent deletes
                 // the .starIcon child, and that childList mutation re-fires our own
                 // MutationObserver — a free extra applyDynamic pass per rating element.
@@ -3676,6 +3816,22 @@
         }
         nfObserver = new MutationObserver(scheduleDynamic);
         nfObserveBody();
+
+        // Anything measured against the layout (the tag list's two-line cut) is
+        // stale after a resize or once a webfont has replaced the fallback face.
+        // Neither is a DOM mutation, so neither reaches the observer above.
+        var relayoutTimer = 0;
+        function nfRelayout() {
+            clearTimeout(relayoutTimer);
+            relayoutTimer = setTimeout(function () { nfLayoutEpoch++; scheduleDynamic(); }, 180);
+        }
+        window.addEventListener('resize', nfRelayout);
+        try {
+            if (document.fonts) {
+                if (document.fonts.ready && document.fonts.ready.then) document.fonts.ready.then(nfRelayout);
+                if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', nfRelayout);
+            }
+        } catch (e) {}
 
         // SPA-survival (learned from jellyfin-plugin-custom-tabs): Jellyfin recreates the
         // header/home on client-side navigation, which can drop our button/tabs/takeover.
