@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.1.1';
+    var NF_JS_VERSION = '3.2.0';
 
     // ---- Keyboard-focus state (html.nf-kb) ----
     // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
@@ -809,7 +809,12 @@
 
     // Mirrors the dashboard configuration page.
     var SECTIONS = [
-        ['Netflix Features', [
+        // `netflix` first: when the stored value matches no option (an older server
+        // DLL without the property) the browser shows the first one.
+        ['Brand', [
+            ['Brand', 'select', 'Theme', [['netflix','Netflix'],['villa','Villa Cocquette']]]
+        ]],
+        ['Features', [
             ['CleanHome', 'toggle', 'Clean Netflix home (hide native rows)'],
             ['OwnInjection', 'toggle', 'Self-contained inject (no File Transformation)'],
             ['ProvideFileTransformation', 'toggle', 'Provide File Transformation to other plugins'],
@@ -832,7 +837,7 @@
             ['OledBlack', 'toggle', 'OLED pure black']
         ]],
         ['Colors', [
-            ['SeasonalTheme', 'select', 'Theme preset', [['default','Default'],['monochrome','Monochrome'],['colorful','Colorful'],['christmas','Christmas'],['halloween','Halloween'],['summer','Summer'],['ocean','Ocean']]],
+            ['SeasonalTheme', 'select', 'Color preset', [['default','Default'],['monochrome','Monochrome'],['colorful','Colorful'],['christmas','Christmas'],['halloween','Halloween'],['summer','Summer'],['ocean','Ocean']]],
             ['AccentColor', 'color', 'Accent color'],
             ['BgColor', 'color', 'Background'],
             ['TextColor', 'color', 'Text color'],
@@ -1090,6 +1095,20 @@
         var body = panel.querySelector('.ct-body');
         body.innerHTML = html;
         body.querySelector('.ct-save-btn').addEventListener('click', function () { saveConfig(panel, config); });
+
+        // The Villa theme brings its own accent and its own marks (CssGenerator), so
+        // those four controls would be dead rows — and the colour well would go on
+        // showing red on a gold page. Hidden, not removed: saveConfig still reads
+        // them, so switching back finds every value where it was left.
+        var brandSel = body.querySelector('[data-key="Brand"]');
+        var syncBrandRows = function () {
+            var villa = !!brandSel && brandSel.value === 'villa';
+            ['AccentColor', 'LogoStyle', 'LogoLetter', 'CustomLogoUrl'].forEach(function (k) {
+                var el = body.querySelector('[data-key="' + k + '"]');
+                if (el && el.parentNode) el.parentNode.style.display = villa ? 'none' : '';
+            });
+        };
+        if (brandSel) { brandSel.addEventListener('change', syncBrandRows); syncBrandRows(); }
     }
 
     // Jellyfin 12.0 persists its react-query cache to IndexedDB (idb-keyval:
@@ -3100,6 +3119,34 @@
         } catch (e) {}
     }
 
+    // The sign-in page alone (of the five session routes): a brand may stand its full
+    // mark above the gate there and take it out of the bar (CssGenerator,
+    // AppendVillaMarks) — and it needs to know when the CARD is the open view, because
+    // the manual sign-in form is a good deal taller than the row of profile tiles.
+    // Jellyfin swaps gate and card by toggling `.hide` on the form: on a click, or by
+    // itself once /Users/Public has answered on a server that lists no users (the
+    // default). That is an attribute change, which the childList observer never
+    // sees, so the form's own class is watched — it fires before the next paint.
+    var nfLoginForm = null;
+    var nfLoginFormObs = null;
+    function nfStampLogin() {
+        var root = document.documentElement;
+        var on = /^#\/login\b/i.test(location.hash);
+        var form = on ? document.querySelector('#loginPage:not(.hide) form.manualLoginForm') : null;
+        if (form !== nfLoginForm) {
+            if (nfLoginFormObs) { try { nfLoginFormObs.disconnect(); } catch (e) {} nfLoginFormObs = null; }
+            nfLoginForm = form;
+            if (form && window.MutationObserver) {
+                try {
+                    nfLoginFormObs = new MutationObserver(nfStampLogin);
+                    nfLoginFormObs.observe(form, { attributes: true, attributeFilter: ['class'] });
+                } catch (e) {}
+            }
+        }
+        root.classList.toggle('nf-login', on);
+        root.classList.toggle('nf-login-card', !!form && !form.classList.contains('hide'));
+    }
+
     // ============ Logo -> Home ============
     // The theme HIDES Jellyfin's page-title elements, so a click handler bound to
     // them was dead. Build a real "N" logo as the FIRST child of .headerLeft (the
@@ -3143,9 +3190,17 @@
         try {
             var tb = nfModernToolbar();
             if (!tb) return;
-            if (tb.querySelector('.nf-logo')) return;
-            // The stock mark is here — the stylesheet restyles it, nothing to add.
-            if (tb.querySelector('a.MuiButton-root[href="#/"]')) return;
+            var own = tb.querySelector('.nf-logo');
+            // The stock mark is here — the stylesheet restyles it, nothing to add. And
+            // if ours is still in the bar from when the window was narrower (crossing
+            // MUI's md breakpoint upward brings the home Button back), take it out:
+            // this used to return on its own node first, and the bar then carried
+            // the mark twice until the next reload.
+            if (tb.querySelector('a.MuiButton-root[href="#/"]')) {
+                if (own && own.parentNode) own.parentNode.removeChild(own);
+                return;
+            }
+            if (own) return;
 
             var a = document.createElement('a');
             a.className = 'nf-logo nf-logo-modern';
@@ -3639,6 +3694,7 @@
         // The sign-in routes: the app bar sits outside the page element, so the
         // sheet needs a root class to clear the bar over the gate's backdrop.
         document.documentElement.classList.toggle('nf-session', /^#\/(login|selectserver|addserver|forgotpassword|forgotpasswordpin)\b/i.test(location.hash));
+        nfStampLogin();
         // EDGE-triggered teardown. Everything else here is an entry guard, which only
         // stops the NEXT clip — an in-flight one kept decoding and streaming under the
         // player for up to 30s. .videoPlayerContainer being inserted is itself a body

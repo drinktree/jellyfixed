@@ -25,8 +25,9 @@ The plugin also injects a small script that adds a **palette settings button** i
 - **Dashboard settings page** at *Plugins → Custom Theme*
 - **Optional header settings button** (palette icon) with the same options
 - **15 Google Fonts** — Inter, Poppins, Montserrat, Roboto, Oswald, Raleway, Nunito, Bebas Neue, Lato, Source Sans, Ubuntu, Playfair Display, Quicksand, Comfortaa, Righteous (only the selected family is loaded)
+- **Two house styles** — Netflix (default) or **Villa Cocquette**: the same layout with a gold accent and the villa's crest in the header, in the navigation drawer and above the sign-in page
 - **Logo options** — red "N" (default), Jellyfin, custom letter, custom image URL, or none
-- **Seasonal presets** — Default, Christmas, Halloween, Summer, Ocean (override the colour palette)
+- **Color presets** — Default, Monochrome, Colorful, Christmas, Halloween, Summer, Ocean (override the colour palette)
 - Color customization — accent, background, text, muted text, progress bar
 - Round cast/crew images, full-backdrop detail page, card hover zoom
 - **Sign-in as a profile gate** — the user picker is a "Who's watching?" screen and every sign-in form shares one card. Turn on Jellyfin's splash screen (*Dashboard → General*) and a collage of your library's posters sits behind it
@@ -60,9 +61,10 @@ Open **Dashboard → Plugins → Custom Theme**, or click the palette icon in th
 
 | Section | Options |
 |---------|---------|
+| Brand | Theme: Netflix (default) or Villa Cocquette. Villa Cocquette brings its own gold accent and its own marks, so the accent colour and the logo style do not apply while it is selected |
 | Injection | Self-contained middleware injection (on by default), provide File Transformation to other plugins (on by default) |
-| Netflix features | Clean home takeover, hero carousel, genre rows, top nav tabs, hover expand card, autoplay preview clips, Top 10 rank numbers (off by default), green "x% Match" score, glass blur (off), OLED black (off) — all others on by default |
-| Colors | Theme preset, accent, background, text, muted text, progress bar |
+| Features | Clean home takeover, hero carousel, genre rows, top nav tabs, hover expand card, autoplay preview clips, Top 10 rank numbers (off by default), green "x% Match" score, glass blur (off), OLED black (off) — all others on by default |
+| Colors | Color preset, accent, background, text, muted text, progress bar |
 | Logo & Header | Logo style (red "N" default / Jellyfin / letter / custom image / none), left-aligned nav, header blur |
 | Elements | Badges, watched marks, backdrop, round cast, description, tags, external links, similar titles, spoiler mode |
 | Detail buttons | Watched, favorite, more |

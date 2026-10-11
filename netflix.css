@@ -42,6 +42,16 @@
     --nf-surface-hover: #3a3a3a;  /* the hovered state of a -hi panel */
     --nf-surface-rgb: 24,24,24;   /* --nf-surface as channels, for translucent panels */
     --nf-accent-rgb: 229,9,20;    /* --accent-red as channels, for tints and glows */
+    /* What is written ON the accent — a label, a tick, a badge's digits. White on
+       Netflix red. CssGenerator re-emits it for the configured accent, and a light
+       one (gold, the Summer and Monochrome presets) gets the page's near-black:
+       white on gold is 2:1. Every accent fill in this sheet that carries content
+       reads this token, never a literal. */
+    --nf-on-accent: #fff;
+    /* The track under a resume bar. A 30% white is right under a dark accent;
+       CssGenerator turns it dark under a light one, where the played part would
+       otherwise disappear into it over any bright or warm still. */
+    --nf-prog-track: rgba(255,255,255,0.3);
     --nf-hairline: rgba(255,255,255,0.15);
     --nf-divider: #404040;
 
@@ -588,6 +598,10 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
    paints cyan #00a4dc — the bare .indicator alone left library badges blue. */
 .indicator, .countIndicator, .mediaSourceIndicator {
     background-color: var(--accent-red) !important;
+    /* Stock paints the digits from --jf-palette-primary-contrastText, which the
+       generator keeps in step with this token; said here as well so the pair can
+       never come apart. */
+    color: var(--nf-on-accent, #fff) !important;
     font-family: var(--font-netflix) !important;
     font-weight: var(--nf-w-bold) !important;
     border-radius: var(--r-badge) !important;
@@ -597,9 +611,12 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
     text-align: center !important;
 }
 
-/* Played checkmark indicator */
+/* Played checkmark indicator. The glyph is pinned white: it stands on this dark
+   disc, not on the accent, so it must not follow the on-accent colour the badge
+   rule above hands every .indicator. */
 .indicator.indicatorIcon {
     background-color: rgba(0,0,0,0.7) !important;
+    color: #fff !important;
     border-radius: 50% !important;
     padding: 2px !important;
 }
@@ -616,6 +633,7 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
    rather than square. */
 .playedIndicator.indicator {
     background-color: rgba(0,0,0,0.7) !important;
+    color: #fff !important;   /* on the dark disc, not on the accent — see above */
     border-radius: 50% !important;
     padding: 3px !important;
     min-width: 0 !important;
@@ -625,6 +643,10 @@ html .headerTabs .emby-tab-button.hide { display: none !important; }
     /* MUI sizes its own svg off font-size, not width/height. */
     font-size: 1rem !important;
     color: #fff !important;
+    /* Stock draws this glyph with `fill`, not `color`, and takes the fill from the
+       accent's contrast colour (.playedIndicator > svg) — white under red, ink under
+       a light accent, where the tick then vanished into the dark disc it stands on. */
+    fill: #fff !important;
     vertical-align: top !important;
 }
 
@@ -1788,15 +1810,19 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
     border-color: var(--accent-red) !important;
 }
 .checkboxIcon { color: #fff !important; }
+/* …except the tick of a checked box, which stands on the accent fill above. */
+.emby-checkbox:checked ~ .checkboxOutline .checkboxIcon { color: var(--nf-on-accent, #fff) !important; }
 /* Toggle switches (settings, dashboard) — checked track/thumb go red too. */
 /* 10.11 toggles are MDL switches: emby-toggle.js builds
    .mdl-switch__trackContainer > .mdl-switch__track / .mdl-switch__thumb and puts
    .mdl-switch__input on the input. The old .toggleButton-track / -thumb names never
    existed in this build, so EVERY switch in Settings and the Dashboard was still
-   painting stock's #00a4dc cyan. rgba() literals because a var() cannot be a channel. */
-.mdl-switch__input:checked + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__track { background: rgba(229,9,20,0.5) !important; }
+   painting stock's #00a4dc cyan. Track and focus halo are the accent at 50% / 26%,
+   through its channel token: they were literal Netflix-red rgba()s, which left a
+   red track under the thumb of any other accent. */
+.mdl-switch__input:checked + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__track { background: rgba(var(--nf-accent-rgb),0.5) !important; }
 .mdl-switch__input:checked + .mdl-switch__label + .mdl-switch__trackContainer > .mdl-switch__thumb { background: var(--accent-red) !important; }
-.mdl-switch__input:checked:focus + .mdl-switch__label + .mdl-switch__trackContainer .mdl-switch__focus-helper { box-shadow: 0 0 0 1.39em rgba(229,9,20,0.26) !important; background-color: rgba(229,9,20,0.26) !important; }
+.mdl-switch__input:checked:focus + .mdl-switch__label + .mdl-switch__trackContainer .mdl-switch__focus-helper { box-shadow: 0 0 0 1.39em rgba(var(--nf-accent-rgb),0.26) !important; background-color: rgba(var(--nf-accent-rgb),0.26) !important; }
 
 .inputContainer input, .emby-input {
     background-color: #333 !important;
@@ -1808,7 +1834,7 @@ input[type="checkbox"], .emby-checkbox { accent-color: var(--accent-red) !import
 
 .raised.button-submit, .emby-button.button-submit {
     background-color: var(--accent-red) !important;
-    color: white !important;
+    color: var(--nf-on-accent, #fff) !important;
     border-radius: 4px !important;
     font-weight: var(--nf-w-bold) !important;
     font-family: var(--font-netflix) !important;
@@ -1865,7 +1891,7 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: var(--bg-dark) !impo
     background-color: var(--accent-red) !important;
 }
 .itemProgressBar {
-    background-color: rgba(255,255,255,0.3) !important;
+    background-color: var(--nf-prog-track) !important;
     border-radius: 0 !important;
     height: 3px !important;
 }
@@ -1904,6 +1930,13 @@ body:has(.mainDrawer.drawer-open) .skinHeader { background: var(--bg-dark) !impo
 .raised:not(.button-submit):not(.button-delete):focus,
 a[data-role="button"]:focus {
     background: var(--jf-palette-Button-inheritContainedBg, #303030) !important;
+}
+/* …and so does the label. In the TV layout stock labels every focused button from
+   the accent's contrast colour (.emby-button.show-focus:focus), which is ink under
+   a light accent — on this grey fill. White is what it computes to under red. */
+.raised.show-focus:not(.button-submit):not(.button-delete):focus,
+a[data-role="button"].show-focus:focus {
+    color: #fff !important;
 }
 .raised.button-delete:focus {
     background: var(--jf-palette-error-main, #c62828) !important;
@@ -2952,8 +2985,11 @@ html.nf-home .skinHeader .headerTabs { display: none !important; }
 }
 .nf-cw-card:hover .nf-cw-play { opacity: 1; }
 .nf-cw-play .material-icons { color: #fff; font-size: 26px; }
-.nf-cw-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,0.3); }
-.nf-cw-prog > i { display: block; height: 100%; background: var(--accent-red, #E50914); }
+.nf-cw-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--nf-prog-track); }
+/* --progress-color like the card bars (CssGenerator emits it from the Progress
+   Colour option): this one read the accent directly, so a server set to green or
+   blue bars had one red row at the top of its home page. */
+.nf-cw-prog > i { display: block; height: 100%; background: var(--progress-color, var(--accent-red, #E50914)); }
 /* Netflix's Continue Watching tiles are clean boxart — no text under the card.
    Title/episode/time live in the hover popup like every other row.
    (On phones there IS no popup, so the phone block further down puts the text
@@ -3100,7 +3136,7 @@ html.preload { background-color: var(--bg-darker, #000) !important; }
     position: absolute; left: 50%; bottom: 0; z-index: 2;
     -webkit-transform: translateX(-50%); transform: translateX(-50%);
     max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    background: var(--accent-red); color: #fff;
+    background: var(--accent-red); color: var(--nf-on-accent, #fff);
     font-family: var(--font-netflix); font-size: 0.7rem; font-weight: var(--nf-w-bold);
     line-height: 1.5; letter-spacing: 0.01em; padding: 0 8px;
     border-radius: var(--r-badge) var(--r-badge) 0 0;
@@ -5358,7 +5394,7 @@ html.nf-modern .alphaPicker-fixed-right .MuiToggleButton-root.Mui-selected:hover
    legacy .itemProgressBar this sheet already paints, so a half-watched tile in
    any React-rendered row kept the stock accent. */
 .MuiLinearProgress-root.itemLinearProgress {
-    background-color: rgba(255,255,255,0.3) !important;
+    background-color: var(--nf-prog-track) !important;
     border-radius: 0 !important;
     height: 3px !important;
 }
@@ -6010,7 +6046,7 @@ html #selectServerPage .servers .card:hover { transform: none !important; box-sh
 .standalonePage form .raised.submit,
 .standalonePage form button[type="submit"].raised {
     background-color: var(--accent-red) !important;
-    color: #fff !important;
+    color: var(--nf-on-accent, #fff) !important;
     width: 100% !important;
     height: 48px !important;
     margin: 22px 0 0 !important;

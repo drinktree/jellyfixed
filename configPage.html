@@ -73,11 +73,16 @@
 
         // Single source of truth for every setting.
         var SECTIONS = [
+            // `netflix` first: a stored value that matches no option leaves the first
+            // one showing, and saving then writes it.
+            ['Brand', [
+                ['Brand', 'select', 'Theme (Villa Cocquette brings its own gold accent and logos)', [['netflix','Netflix'],['villa','Villa Cocquette']]]
+            ]],
             ['Injection', [
                 ['OwnInjection', 'toggle', 'Self-contained injection via built-in middleware (no File Transformation plugin needed)'],
                 ['ProvideFileTransformation', 'toggle', 'Provide File Transformation to other plugins (e.g. Media Bar) so they work without the separate plugin']
             ]],
-            ['Netflix Features', [
+            ['Features', [
                 ['CleanHome', 'toggle', 'Clean Netflix home (hide native rows, plugin owns the home page)'],
                 ['HeroBillboard', 'toggle', 'Hero carousel on the home page'],
                 ['GenreRows', 'toggle', 'Genre rows on the home page'],
@@ -98,7 +103,7 @@
                 ['OledBlack', 'toggle', 'OLED pure-black background']
             ]],
             ['Colors', [
-                ['SeasonalTheme', 'select', 'Theme preset', [['default','Default'],['monochrome','Monochrome'],['colorful','Colorful'],['christmas','Christmas'],['halloween','Halloween'],['summer','Summer'],['ocean','Ocean']]],
+                ['SeasonalTheme', 'select', 'Color preset', [['default','Default'],['monochrome','Monochrome'],['colorful','Colorful'],['christmas','Christmas'],['halloween','Halloween'],['summer','Summer'],['ocean','Ocean']]],
                 ['AccentColor', 'color', 'Accent color'],
                 ['BgColor', 'color', 'Background'],
                 ['TextColor', 'color', 'Text color'],
@@ -185,6 +190,7 @@
             });
             document.getElementById('ctSections').innerHTML = html;
             document.getElementById('ctLogoStyle').addEventListener('change', updateVisibility);
+            document.getElementById('ctBrand').addEventListener('change', updateVisibility);
         }
 
         function apply(config) {
@@ -214,9 +220,15 @@
         }
 
         function updateVisibility() {
+            // The Villa theme brings its own accent and its own marks, so the accent
+            // well and the three logo rows do not apply while it is selected. Hidden
+            // only: their values are still collected, and come back with Netflix.
+            var villa = document.getElementById('ctBrand').value === 'villa';
             var logo = document.getElementById('ctLogoStyle').value;
-            document.querySelector('[data-field="LogoLetter"]').style.display = logo === 'letter' ? '' : 'none';
-            document.querySelector('[data-field="CustomLogoUrl"]').style.display = logo === 'custom' ? '' : 'none';
+            document.querySelector('[data-field="AccentColor"]').style.display = villa ? 'none' : '';
+            document.querySelector('[data-field="LogoStyle"]').style.display = villa ? 'none' : '';
+            document.querySelector('[data-field="LogoLetter"]').style.display = !villa && logo === 'letter' ? '' : 'none';
+            document.querySelector('[data-field="CustomLogoUrl"]').style.display = !villa && logo === 'custom' ? '' : 'none';
         }
 
         function status(msg, ok) {

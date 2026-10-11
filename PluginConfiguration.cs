@@ -10,6 +10,25 @@ namespace Jellyfin.Plugin.CustomTheme
     /// </summary>
     public class PluginConfiguration : BasePluginConfiguration
     {
+        // --- Theme ---
+        /// <summary>
+        /// Which house the theme dresses as: <c>netflix</c> (the default look) or
+        /// <c>villa</c> (Villa Cocquette — the same layout with a gold accent in place of
+        /// <see cref="AccentColor"/> and the house marks in place of <see cref="LogoStyle"/>).
+        /// Anything else, including an empty value, is read as <c>netflix</c> — here, in
+        /// the setter, so the stored value, the API and the baked client configuration
+        /// only ever carry one of the two option values: both settings forms match
+        /// them exactly, and a "Villa" written through the API would otherwise render
+        /// the villa while the forms showed Netflix and saved it back.
+        /// </summary>
+        public string Brand
+        {
+            get => _brand;
+            set => _brand = string.Equals(value?.Trim(), "villa", System.StringComparison.OrdinalIgnoreCase) ? "villa" : "netflix";
+        }
+
+        private string _brand = "netflix";
+
         // --- Colors ---
         public string AccentColor { get; set; } = "#E50914";
         public string BgColor { get; set; } = "#141414";
@@ -19,7 +38,7 @@ namespace Jellyfin.Plugin.CustomTheme
         /// <summary>Progress bar colour: accent, red, green, blue, purple.</summary>
         public string ProgressColor { get; set; } = "accent";
 
-        /// <summary>Seasonal preset that overrides the four colours above: default, christmas, halloween, summer, ocean.</summary>
+        /// <summary>Colour preset that overrides the four colours above: default, monochrome, colorful, christmas, halloween, summer, ocean.</summary>
         public string SeasonalTheme { get; set; } = "default";
 
         // --- Logo ---

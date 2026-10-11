@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -21,6 +22,23 @@ namespace Jellyfin.Plugin.CustomTheme
     public static class CssGenerator
     {
         private const string BaseResource = "Jellyfin.Plugin.CustomTheme.netflix.css";
+
+        /// <summary>Logical-name prefix of the embedded brand images (see the csproj).</summary>
+        private const string AssetPrefix = "Jellyfin.Plugin.CustomTheme.Assets.";
+
+        /// <summary>
+        /// The Villa Cocquette accent. Sampled from the crest's own metal — the median of
+        /// its lit mid-tones — rather than taken from a colour chart: the textbook
+        /// "metallic gold" #D4AF37 is ten degrees greener and reads as mustard beside the
+        /// mark it is supposed to match.
+        /// </summary>
+        private const string VillaGold = "#D2A859";
+
+        /// <summary>The label colour on a light accent: the theme's own page grey.</summary>
+        private const string InkOnAccent = "#141414";
+
+        /// <summary>Embedded images as data: URIs, read once per process.</summary>
+        private static readonly ConcurrentDictionary<string, string> AssetCache = new();
 
         private static readonly Dictionary<string, string> ProgressColors = new()
         {
@@ -127,7 +145,22 @@ namespace Jellyfin.Plugin.CustomTheme
             var bg = SafeColor(config.BgColor, "#141414");
             var text = SafeColor(config.TextColor, "#FFFFFF");
             var muted = SafeColor(config.MutedColor, "#B3B3B3");
-            if (SeasonalPresets.TryGetValue(config.SeasonalTheme, out var preset))
+
+            // A brand brings its own accent and leaves the page, text and muted colours
+            // to the admin. It has to REPLACE the stored accent rather than supply a
+            // default for it: once the settings have been saved, AccentColor holds
+            // "#E50914" whether or not anyone chose it, so "still the stock red" and
+            // "deliberately red" cannot be told apart. A colour preset, selected on
+            // purpose, still wins below — Christmas at the villa is Christmas colours
+            // with the villa's marks.
+            if (IsVilla(config))
+            {
+                accent = VillaGold;
+            }
+
+            // `?? string.Empty`: a null key throws in TryGetValue, EntryPoint swallows
+            // it, and the stylesheet silently stops regenerating.
+            if (SeasonalPresets.TryGetValue(config.SeasonalTheme ?? string.Empty, out var preset))
             {
                 accent = preset.Accent;
                 bg = preset.Bg;
@@ -141,17 +174,21 @@ namespace Jellyfin.Plugin.CustomTheme
                 bg = "#000000";
             }
 
-            var font = Fonts.GetValueOrDefault(config.FontFamily, Fonts["inter"]);
-            var progress = string.Equals(config.ProgressColor, "accent", System.StringComparison.OrdinalIgnoreCase)
+            // Coalesced once: a null key throws in every dictionary and set lookup below
+            // (a raw API POST can carry one), and a throw here is swallowed upstream.
+            var fontKey = config.FontFamily ?? string.Empty;
+            var progressKey = config.ProgressColor ?? string.Empty;
+            var font = Fonts.GetValueOrDefault(fontKey, Fonts["inter"]);
+            var progress = string.Equals(progressKey, "accent", System.StringComparison.OrdinalIgnoreCase)
                 ? accent
-                : ProgressColors.GetValueOrDefault(config.ProgressColor, accent);
+                : ProgressColors.GetValueOrDefault(progressKey, accent);
 
             var sb = new StringBuilder(baseCss.Length + 4096);
 
             // @import must precede all other rules. Load only the selected family
             // (+ Bebas Neue for the Top-10 rank numbers).
-            var families = new List<string> { FontImports.GetValueOrDefault(config.FontFamily, FontImports["inter"]) };
-            if (config.TopTenRow && config.FontFamily != "bebas")
+            var families = new List<string> { FontImports.GetValueOrDefault(fontKey, FontImports["inter"]) };
+            if (config.TopTenRow && fontKey != "bebas")
             {
                 families.Add(FontImports["bebas"]);
             }
@@ -197,19 +234,19 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.AppendLine($"    --nf-version: \"{stamp}\";");
             // Weight + display-tracking guard for the selected family (see the two
             // dictionaries above). Inter and the other full-range faces fall through.
-            if (SingleWeightFonts.Contains(config.FontFamily))
+            if (SingleWeightFonts.Contains(fontKey))
             {
                 sb.AppendLine("    --nf-w-display: 400;");
                 sb.AppendLine("    --nf-w-bold: 400;");
                 sb.AppendLine("    --nf-w-semi: 400;");
                 sb.AppendLine("    --nf-w-med: 400;");
             }
-            else if (NoSemiBoldFonts.Contains(config.FontFamily))
+            else if (NoSemiBoldFonts.Contains(fontKey))
             {
                 sb.AppendLine("    --nf-w-semi: 700;");
             }
 
-            if (DisplayTracking.TryGetValue(config.FontFamily, out var tracking))
+            if (DisplayTracking.TryGetValue(fontKey, out var tracking))
             {
                 sb.AppendLine($"    --nf-track-display: {tracking};");
                 sb.AppendLine($"    --nf-track-head: {tracking};");
@@ -233,6 +270,26 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.AppendLine($"    --nf-surface-hover: {surfaceHover};");
             sb.AppendLine($"    --nf-accent-rgb: {CommaChannels(accent, "229,9,20")};");
 
+            // What is written ON the accent. Every label on an accent fill used to be a
+            // literal white — right for Netflix red (4.8:1), about 2:1 on gold, and
+            // 1.3:1 on the Monochrome preset's near-white. White stays wherever it
+            // reaches 3:1, the floor WCAG sets for large text and control glyphs;
+            // below that the label is the page's own near-black. On the stock red this
+            // emits exactly what the sheet hard-coded before.
+            var onAccent = OnAccent(accent);
+            var lightAccent = !string.Equals(onAccent, "#FFFFFF", System.StringComparison.Ordinal);
+            sb.AppendLine($"    --nf-on-accent: {onAccent};");
+            if (lightAccent)
+            {
+                // A resume bar is the accent on a 30% white track, drawn over the
+                // artwork itself. Red separates from that track on any picture; a light
+                // accent has the track's own lightness, and over a warm or bright still
+                // the played part simply disappears into it (measured: 1.1:1 on a
+                // mid-grey frame, where red has 2:1). The track goes dark instead, so
+                // the bar reads as light-on-dark whatever is behind it.
+                sb.AppendLine("    --nf-prog-track: rgba(52,52,52,0.86);");
+            }
+
             // --- Jellyfin 12.0 palette bridge ---------------------------------------
             // 12.0 rebuilt every theme on one MUI base whose colours come from ~200
             // `--jf-*` custom properties, and the Modern layout (the new default) draws
@@ -253,11 +310,13 @@ namespace Jellyfin.Plugin.CustomTheme
             sb.AppendLine($"    --jf-palette-primary-light: {Lighten(accent, 0.22)};");
             sb.AppendLine($"    --jf-palette-secondary-main: {accent};");
             // MUI reads contrastText for the label of every CONTAINED button, chip
-            // and badge on the accent. It defaults to rgba(0,0,0,0.87), which is
-            // right for Jellyfin's light blue and near-illegible on a deep accent —
-            // "Play All" rendered as black-on-red. Netflix sets white on red.
-            sb.AppendLine("    --jf-palette-primary-contrastText: #FFFFFF;");
-            sb.AppendLine("    --jf-palette-secondary-contrastText: #FFFFFF;");
+            // and badge on the accent, and stock paints the count badges, the
+            // multi-select bar and every TV focus fill with it. It defaults to
+            // rgba(0,0,0,0.87), which is right for Jellyfin's light blue and
+            // near-illegible on a deep accent — "Play All" rendered as black-on-red.
+            // So it follows the accent: white on red, ink on a light one.
+            sb.AppendLine($"    --jf-palette-primary-contrastText: {onAccent};");
+            sb.AppendLine($"    --jf-palette-secondary-contrastText: {onAccent};");
             sb.AppendLine($"    --jf-palette-secondary-dark: {Darken(accent, 0.22)};");
             sb.AppendLine($"    --jf-palette-secondary-light: {Lighten(accent, 0.22)};");
             sb.AppendLine($"    --jf-palette-starIcon-main: {accent};");
@@ -294,6 +353,11 @@ namespace Jellyfin.Plugin.CustomTheme
             // :has(img) rule matched nothing. Round the real element instead.
             sb.AppendLine(".headerUserButtonRound div { border-radius: 4px !important; overflow: hidden !important; }");
             sb.AppendLine(".headerUserButton { overflow: hidden !important; border-radius: 4px !important; }");
+
+            if (lightAccent)
+            {
+                AppendLightAccentFixes(sb);
+            }
 
             AppendLogo(sb, config);
             AppendElements(sb, config);
@@ -347,6 +411,16 @@ namespace Jellyfin.Plugin.CustomTheme
 
         private static void AppendLogo(StringBuilder sb, PluginConfiguration config)
         {
+            // A brand IS its marks, so under villa the Logo Style setting does not apply
+            // — not even "none" or "custom", and above all not the default "netflix",
+            // which every install still carries and which would otherwise paint the N
+            // in gold. Falls through to the configured style only if the embedded
+            // images cannot be read, so there is always a mark of some kind.
+            if (IsVilla(config) && AppendVillaMarks(sb))
+            {
+                return;
+            }
+
             var style = string.IsNullOrEmpty(config.LogoStyle) ? "netflix" : config.LogoStyle;
 
             if (style == "none")
@@ -374,7 +448,7 @@ namespace Jellyfin.Plugin.CustomTheme
                 case "letter":
                     appearance = $@"content: '{SanitizeLetter(config.LogoLetter)}' !important; color: var(--accent-red) !important;
     font-weight: 900 !important; font-size: 2.6rem !important; letter-spacing: -2px !important;
-    text-shadow: 0 0 15px rgba(229,9,20,0.4) !important; display: flex !important;
+    text-shadow: 0 0 15px rgba(var(--nf-accent-rgb),0.4) !important; display: flex !important;
     align-items: center !important; transform: scaleY(1.1) !important;
     font-family: var(--font-netflix) !important; width: auto !important; height: auto !important;
     background: none !important;";
@@ -449,6 +523,191 @@ namespace Jellyfin.Plugin.CustomTheme
                 sb.AppendLine("}");
                 sb.AppendLine("}");
             }
+        }
+
+        /// <summary>
+        /// The Villa Cocquette marks, as images. Three cuts of one crest, each used where
+        /// it can be read:
+        ///   signature — the crowned shield with the wordmark beside it on one line, for
+        ///               the desktop header;
+        ///   emblem    — the shield alone, for every slot the "N" fits: phones, the nav
+        ///               drawer, and the desktop bar below 1200px, where MUI lets the
+        ///               toolbar wrap and a 178px mark would push it onto two rows;
+        ///   lockup    — the whole crest over the wordmark, for the sign-in stage.
+        /// They ship inside the assembly and go out as data: URIs — the one form that
+        /// works wherever the stylesheet itself arrives: before sign-in, under any base
+        /// URL and behind any proxy, with nothing to host and no second cache to go
+        /// stale. WebP, one bitmap per cut, and an explicit width AND
+        /// height on every box: the engine floor is Chromium 83 (Jellyfin Media Player),
+        /// which has neither image-set() nor aspect-ratio, and only the prefixed mask
+        /// property — hence both spellings wherever the "N" mask is switched off.
+        /// </summary>
+        /// <returns><c>false</c> when the images are not in this assembly; nothing has
+        /// been emitted in that case.</returns>
+        private static bool AppendVillaMarks(StringBuilder sb)
+        {
+            var emblem = AssetDataUri("villa-emblem.webp");
+            var signature = AssetDataUri("villa-signature.webp");
+            if (emblem.Length == 0 || signature.Length == 0)
+            {
+                return false;
+            }
+
+            // Everything a picture needs that a letter or a mask did not. Important
+            // throughout: the base sheet's .nf-logo and the Modern strip rules are.
+            const string Paint = "background-color: transparent !important; background-repeat: no-repeat !important; "
+                + "background-position: left center !important; background-size: contain !important; "
+                + "-webkit-mask-image: none !important; mask-image: none !important; transform: none !important; "
+                + "font-size: 0 !important; letter-spacing: normal !important;";
+
+            sb.AppendLine("/* --- Villa Cocquette marks --- */");
+            // Each image once, as a custom property; every host below reads it.
+            sb.AppendLine(":root {");
+            sb.AppendLine($"    --nf-mark: url(\"{emblem}\");");
+            sb.AppendLine($"    --nf-mark-wide: url(\"{signature}\");");
+            sb.AppendLine("}");
+
+            // Without the injected script — a client that bundles its own web build and
+            // only fetches this CSS (the Samsung TV app, a separately hosted web client),
+            // or injection switched off — there is no .nf-logo element and no
+            // html.nf-modern stamp, so none of the hosts below exists. The legacy / TV
+            // header still has .headerLeft, the slot the other logo styles already
+            // paint, so the mark goes there. (The Modern chrome is not skinned at all
+            // without the script, in either brand.) The player hides it with the same
+            // rule that hides the other styles' pseudo-element.
+            sb.AppendLine($"html:not(.nf-js) .headerLeft::before {{ content: '' !important; display: inline-block !important; width: 22px !important; height: 36px !important; margin-right: 10px !important; background-image: var(--nf-mark) !important; {Paint} }}");
+            sb.AppendLine("@media (min-width: 1200px) {");
+            sb.AppendLine("    html:not(.nf-js) .headerLeft::before { width: 160px !important; background-image: var(--nf-mark-wide) !important; }");
+            sb.AppendLine("}");
+
+            // The theme's own mark element: the legacy / TV header, and the Modern bar
+            // on phones (.nf-logo-modern, always the shield — there is a menu button and
+            // five controls beside it in 390px). `color: transparent` and font-size 0
+            // unconditionally: the base sheet only hides the fallback "N" glyph inside
+            // its @supports (mask) block.
+            sb.AppendLine($".nf-logo {{ width: 22px !important; height: 36px !important; color: transparent !important; background-image: var(--nf-mark) !important; {Paint} }}");
+            sb.AppendLine("@media (min-width: 1200px) {");
+            sb.AppendLine("    .nf-logo { width: 160px !important; background-image: var(--nf-mark-wide) !important; }");
+            sb.AppendLine("}");
+            sb.AppendLine("html.nf-modern header.MuiAppBar-root .nf-logo-modern { width: 24px !important; height: 40px !important; background-image: var(--nf-mark) !important; }");
+
+            // The Modern bar's home button. Same strip as every other style — icon out,
+            // the server-name text node collapsed — plus the vertical padding, which MUI
+            // sets at 8px: a 40px mark in the 48px dense toolbar only fits without it.
+            sb.AppendLine($"{LogoHosts()} {{ font-size: 0 !important; min-width: 0 !important; padding: 0 !important; }}");
+            sb.AppendLine($"{LogoHosts(" .MuiButton-startIcon")} {{ display: none !important; }}");
+            sb.AppendLine($"{LogoHosts("::before")} {{ content: '' !important; display: block !important; width: 24px !important; height: 40px !important; background-image: var(--nf-mark) !important; {Paint} }}");
+            sb.AppendLine("@media (min-width: 1200px) {");
+            sb.AppendLine($"    {LogoHosts("::before")} {{ width: 178px !important; background-image: var(--nf-mark-wide) !important; }}");
+            sb.AppendLine("}");
+            // A wordmark is not a button face. With the padding gone MUI's hover plate
+            // would hug the picture's own edges, and on keyboard focus its ripple
+            // pulses a translucent disc across all 178px, straight over the
+            // lettering. The white focus ring is the focus state, as everywhere else.
+            sb.AppendLine($"{LogoHosts(":hover")} {{ background-color: transparent !important; }}");
+            sb.AppendLine($"{LogoHosts(" .MuiTouchRipple-root")} {{ display: none !important; }}");
+
+            // The drawer's home row: the stock icon goes, the shield takes its slot.
+            sb.AppendLine($"{DrawerLogoHost} > img {{ display: none !important; }}");
+            sb.AppendLine($"{DrawerLogoHost}::before {{ content: '' !important; display: block !important; width: 22px !important; height: 36px !important; background-image: var(--nf-mark) !important; {Paint} }}");
+
+            // The sign-in stage: the one place the whole crest has room. It stands above
+            // the profile gate (and above the sign-in card when that is open), and the
+            // bar gives up its own mark so the page carries one, not two.
+            // html.nf-login is stamped by headerButton.js on the #/login route — a class,
+            // not :has(), which Jellyfin Media Player's engine would drop the whole rule
+            // for. No script, no class: the stage stays as it was and the bar keeps its
+            // mark.
+            // It only stands where it fits WITHOUT making the page scroll, which the
+            // sign-in page never did (measured at 1680, 1280 and 390 wide):
+            //   the gate (profile tiles)  from 800px of viewport height — 23vh tall,
+            //                             the full 244px from 900px;
+            //   the card (manual sign-in) from 920px — the form is 150px taller than
+            //                             the tiles — at 17vh / 160px. html.nf-login-card
+            //                             says when the card is the open view.
+            // Below those the bar simply keeps its own mark, as on every other page.
+            var lockup = AssetDataUri("villa-lockup.webp");
+            if (lockup.Length != 0)
+            {
+                const string Stage = "html.nf-login #loginPage > .margin-auto-y::before, html.nf-login #loginPage > .padded-bottom-page::before";
+                const string StageCard = "html.nf-login.nf-login-card #loginPage > .margin-auto-y::before, html.nf-login.nf-login-card #loginPage > .padded-bottom-page::before";
+                var loginHosts = string.Join(", ", System.Array.ConvertAll(
+                    ModernLogoHosts,
+                    h => h.Replace("html.nf-modern ", "html.nf-modern.nf-login ", System.StringComparison.Ordinal)));
+                var loginCardHosts = string.Join(", ", System.Array.ConvertAll(
+                    ModernLogoHosts,
+                    h => h.Replace("html.nf-modern ", "html.nf-modern.nf-login.nf-login-card ", System.StringComparison.Ordinal)));
+                sb.AppendLine("@media (min-height: 800px) {");
+                sb.AppendLine($"{Stage} {{");
+                sb.AppendLine("    content: ''; display: block; width: 300px; max-width: 72vw; height: 23vh; max-height: 244px; margin: 0 auto 12px;");
+                sb.AppendLine($"    background: url(\"{lockup}\") center / contain no-repeat;");
+                sb.AppendLine("}");
+                sb.AppendLine($"{StageCard} {{ height: 17vh; max-height: 160px; }}");
+                sb.AppendLine($"{loginHosts},");
+                sb.AppendLine("html.nf-login .nf-logo { visibility: hidden !important; }");
+                sb.AppendLine("}");
+                sb.AppendLine("@media (min-height: 900px) {");
+                sb.AppendLine($"{Stage} {{ height: 244px; }}");
+                sb.AppendLine("}");
+                sb.AppendLine("@media (min-height: 800px) and (max-height: 919px) {");
+                sb.AppendLine($"{StageCard} {{ display: none; }}");
+                sb.AppendLine($"{loginCardHosts},");
+                sb.AppendLine("html.nf-login.nf-login-card .nf-logo { visibility: visible !important; }");
+                sb.AppendLine("}");
+                sb.AppendLine("@media (min-height: 800px) and (max-width: 559px) {");
+                sb.AppendLine($"{Stage} {{ width: 220px; height: 179px; }}");
+                sb.AppendLine("}");
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Rules only a LIGHT accent needs — a label or glyph that some OTHER sheet puts
+        /// on an accent fill in a light colour. Emitted for those accents alone, so the
+        /// stock red (and every dark accent) gets exactly the sheet it had.
+        /// </summary>
+        private static void AppendLightAccentFixes(StringBuilder sb)
+        {
+            // Stock gives a floating action button the muted text colour, and this sheet
+            // gives it the accent as its fill: #B3B3B3 on gold is 1.0:1. (Inside a dialog
+            // a FAB is a neutral ring with a white glyph of its own — netflix.css, at a
+            // higher specificity than this.)
+            sb.AppendLine(".fab { color: var(--nf-on-accent) !important; }");
+
+            // The TV layout. Stock marks focus there by FILLING the control with the
+            // accent (.alphaPickerButton-tv:focus, .emby-button.show-focus:focus) and
+            // labels it with contrastText — but this sheet pins an A-Z letter and a text
+            // link to a light grey with !important, and that grey on a light fill is
+            // 1.06:1: the focused letter is simply not there. Found by focusing every
+            // kind of control on thirteen pages of the tv profile; these were all of
+            // it (the round detail buttons keep their dark ring and white glyph).
+            sb.AppendLine(".alphaPickerButton-tv:focus { color: var(--nf-on-accent) !important; }");
+            // The search keyboard's space / backspace keys carry an icon the search
+            // block pins to 75% white.
+            sb.AppendLine("html .alphaPickerButton-tv:focus .alphaPickerButtonIcon { color: inherit !important; }");
+            // Text links keep stock's accent fill (tags, external links) and so take ink…
+            sb.AppendLine("html .button-link.emby-button.show-focus:focus { color: var(--nf-on-accent) !important; }");
+            // …except the ones whose fill the base sheet removes — the detail page's
+            // Director / Writers / Studios / Genres values. No fill behind them, so ink
+            // there is ink on the page: they keep the page's own text colour.
+            sb.AppendLine("html .itemDetailsGroup .detailsGroupItem .button-link.show-focus:focus, html .genres a.button-link.show-focus:focus { color: var(--text-main) !important; }");
+            // "Show more" under a synopsis is pinned white by the base sheet.
+            sb.AppendLine("html .emby-button.overview-expand.show-focus:focus { color: var(--nf-on-accent) !important; }");
+            // A focused row whose words sit in .listItemBodyText (the Settings menu),
+            // which the base sheet pins to the muted grey: follow the row instead.
+            sb.AppendLine("html .emby-button.show-focus:focus .listItemBodyText { color: inherit !important; }");
+            // A focused row of a "..." menu. (0,3,1) on purpose: the SELECTED row keeps
+            // its own tint and white label through the base sheet's :has() rule at
+            // (0,4,0). Its icons and its aside follow the row — including the tick,
+            // which is a real, visible glyph on engines without :has() — and where the
+            // base sheet hides that tick by colour (the same @supports) it is hidden
+            // again. Under a pointer the base sheet's hover tint replaces the accent
+            // fill, so the label goes back to light there.
+            sb.AppendLine("html .actionSheetMenuItem.show-focus:focus { color: var(--nf-on-accent) !important; }");
+            sb.AppendLine("html .actionSheetMenuItem.show-focus:focus .actionsheetMenuItemIcon, html .actionSheetMenuItem.show-focus:focus .actionSheetItemAsideText { color: inherit !important; }");
+            sb.AppendLine("@supports selector(:has(*)) { html .actionSheetMenuItem.show-focus:focus .listItemIcon.check { color: transparent !important; } }");
+            sb.AppendLine("html .actionSheet .actionSheetMenuItem.show-focus:focus:hover { color: var(--nf-text-2) !important; }");
         }
 
         private static void AppendElements(StringBuilder sb, PluginConfiguration config)
@@ -1002,7 +1261,7 @@ html.nf-modern .MuiDialog-paper {
 .ct-switch input:checked + .ct-slider::before { transform: translateX(20px); }
 /* the real input is 0x0 and invisible, so nothing could render keyboard focus */
 .ct-switch input:focus-visible + .ct-slider { outline: 2px solid #fff; outline-offset: 3px; }
-.ct-save-btn { width: 100%; padding: 12px; background: var(--accent-red); color: #fff; border: none; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 16px; font-family: var(--font-netflix); }
+.ct-save-btn { width: 100%; padding: 12px; background: var(--accent-red); color: var(--nf-on-accent, #fff); border: none; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 16px; font-family: var(--font-netflix); }
 .ct-save-btn:hover { background: var(--accent-red-hover); }
 .ct-save-status { text-align: center; margin-top: 10px; font-size: 0.85rem; min-height: 20px; }");
         }
@@ -1196,6 +1455,71 @@ html.nf-modern .MuiDialog-paper {
         private static int Luma(string hex)
         {
             return TryRgb(hex, out var r, out var g, out var b) ? (r + g + b) / 3 : 20;
+        }
+
+        /// <summary>WCAG 2 relative luminance (0 black .. 1 white) of a #RRGGBB colour, or
+        /// -1 for anything else. Not <see cref="Luma"/>: a plain channel mean puts a
+        /// saturated gold and a mid grey on the same step, and contrast is not about
+        /// that.</summary>
+        private static double RelativeLuminance(string hex)
+        {
+            if (!TryRgb(hex, out var r, out var g, out var b))
+            {
+                return -1;
+            }
+
+            static double Linear(int channel)
+            {
+                var v = channel / 255.0;
+                return v <= 0.04045 ? v / 12.92 : System.Math.Pow((v + 0.055) / 1.055, 2.4);
+            }
+
+            return (0.2126 * Linear(r)) + (0.7152 * Linear(g)) + (0.0722 * Linear(b));
+        }
+
+        /// <summary>
+        /// The colour for text and glyphs that sit ON the accent: white while white
+        /// reaches 3:1 against it (WCAG's floor for large text and for the parts of a
+        /// control), otherwise the page's near-black. The stock red is 4.8:1 and keeps
+        /// white; so do Christmas, Ocean and Colorful. Gold (2.2:1), Summer (2.2:1),
+        /// Halloween (2.9:1) and Monochrome (1.3:1) take ink. A colour that is not
+        /// #RRGGBB cannot be measured and keeps white, which is what the sheet always
+        /// wrote.
+        /// </summary>
+        private static string OnAccent(string accent)
+        {
+            var luminance = RelativeLuminance(accent);
+            if (luminance < 0)
+            {
+                return "#FFFFFF";
+            }
+
+            var whiteContrast = 1.05 / (luminance + 0.05);
+            return whiteContrast >= 3.0 ? "#FFFFFF" : InkOnAccent;
+        }
+
+        private static bool IsVilla(PluginConfiguration config)
+        {
+            return string.Equals(config.Brand?.Trim(), "villa", System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>An embedded image as a <c>data:</c> URI, or an empty string when the
+        /// resource is not in this assembly (a harness that compiles the generator on
+        /// its own, for one). Read and encoded once per process.</summary>
+        private static string AssetDataUri(string file)
+        {
+            return AssetCache.GetOrAdd(file, static name =>
+            {
+                using var stream = typeof(CssGenerator).Assembly.GetManifestResourceStream(AssetPrefix + name);
+                if (stream == null)
+                {
+                    return string.Empty;
+                }
+
+                using var buffer = new MemoryStream();
+                stream.CopyTo(buffer);
+                return "data:image/webp;base64," + System.Convert.ToBase64String(buffer.ToArray());
+            });
         }
 
         /// <summary>"R,G,B" for use as <c>rgba(var(--x), alpha)</c> — the comma form,
