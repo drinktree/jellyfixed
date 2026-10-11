@@ -177,5 +177,38 @@ namespace Jellyfin.Plugin.CustomTheme
 
         /// <summary>Show the community rating as a green "x% Match" like Netflix instead of a star value.</summary>
         public bool MatchScore { get; set; } = true;
+
+        // --- Ident (the theme plays the pre-roll itself) ---
+        /// <summary>
+        /// Before a film starts from the beginning, the theme plays one video itself —
+        /// full screen, with sound, no player controls — and only then lets Jellyfin
+        /// start the film. Off by default. Needs Jellyfin's own "Cinema mode" playback
+        /// setting on (it is, unless a user switched it off for a device).
+        /// </summary>
+        public bool IdentEnabled { get; set; }
+
+        /// <summary>
+        /// The video file on the SERVER (MP4 / H.264 / AAC plays everywhere). Never
+        /// sent to clients: they get an address and a version instead.
+        /// </summary>
+        public string IdentPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Also before an episode that is started on its own — from its page, a card
+        /// or Next Up. Never between auto-playing episodes, and (as with Jellyfin's own
+        /// intros: the web client only asks for a pre-roll at start index 0) not when a
+        /// season's Play button starts at a later episode.
+        /// </summary>
+        public bool IdentEpisodes { get; set; } = true;
+
+        /// <summary>Esc, Enter, Space, a click or a remote's OK jumps to the film.</summary>
+        public bool IdentSkippable { get; set; } = true;
+
+        /// <summary>
+        /// Also on Apple's own engine — Safari, and the iPhone / iPad app. Off by
+        /// default: that engine may refuse to start the FILM after a held start, and
+        /// it has not been tried on a device.
+        /// </summary>
+        public bool IdentApple { get; set; }
     }
 }

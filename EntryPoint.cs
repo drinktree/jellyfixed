@@ -95,11 +95,11 @@ namespace Jellyfin.Plugin.CustomTheme
             else if (ownInjection)
             {
                 _logger.LogInformation("[Custom Theme] No File Transformation plugin found; using the built-in middleware plus on-disk injection.");
-                WriteIndexHtml(inject: true);
+                WriteIndexHtml(inject: true, brandOnDisk: false);
             }
             else
             {
-                WriteIndexHtml(inject: true);
+                WriteIndexHtml(inject: true, brandOnDisk: true);
             }
 
             if (Plugin.Instance is not null)
@@ -127,7 +127,8 @@ namespace Jellyfin.Plugin.CustomTheme
 
             // The injected script carries a baked config snapshot (the only flag source
             // for non-admin users) — refresh the on-disk copy so it isn't stale.
-            WriteIndexHtml(inject: !_ftRegistered);
+            var ownInjection = Plugin.Instance?.Configuration?.OwnInjection ?? true;
+            WriteIndexHtml(inject: !_ftRegistered, brandOnDisk: !ownInjection);
         }
 
         private void ApplyCss()
@@ -194,8 +195,12 @@ namespace Jellyfin.Plugin.CustomTheme
         /// from older versions) and, when <paramref name="inject"/> is true, injects exactly
         /// one fresh copy. When false it only cleans (used when File Transformation handles
         /// injection at serve time, to avoid a doubled script).
+        /// <paramref name="brandOnDisk"/>: the brand's additions to &lt;head&gt; go into the
+        /// file only when the file is all a browser will get (built-in injection switched
+        /// off). Otherwise they are added to each page as it is served, so that a plugin
+        /// that is later disabled leaves no links to addresses that are gone.
         /// </summary>
-        private void WriteIndexHtml(bool inject)
+        private void WriteIndexHtml(bool inject, bool brandOnDisk = false)
         {
             try
             {
@@ -212,7 +217,7 @@ namespace Jellyfin.Plugin.CustomTheme
 
                 var html = File.ReadAllText(indexPath);
                 var cleaned = ThemeTransformation.StripInjected(html);
-                var result = inject ? ThemeTransformation.InjectInto(cleaned) : cleaned;
+                var result = inject ? ThemeTransformation.InjectInto(cleaned, brand: brandOnDisk, replaceStock: false) : cleaned;
 
                 if (result == html)
                 {

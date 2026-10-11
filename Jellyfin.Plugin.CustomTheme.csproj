@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Plugin.CustomTheme</AssemblyName>
     <RootNamespace>Jellyfin.Plugin.CustomTheme</RootNamespace>
-    <Version>3.2.0.0</Version>
-    <AssemblyVersion>3.2.0.0</AssemblyVersion>
-    <FileVersion>3.2.0.0</FileVersion>
+    <Version>3.3.0.0</Version>
+    <AssemblyVersion>3.3.0.0</AssemblyVersion>
+    <FileVersion>3.3.0.0</FileVersion>
   </PropertyGroup>
 
   <!-- The bundled File Transformation provider is a separate assembly so its name
@@ -47,6 +47,11 @@
     <EmbeddedResource Include="Assets/villa-emblem.webp" LogicalName="Jellyfin.Plugin.CustomTheme.Assets.villa-emblem.webp" />
     <EmbeddedResource Include="Assets/villa-signature.webp" LogicalName="Jellyfin.Plugin.CustomTheme.Assets.villa-signature.webp" />
     <EmbeddedResource Include="Assets/villa-lockup.webp" LogicalName="Jellyfin.Plugin.CustomTheme.Assets.villa-lockup.webp" />
+    <!-- Served by ThemeAssetsController: the tab icon and the home-screen / web-app icons. -->
+    <EmbeddedResource Include="Assets/villa-favicon-64.png" LogicalName="Jellyfin.Plugin.CustomTheme.Assets.villa-favicon-64.png" />
+    <EmbeddedResource Include="Assets/villa-icon-180.png" LogicalName="Jellyfin.Plugin.CustomTheme.Assets.villa-icon-180.png" />
+    <EmbeddedResource Include="Assets/villa-icon-192.png" LogicalName="Jellyfin.Plugin.CustomTheme.Assets.villa-icon-192.png" />
+    <EmbeddedResource Include="Assets/villa-icon-512.png" LogicalName="Jellyfin.Plugin.CustomTheme.Assets.villa-icon-512.png" />
   </ItemGroup>
 
 </Project>

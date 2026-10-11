@@ -25,7 +25,8 @@ The plugin also injects a small script that adds a **palette settings button** i
 - **Dashboard settings page** at *Plugins → Custom Theme*
 - **Optional header settings button** (palette icon) with the same options
 - **15 Google Fonts** — Inter, Poppins, Montserrat, Roboto, Oswald, Raleway, Nunito, Bebas Neue, Lato, Source Sans, Ubuntu, Playfair Display, Quicksand, Comfortaa, Righteous (only the selected family is loaded)
-- **Two house styles** — Netflix (default) or **Villa Cocquette**: the same layout with a gold accent and the villa's crest in the header, in the navigation drawer and above the sign-in page
+- **Two house styles** — Netflix (default) or **Villa Cocquette**: the same layout with a gold accent and the villa's crest in the header, in the navigation drawer and above the sign-in page — and outside the page too: the browser tab's icon and name, the loading screen, and the icon and name the site gets on a phone's home screen or in a dock
+- **An intro before films** (off by default) — one video of yours, played by the theme itself: full screen, with sound, no player controls, and the film follows. See [Intro before films](#intro-before-films)
 - **Logo options** — red "N" (default), Jellyfin, custom letter, custom image URL, or none
 - **Color presets** — Default, Monochrome, Colorful, Christmas, Halloween, Summer, Ocean (override the colour palette)
 - Color customization — accent, background, text, muted text, progress bar
@@ -65,12 +66,24 @@ Open **Dashboard → Plugins → Custom Theme**, or click the palette icon in th
 | Injection | Self-contained middleware injection (on by default), provide File Transformation to other plugins (on by default) |
 | Features | Clean home takeover, hero carousel, genre rows, top nav tabs, hover expand card, autoplay preview clips, Top 10 rank numbers (off by default), green "x% Match" score, glass blur (off), OLED black (off) — all others on by default |
 | Colors | Color preset, accent, background, text, muted text, progress bar |
+| Intro | Play an intro before films (off by default), the video file on the server, also before episodes (on), skippable (on), also on iPhone / iPad / Safari (experimental, off) |
 | Logo & Header | Logo style (red "N" default / Jellyfin / letter / custom image / none), left-aligned nav, header blur |
 | Elements | Badges, watched marks, backdrop, round cast, description, tags, external links, similar titles, spoiler mode |
 | Detail buttons | Watched, favorite, more |
 | Layout | 15 fonts, font size, card rounding, card size, card shape, hover zoom, info overlay, gradient strength, title size, animation speed, compact sidebar, ambient glow |
 
 After saving, reload the web page to see the new theme.
+
+### Intro before films
+
+Jellyfin can only play a pre-roll as a separate entry in the player's queue: a second playback with the player's controls and the file's name on screen, loaded from scratch every time. With **Intro** switched on the theme plays one video itself instead — full screen, with sound, nothing else on screen — and only then lets Jellyfin start the film, which opens without its controls flashing up.
+
+- **The file** is a video on the *server*: an MP4 with H.264 video and AAC sound plays everywhere (`.mp4`, `.m4v` and `.webm` are accepted, up to 300 MB). On the dashboard page, **Browse…** picks it with Jellyfin's own file browser, and the line under the field says whether the server can read it. The path is the one the server sees — in Docker, the path inside the container.
+- **When it plays:** when a film, or an episode started on its own (from its page, an episode card or Next Up), starts from the beginning. Not when resuming, and not between auto-playing episodes. As with Jellyfin's own intros, it is also left out when a season's Play button starts at a later episode because the earlier ones are watched, and with "play all from here". Jellyfin's own *Cinema mode* playback setting has to be on (it is by default).
+- **Skipping:** Esc, Enter, Space or a click jumps to the film (can be switched off); on a remote, OK skips. Back leaves without starting the film.
+- **Loading:** a file of up to 64 MB is fetched once when the app starts and kept in memory, so it starts the moment Play is pressed; the browser may also keep it between sessions. A larger file is streamed when Play is pressed and may start a moment later. If the intro cannot be shown — missing file, a format the device cannot play, nothing on screen within two and a half seconds — the film simply starts as usual.
+- **Where:** browsers, Jellyfin Media Player and the other apps that load the server's web interface. On iPhone, iPad and Safari it is a separate, experimental switch (off by default), because Apple's engine may ask for a second tap to start the film. Apps with their own interface (most TV apps) never run the theme at all.
+- **With an intros plugin** (Local Intros and the like): where the theme plays its intro, the plugin's is not played as well; everywhere else Jellyfin behaves exactly as before, so the plugin still covers the TV apps.
 
 ## Build from source
 
@@ -109,7 +122,9 @@ PluginConfiguration.cs     # Every setting, with defaults — fully consumed by 
 CssGenerator.cs            # Builds the stylesheet from config (base CSS + :root overrides + option rules)
 EntryPoint.cs              # Hosted service: applies CSS, sets up injection on startup
 IndexInjectionMiddleware.cs# Built-in middleware: injects the script + applies other plugins' transformations
-ThemeTransformation.cs     # Builds/strips the inline headerButton.js injection
+ThemeTransformation.cs     # Builds/strips the inline headerButton.js injection (and the Villa icons/title in <head>)
+ThemeAssetsController.cs   # Serves the Villa icons + web-app manifest, and the intro video
+Assets/                    # The Villa Cocquette marks and icons (embedded resources)
 FileTransformation/        # Bundled File Transformation provider (separate CustomTheme.FileTransformation.dll)
 ServiceRegistrator.cs      # Registers the services with Jellyfin's DI container
 *.css                      # Base skin stylesheet (embedded resource)

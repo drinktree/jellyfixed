@@ -6,7 +6,14 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.2.0';
+    var NF_JS_VERSION = '3.3.0';
+
+    // The configuration as the server baked it into THIS page load. CT_CONFIG is
+    // replaced for administrators by the live copy from the plugin API, which is
+    // the raw settings object; the baked one also carries what only the server can
+    // work out (IdentUrl), and it is what the page was actually served with.
+    var NF_BOOT = (window.__ctConfig && typeof window.__ctConfig === 'object') ? window.__ctConfig : null;
+    function nfBoot(key) { return NF_BOOT ? NF_BOOT[key] : undefined; }
 
     // ---- Keyboard-focus state (html.nf-kb) ----
     // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
@@ -844,6 +851,13 @@
             ['MutedColor', 'color', 'Muted text'],
             ['ProgressColor', 'select', 'Progress bar', [['accent','Accent'],['red','Red'],['green','Green'],['blue','Blue'],['purple','Purple']]]
         ]],
+        ['Intro', [
+            ['IdentEnabled', 'toggle', 'Play an intro before films (the theme plays it)'],
+            ['IdentPath', 'text', 'Intro video file on the server (MP4)'],
+            ['IdentEpisodes', 'toggle', 'Also before an episode started on its own'],
+            ['IdentSkippable', 'toggle', 'Skippable (Esc, Enter, a click, OK on a remote)'],
+            ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental)']
+        ]],
         ['Logo & Header', [
             ['LogoStyle', 'select', 'Logo style', [['jellyfin','Jellyfin'],['netflix','Netflix N'],['letter','Letter'],['custom','Custom image'],['none','None']]],
             ['LogoLetter', 'select', 'Logo letter', AZ],
@@ -1078,7 +1092,7 @@
                 } else if (type === 'color') {
                     html += '<input type="color" data-key="' + key + '"' + aria + ' value="' + esc(config[key] || '#000000') + '">';
                 } else if (type === 'text') {
-                    html += '<input type="text" data-key="' + key + '"' + aria + ' value="' + esc(config[key] || '') + '"' + (key === 'CustomLogoUrl' ? ' placeholder="https://..."' : '') + '>';
+                    html += '<input type="text" data-key="' + key + '"' + aria + ' value="' + esc(config[key] || '') + '"' + (key === 'CustomLogoUrl' ? ' placeholder="https://..."' : (key === 'IdentPath' ? ' placeholder="e.g. /media/intro.mp4" spellcheck="false" autocomplete="off"' : '')) + '>';
                 } else {
                     html += '<select data-key="' + key + '"' + aria + '>';
                     f[3].forEach(function (o) {
@@ -1109,6 +1123,55 @@
             });
         };
         if (brandSel) { brandSel.addEventListener('change', syncBrandRows); syncBrandRows(); }
+
+        // The intro's file is the one setting that can be wrong without anything
+        // looking wrong: a path as this computer sees it, a folder, a file the
+        // server's account may not read — and then films simply start without it.
+        // The server is asked (the same check the dashboard page uses; the drawer is
+        // administrators-only, and so is the check) and its answer is put under the
+        // field. Inline styles: the stylesheet is generated and does not know this
+        // line.
+        var identPath = body.querySelector('[data-key="IdentPath"]');
+        var identOn = body.querySelector('[data-key="IdentEnabled"]');
+        if (identPath && identOn && identPath.parentNode && identPath.parentNode.parentNode) {
+            var note = document.createElement('div');
+            note.setAttribute('role', 'status');
+            note.style.cssText = 'font-size:12px;line-height:1.4;padding:0 0 8px;display:none;';
+            identPath.parentNode.parentNode.insertBefore(note, identPath.parentNode.nextSibling);
+            var say = function (text, good) {
+                note.textContent = text;
+                note.style.display = text ? 'block' : 'none';
+                note.style.color = good ? '#46d369' : '#ff7a7a';
+            };
+            var why = {
+                missing: 'The server cannot find a file at this path (use the path as the server sees it).',
+                folder: 'That is a folder. Enter the video file itself.',
+                type: 'Not a video the theme can play: use an .mp4, .m4v or .webm file.',
+                empty: 'The file is empty.',
+                large: 'The file is larger than 300 MB.',
+                unreadable: 'The server is not allowed to read this file.',
+                slow: 'The disk did not answer in time.'
+            };
+            var asked = 0;
+            var check = function () {
+                var ask = ++asked;
+                var value = (identPath.value || '').replace(/^\s+|\s+$/g, '');
+                if (!value) { say(identOn.checked ? 'Enter the video file on the server to play before films.' : '', false); return; }
+                try {
+                    ApiClient.getJSON(ApiClient.getUrl('CustomTheme/Ident/Check', { path: value })).then(function (r) {
+                        if (ask !== asked) return;
+                        r = r || {};
+                        var ok = r.Ok !== undefined ? r.Ok : r.ok;
+                        var reason = r.Reason || r.reason || '';
+                        if (ok) say('\u2713 The server can read this file.', true);
+                        else say('\u2717 ' + (why[reason] || 'The server cannot use this file.'), false);
+                    }, function () { if (ask === asked) say('', false); });
+                } catch (e) {}
+            };
+            identPath.addEventListener('change', check);
+            identOn.addEventListener('change', check);
+            check();
+        }
     }
 
     // Jellyfin 12.0 persists its react-query cache to IndexedDB (idb-keyval:
@@ -1598,7 +1661,7 @@
             // Guarded here too — playClip's Series branch is async and can resolve
             // after a scroll-away or after real playback has started.
             if (!heroInView) return;
-            if (document.documentElement.classList.contains('nf-playing')) return;
+            if (document.documentElement.classList.contains('nf-playing') || nfIdentBusy()) return;
             if (!slideEl || !slideEl.classList.contains('active') || !document.body.contains(slideEl)) return;
             var v = nfNewClipVideo('nf-hero-video');
             // Netflix choreography: once the trailer actually renders, shrink the
@@ -1633,7 +1696,7 @@
             if (!heroInView) return;
             // Never start a hero preview stream UNDER real playback — the applyDynamic
             // fast-path returns early while nf-playing, so nothing else would stop it.
-            if (document.documentElement.classList.contains('nf-playing')) return;
+            if (document.documentElement.classList.contains('nf-playing') || nfIdentBusy()) return;
             if (cfg('PreviewClips', true) === false) return;
             if (document.hidden || nfReducedMotion() || nfCheapMode()) return;
             var item = items[idx], slideEl = slideEls[idx];
@@ -1695,7 +1758,7 @@
                 }
                 // Hold rotation while scrolled offscreen or during REAL playback (the
                 // applyDynamic fast-path never reaches the hero then).
-                if (!paused && !popEl && !document.hidden && heroInView
+                if (!paused && !popEl && !document.hidden && heroInView && !nfIdentBusy()
                     && !document.documentElement.classList.contains('nf-playing')) go(cur + 1);
             }, HERO_INTERVAL);
             dotEls.forEach(function (el) {
@@ -3319,6 +3382,9 @@
             // Play and got the preview clip" experience (and its stream competes
             // with the movie's own spin-up on small servers).
             if (nfPendingAutoplay()) return;
+            // …and while the theme's own ident is on its way or on screen, the same
+            // holds: none of the player's signals is up yet (see nfIdentBusy).
+            if (nfIdentBusy()) return;
             if (typeof ApiClient === 'undefined' || !ApiClient.getItem || !ApiClient.getCurrentUserId) return;
             // Attach into the FULL-VIEWPORT fixed backdrop container (the element the
             // theme uses as the detail backdrop). The page's own #itemBackdrop is only
@@ -3356,7 +3422,7 @@
                 // changed (JMP State-A keeps the URL on the browse route; casting
                 // from the detail page never changes it) — so without this, a
                 // fresh clip stream started UNDER the just-started movie.
-                if (nfSuspended || document.documentElement.classList.contains('nf-playing') || nfPlaybackActive()) return;
+                if (nfSuspended || document.documentElement.classList.contains('nf-playing') || nfPlaybackActive() || nfIdentBusy()) return;
                 if (document.hidden) return;   // covered WebView (external/native player)
                 if (!stillHere() || backdrop.querySelector('.nf-detail-video')) return;
                 var v = nfNewClipVideo('nf-detail-video');
@@ -3695,6 +3761,10 @@
         // sheet needs a root class to clear the bar over the gate's backdrop.
         document.documentElement.classList.toggle('nf-session', /^#\/(login|selectserver|addserver|forgotpassword|forgotpasswordpin)\b/i.test(location.hash));
         nfStampLogin();
+        // jellyfin-web replaces window.ApiClient on sign-in, and the ident can only be
+        // fetched once there is a token: both are a property read when already done.
+        nfIdentWrap();
+        nfIdentPreload();
         // EDGE-triggered teardown. Everything else here is an entry guard, which only
         // stops the NEXT clip — an in-flight one kept decoding and streaming under the
         // player for up to 30s. .videoPlayerContainer being inserted is itself a body
@@ -3795,7 +3865,642 @@
         if (!(/#\/details/i.test(location.hash) || heroVisible)) { nfClearAmbient(); }
     }
 
+    // ============ Brand outside the page: tab title and icons ============
+    // The server adds the brand's own icon links, web-app manifest and splash image
+    // to every page it serves, and takes Jellyfin's out of it
+    // (ThemeTransformation.InjectBrandHead). Only the copy of index.html that is
+    // written to disk keeps Jellyfin's — that file has to be restorable — so where
+    // that copy is what the browser got, they go here; and only once the brand's own
+    // icon has really loaded, so a page left behind by a plugin that is no longer
+    // running keeps the icon it can still get.
+    // jellyfin-web re-writes document.title on every navigation, to the SERVER'S NAME
+    // on most routes, so the title is kept here as well: the server's name and
+    // "Jellyfin" become the brand's, a film's or a page's own title is left alone.
+    function nfBrandChrome() {
+        try {
+            if (nfBoot('Brand') !== 'villa' || !document.querySelector('[data-ct-brand]')) return;
+            var name = 'Villa Cocquette';
+            var own = document.querySelector('link[rel~="icon"][data-ct-brand]');
+            var stock = [];
+            ['link[rel~="icon"]', 'link[rel="apple-touch-icon"]', 'link[rel="manifest"]'].forEach(function (sel) {
+                Array.prototype.forEach.call(document.querySelectorAll(sel), function (el) {
+                    if (!el.hasAttribute('data-ct-brand')) stock.push(el);
+                });
+            });
+            if (own && stock.length) {
+                var probe = new Image();
+                probe.onload = function () {
+                    stock.forEach(function (el) { if (el.parentNode) el.parentNode.removeChild(el); });
+                    var app = document.querySelector('meta[name="application-name"]');
+                    if (app) app.setAttribute('content', name);
+                };
+                probe.src = own.href;
+            }
+            var fix = function () {
+                var t = document.title, server = '';
+                try { server = (window.ApiClient && ApiClient.serverName && ApiClient.serverName()) || ''; } catch (e) {}
+                if (t === 'Jellyfin' || (server && t === server)) document.title = name;
+            };
+            fix();
+            var titleEl = document.querySelector('title');
+            if (titleEl && window.MutationObserver) {
+                new MutationObserver(fix).observe(titleEl, { childList: true, characterData: true, subtree: true });
+            }
+        } catch (e) {}
+    }
+
+    // ============ Ident: the theme plays the pre-roll itself ============
+    // A pre-roll plugin (Local Intros and the like) only tells Jellyfin WHICH file
+    // to play; jellyfin-web then queues that file in front of the film as an ordinary
+    // item — a second playback with the player's controls, the file's name as the
+    // title, and everything loaded from scratch. The theme cannot change how the
+    // player treats a queue entry, so it does not use one.
+    //
+    // Just before a film starts from the beginning the player asks the server "any
+    // intros?" — ApiClient.getIntros, ONE call site in jellyfin-web 12, made only
+    // when a pre-roll is due (start position 0, start index 0, full screen, a video
+    // played on this device, the user's Cinema mode on) and awaited with no timeout.
+    // That question is answered here: the theme plays its own full-screen <video> —
+    // one element, no controls, with sound, from a copy it already holds — and only
+    // then answers "none", so the film is the only thing the player ever starts.
+    // Resume and auto-played next episodes never ask, exactly as with stock intros.
+    //
+    // Fails OPEN at every step: no file, a refused start, a media error, a picture
+    // that has not come within 2.5 seconds, an engine this has not been proven on —
+    // the original question goes to the server and playback is stock. The file is
+    // served by the plugin (ThemeAssetsController); the page only ever sees its
+    // address (IdentUrl), never the server path.
+    //
+    // ONE media element, and only while it plays: created when Play is pressed and
+    // let go of — decoder and all — before the film is asked for. Nothing is kept
+    // loaded in between (a television has one decoder, and Jellyfin Media Player's
+    // web layer has no memory to spare under a film), only the file's bytes.
+    var nfIdentBlob = '';        // object URL of the fetched file, for the life of the page
+    var nfIdentFetching = false;
+    var nfIdentTried = 0;
+    var nfIdentFails = 0;        // loads that failed in a row
+    var nfIdentMisses = 0;       // starts in a row that never came, though nothing was wrong with the load
+    var nfIdentBad = false;      // this engine will not play it: no more tries on this page
+    var nfIdentRun = null;       // the answer in flight (one ident for a double Play)
+    var nfIdentRunFor = '';      // …and the item it is for
+    var NF_IDENT_HOLD_MAX = 64 * 1024 * 1024;
+
+    function nfIdentApple() {
+        var ua = navigator.userAgent || '';
+        return /iPhone|iPad|iPod/i.test(ua)
+            || (/AppleWebKit/i.test(ua) && !/Chrome|Chromium|Edg\//i.test(ua))
+            || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua));
+    }
+    // Where the theme plays it itself. Apple's engine only on request: it decides
+    // per element whether sound may start, and may refuse the FILM after the hold.
+    function nfIdentHere() {
+        if (nfBoot('IdentEnabled') !== true || !nfBoot('IdentUrl') || nfIdentBad) return false;
+        if (nfIdentApple() && nfBoot('IdentApple') !== true) return false;
+        return true;
+    }
+    // An ident is on screen, or still held over the film's start. The theme's own
+    // preview clips ask this before they start: none of the player's signals is up
+    // yet, and a clip started now would stream under the ident and into the film's
+    // own start. The LAYER and nothing else: it is there from the first line of
+    // nfIdentPlay until the hold lets go, and by then the player's own signals have
+    // taken over — whereas an answer "in flight" can be the server's, which has no
+    // time limit, and would keep previews off for good if it never came.
+    function nfIdentBusy() {
+        return !!document.querySelector('.nf-ident');
+    }
+    function nfIdentUrl() {
+        try {
+            if (!window.ApiClient || !ApiClient.accessToken || !ApiClient.getUrl) return '';
+            var token = ApiClient.accessToken();
+            if (!token) return '';
+            var u = ApiClient.getUrl(nfBoot('IdentUrl'));
+            return u + (u.indexOf('?') < 0 ? '?' : '&') + 'ApiKey=' + encodeURIComponent(token);
+        } catch (e) { return ''; }
+    }
+    // Whether the file is held whole. Apple's engine gets the plain address — it
+    // wants range requests — and so does a file too big to be worth holding: the
+    // element then loads its own beginning when Play is pressed.
+    function nfIdentHeld() {
+        return !nfIdentApple() && nfBoot('IdentBytes') <= NF_IDENT_HOLD_MAX
+            && !!window.fetch && !!window.URL && !!URL.createObjectURL;
+    }
+    function nfIdentWait() { return Math.min(8000 * Math.pow(4, nfIdentFails), 900000); }
+    function nfIdentElement(src) {
+        var v = document.createElement('video');
+        v.preload = 'auto';
+        v.playsInline = true;
+        v.setAttribute('playsinline', '');
+        // No picture-in-picture button, no cast button: nothing of the browser's
+        // own is to appear on it.
+        v.disablePictureInPicture = true;
+        v.setAttribute('disablepictureinpicture', '');
+        v.setAttribute('disableremoteplayback', '');
+        v.src = src;
+        return v;
+    }
+    // Let go of whatever the element holds or is still downloading — and of its
+    // decoder.
+    function nfIdentRelease(v) {
+        try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
+    }
+    // Fetched once per page into a Blob, so Play starts it from memory; the browser's
+    // own cache may keep the response between sessions (the address changes only
+    // when the file does).
+    function nfIdentPreload() {
+        if (nfIdentBlob || nfIdentFetching || nfIdentRun || !nfIdentHere() || !nfIdentHeld()) return;
+        // Nobody signed in yet: asked again on the next pass, which costs nothing.
+        var url = nfIdentUrl();
+        if (!url) return;
+        // A load that failed is not repeated at once, and less often each time.
+        var now = Date.now();
+        if (now - nfIdentTried < nfIdentWait()) return;
+        nfIdentTried = now;
+        nfIdentFetching = true;
+        fetch(url).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.blob();
+        }).then(function (b) {
+            nfIdentBlob = URL.createObjectURL(b);
+            nfIdentFails = 0;
+            nfIdentMisses = 0;
+        })['catch'](function () { nfIdentFails++; }).then(function () { nfIdentFetching = false; });
+    }
+
+    // Films, and episodes when asked for — not a trailer, a home video, a music video
+    // or a television channel, which ask the same question. The question carries an
+    // id, not a type, so the type is looked up: one small request on the way in.
+    // No answer in a second and a half is a "no".
+    function nfIdentScope(itemId) {
+        return new Promise(function (resolve) {
+            var t = setTimeout(function () { resolve(false); }, 1500);
+            var done = function (yes) { clearTimeout(t); resolve(yes); };
+            try {
+                ApiClient.getItem(ApiClient.getCurrentUserId(), itemId).then(function (it) {
+                    var type = it && it.Type;
+                    done(type === 'Movie' || (type === 'Episode' && nfBoot('IdentEpisodes') !== false));
+                }, function () { done(false); });
+            } catch (e) { done(false); }
+        });
+    }
+
+    // Whatever else is sounding would play on under the ident: stock only stops it
+    // when the film starts, which is now seconds away. Elements of the page (a
+    // browser's music player, a theme song) are muted here; Jellyfin Media Player's
+    // own player is not an element and is seen to in nfIdentPlay.
+    function nfIdentMuteOthers(own) {
+        var list = [];
+        try {
+            Array.prototype.forEach.call(document.querySelectorAll('audio, video'), function (m) {
+                if (m !== own && !m.muted && !m.paused) { m.muted = true; list.push(m); }
+            });
+        } catch (e) {}
+        return list;
+    }
+    function nfIdentUnmute(list) {
+        (list || []).forEach(function (m) { try { m.muted = false; } catch (e) {} });
+    }
+    // Resolves when the ident is over (ended, skipped, or cut short), with the layer
+    // still up — or with { left: true } and nothing left behind when the viewer went
+    // Back out of it; rejects when it could not be shown at all, also with nothing
+    // left behind.
+    function nfIdentPlay() {
+        return new Promise(function (resolve, reject) {
+            var held = !!nfIdentBlob;
+            var src = nfIdentBlob || nfIdentUrl();
+            if (!src) { reject(new Error('no file')); return; }
+            var v = nfIdentElement(src);
+            var layer = document.createElement('div');
+            // focuscontainer: jellyfin-web's own word for "directional navigation
+            // stays in here". A remote's arrows then have nowhere to go, and its OK
+            // presses the layer itself — which is the skip.
+            layer.className = 'nf-ident focuscontainer';
+            layer.tabIndex = -1;
+            // Inline, so it holds even with a stale stylesheet; above the film grain
+            // (2.1e9) and the stock spinner, which is already turning underneath.
+            // In place at once (it takes the keys and the clicks) but SEEN only from
+            // the first frame: until then the page and its spinner stay, so a file
+            // that never starts costs a wait, not a black screen.
+            layer.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483600;background:#000;outline:0;opacity:0;';
+            // The video takes no pointer of its own: a right-click on it would offer
+            // the browser's "Show controls".
+            var fit = 'width:100%;height:100%;object-fit:contain;display:block;background:#000;pointer-events:none;';
+            v.style.cssText = fit;
+            v.controls = false;
+            v.muted = false;
+            try { var vol = parseFloat(localStorage.getItem('volume')); v.volume = isFinite(vol) ? Math.max(0, Math.min(1, vol)) : 1; } catch (e) {}
+            layer.appendChild(v);
+            var before = document.activeElement;
+            document.body.appendChild(layer);
+            function hold() { try { layer.focus({ preventScroll: true }); } catch (e) { try { layer.focus(); } catch (e2) {} } }
+            hold();
+            nfStopAllPreviewMedia();
+            var muted = nfIdentMuteOthers(v);
+            var skippable = nfBoot('IdentSkippable') !== false;
+            var done = false, started = false, startedAt = 0, wd = 0, startWd = 0, black = false;
+            var route = location.hash;
+            // Jellyfin Media Player's music is not an element of the page: it is
+            // mpv's, and it would play on under the ident. mpv is PAUSED, not muted:
+            // its mute survives into the next file and the app's video player never
+            // lifts it (a silent film), while "paused" is set afresh by every file
+            // that is loaded — so whatever happens here, the film plays. Only if
+            // something really is playing (it reports its position within moments),
+            // and it is started again only if the viewer goes Back.
+            var mpv = null, mpvTick = null, mpvPaused = false;
+            try {
+                mpv = window.api && window.api.player;
+                if (mpv && mpv.positionUpdate && mpv.positionUpdate.connect && typeof mpv.pause === 'function') {
+                    mpvTick = function () {
+                        if (done || mpvPaused) return;
+                        mpvPaused = true;
+                        try { mpv.pause(); } catch (e) {}
+                    };
+                    mpv.positionUpdate.connect(mpvTick);
+                    setTimeout(mpvOff, 600);
+                } else { mpv = null; }
+            } catch (e) { mpv = null; }
+            function mpvOff() {
+                try { if (mpv && mpvTick) mpv.positionUpdate.disconnect(mpvTick); } catch (e) {}
+                mpvTick = null;
+            }
+            // A skip has to be meant: not the second half of a double-click on Play,
+            // not the key that pressed Play still being held down.
+            function meant(e) { return skippable && started && Date.now() - startedAt > 600 && !(e && e.repeat); }
+            function back() {
+                try { if (before && before !== document.body && document.body.contains(before)) before.focus(); } catch (e) {}
+            }
+            // The ident's last frame as a picture, so the element — and its decoder —
+            // can be let go of BEFORE the film is asked for and the frame still
+            // stands until the film's first. Where a frame cannot be read back (some
+            // televisions) the hand-over is black instead.
+            function still() {
+                try {
+                    if (black || !v.videoWidth || !v.videoHeight || v.videoWidth * v.videoHeight > 3840 * 2160) return null;
+                    var c = document.createElement('canvas');
+                    c.width = v.videoWidth;
+                    c.height = v.videoHeight;
+                    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+                    c.style.cssText = fit;
+                    return c;
+                } catch (e) { return null; }
+            }
+
+            function finish(shown, left) {
+                if (done) return;
+                done = true;
+                clearTimeout(wd);
+                clearTimeout(startWd);
+                window.removeEventListener('keydown', onKey, true);
+                window.removeEventListener('command', onCommand, true);
+                window.removeEventListener('popstate', onRoute, true);
+                window.removeEventListener('hashchange', onRoute, true);
+                document.removeEventListener('focusin', onFocus, true);
+                document.removeEventListener('visibilitychange', onHide, true);
+                layer.removeEventListener('click', onClick, true);
+                layer.removeEventListener('contextmenu', onMenu, true);
+                mpvOff();
+                // Back: what was playing plays on. (Otherwise a film is coming, and
+                // it sets its own "playing".)
+                if (left && mpvPaused && mpv) { try { mpv.play(); } catch (e) {} }
+                if (left || !shown) {
+                    if (!left) {
+                        // From a copy that was already here: the engine will not
+                        // have these bytes (that will not change), or simply never
+                        // started them — which is not paid for a third time. Over
+                        // the network it is the network: a rest, then another try.
+                        if (held) { if (v.error || ++nfIdentMisses >= 2) nfIdentBad = true; }
+                        else { nfIdentFails++; nfIdentTried = Date.now(); }
+                    }
+                    nfIdentUnmute(muted);
+                    nfIdentRelease(v);
+                    try { layer.parentNode.removeChild(layer); } catch (e) {}
+                    back();
+                    if (left) resolve({ left: true }); else reject(new Error('ident'));
+                    return;
+                }
+                nfIdentFails = 0;
+                nfIdentMisses = 0;
+                var frame = still();
+                nfIdentRelease(v);
+                try { layer.removeChild(v); } catch (e) {}
+                if (frame) layer.appendChild(frame);
+                resolve({ layer: layer, muted: muted, before: before });
+            }
+            // A skip goes to black: a frame frozen mid-move reads as "stuck" for the
+            // moment the film takes to arrive. An ident that ran out keeps its last.
+            function skip() { black = true; try { v.pause(); } catch (e) {} finish(true); }
+            // While it is up every key is the ident's: nothing may reach the Play
+            // button underneath, or the player's shortcuts. On window, in the capture
+            // phase, so it is heard before jellyfin-web's own key handling.
+            function onKey(e) {
+                // The browser's own shortcuts stay the browser's: reload, full
+                // screen, the developer tools.
+                if (e.ctrlKey || e.metaKey || e.altKey || /^F\d{1,2}$/.test(e.key || '')) return;
+                var k = e.key, c = e.keyCode;
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                // A television remote's or a gamepad's Back is leaving: the film is
+                // not started and the viewer stays where they pressed Play. Handled
+                // here and not handed on, because jellyfin-web's own "back" CLOSES
+                // the app when there is no page to go back to.
+                if (c === 461 || c === 10009 || c === 196 || k === 'GoBack' || k === 'BrowserBack' || k === 'XF86Back' || k === 'GamepadB') {
+                    if (!e.repeat) finish(false, true);
+                    return;
+                }
+                if (meant(e) && (k === 'Escape' || k === 'Enter' || k === ' ' || k === 'Backspace' || k === 'GamepadA' || c === 27 || c === 13 || c === 32 || c === 8 || c === 195)) skip();
+            }
+            // Remotes, gamepads and Jellyfin's own remote control do not press keys:
+            // they send jellyfin-web COMMANDS (inputManager), which it announces as a
+            // cancellable "command" event whenever anything is listening. Select is
+            // the skip, Back is leaving, the rest is the ident's to ignore. (Where
+            // nothing is listening there is no event: Select then presses whatever
+            // has the focus — this layer — and Back goes back a page, which onRoute
+            // reads as leaving too.)
+            function onCommand(e) {
+                var c = e && e.detail && e.detail.command;
+                try { e.preventDefault(); e.stopPropagation(); } catch (x) {}
+                if (c === 'back') finish(false, true);
+                else if (c === 'select' && meant(null)) skip();
+            }
+            // Where nothing is listening the command acts on whatever has the focus:
+            // so the focus stays here.
+            function onFocus(e) { if (e.target !== layer && !layer.contains(e.target)) hold(); }
+            function onClick(e) { e.preventDefault(); e.stopPropagation(); if (meant(e)) skip(); }
+            function onMenu(e) { e.preventDefault(); }
+            function onHide() { if (document.hidden) skip(); }
+            // Nothing in the app changes the route while the ident is up, so a route
+            // that changed — and stayed changed for a moment — is the viewer going
+            // Back (the browser's button, a mouse's side button, a phone's gesture, a
+            // remote's Back): they are leaving, not skipping.
+            function onRoute() {
+                if (location.hash === route) return;
+                setTimeout(function () { if (location.hash !== route) finish(false, true); }, 120);
+            }
+            function arm() {
+                clearTimeout(wd);
+                wd = setTimeout(function () { finish(true); }, ((isFinite(v.duration) && v.duration > 0 ? v.duration : 17) + 3) * 1000);
+            }
+            window.addEventListener('keydown', onKey, true);
+            window.addEventListener('command', onCommand, true);
+            window.addEventListener('popstate', onRoute, true);
+            window.addEventListener('hashchange', onRoute, true);
+            document.addEventListener('focusin', onFocus, true);
+            document.addEventListener('visibilitychange', onHide, true);
+            layer.addEventListener('click', onClick, true);
+            layer.addEventListener('contextmenu', onMenu, true);
+            // Seen from its first FRAME, not from "playing": Jellyfin Media Player's
+            // engine says "playing" a third of a second before it has a picture, and
+            // that third would be a black screen. Until then the page stays.
+            var seen = false;
+            function reveal() {
+                if (seen || done) return;
+                seen = true;
+                layer.style.opacity = '1';
+                layer.style.cursor = 'none';
+            }
+            try { if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(reveal); } catch (e) {}
+            v.addEventListener('timeupdate', function () { if (v.currentTime > 0) reveal(); });
+            v.addEventListener('playing', function () {
+                if (!started) startedAt = Date.now();
+                started = true;
+                clearTimeout(startWd);
+                // An engine that reports neither frames nor time in good order.
+                setTimeout(reveal, 700);
+            });
+            v.addEventListener('ended', function () { finish(true); });
+            v.addEventListener('error', function () { finish(started); });
+            // It is the tab's media session while it plays, so the keyboard's media
+            // keys can pause it: that is a skip, or — where skipping is off — undone.
+            v.addEventListener('pause', function () {
+                if (done || v.ended || !started) return;
+                if (skippable) skip(); else { try { v.play(); } catch (e) {} }
+            });
+            v.addEventListener('loadedmetadata', arm);
+            arm();
+            // No picture in two and a half seconds: the film should not wait for it.
+            startWd = setTimeout(function () { if (!started) finish(false); }, 2500);
+            var p;
+            try { p = v.play(); } catch (e) { finish(false); return; }
+            // An engine that will not start sound here says so by rejecting.
+            if (p && p.then) p.then(null, function () { if (!started) finish(false); });
+        });
+    }
+
+    // The ident is over and the film has only now been asked for: hold its last frame
+    // until the film's first, and keep the stock controls from opening the film with
+    // their three seconds on screen.
+    function nfIdentHold(ctx) {
+        var root = document.documentElement;
+        var gone = false, poll = 0, t0 = Date.now(), filmAt = 0, stuckAt = 0;
+        function pageIsUp() {
+            var osd = document.getElementById('videoOsdPage');
+            return !!(osd && !osd.classList.contains('hide')) && root.classList.contains('transparentDocument');
+        }
+        // What is already there is not the film: a theme video plays in the very
+        // element the film will take over, and a player page that is already open
+        // (a film started from inside the player) says nothing about the new one.
+        var fv0 = document.querySelector('.videoPlayerContainer video');
+        var src0 = fv0 ? fv0.currentSrc : '';
+        var pageUp0 = pageIsUp();
+        root.classList.add('nf-ident-hold');
+        function remove() {
+            try { ctx.layer.parentNode.removeChild(ctx.layer); } catch (e) {}
+            // jellyfin-web noted "what had the focus" on the page it left for the
+            // player, to give it back afterwards — and at that moment it was this
+            // layer. Put the Play button back in its place.
+            try {
+                Array.prototype.forEach.call(document.querySelectorAll('.page'), function (pg) {
+                    if (pg.activeElement === ctx.layer) pg.activeElement = ctx.before || null;
+                });
+            } catch (e) {}
+        }
+        function drop(fade) {
+            if (gone) return;
+            gone = true;
+            clearInterval(poll);
+            nfIdentUnmute(ctx.muted);
+            armPress();
+            if (fade) {
+                ctx.layer.style.transition = 'opacity .25s ease';
+                ctx.layer.style.opacity = '0';
+                ctx.layer.style.pointerEvents = 'none';
+                setTimeout(remove, 280);
+            } else {
+                remove();
+            }
+        }
+        poll = setInterval(function () {
+            var now = Date.now();
+            // Every player, the browser's and a native one alike, opens the player
+            // page on its first "playing" — and with it the page behind is put away
+            // and the header becomes the player's (hidden by nf-ident-hold). That is
+            // the moment to let go: a frame earlier the fade would show the page the
+            // Play button was on.
+            var pageUp = pageIsUp();
+            var fv = document.querySelector('.videoPlayerContainer video');
+            if (pageUp && (!pageUp0 || now - t0 > 1500)) {
+                // A fade onto a film that is an element. A native player (Jellyfin
+                // Media Player) draws the film itself, behind the page: nothing may
+                // be painted over it, so there it is a cut.
+                drop(!!fv);
+            } else if (fv && !(fv === fv0 && fv.currentSrc === src0)) {
+                if (!fv.paused && fv.currentTime > 0) {
+                    if (!filmAt) filmAt = now;
+                    // Half a second of film with no player page: someone else's player.
+                    if (now - filmAt > 500) drop(true);
+                } else if (fv.paused && fv.readyState >= 1 && !fv.ended) {
+                    // Loaded, and not started: the engine wants the viewer's own
+                    // hand on it (Apple's does, this long after the tap). Stand
+                    // aside at once — the film's own Play, or any press at all.
+                    if (!stuckAt) stuckAt = now;
+                    if (now - stuckAt > 1200) { drop(true); wake(); nudge(fv); }
+                } else {
+                    stuckAt = 0;
+                }
+            }
+            // The player has something to say — it could not play this, it wants an
+            // answer — and it is saying it underneath.
+            if (document.querySelector('.dialog.opened')) drop(true);
+            // Nothing came. Let whatever there is be seen.
+            if (now - t0 > 10000 || (now - t0 > 4000 && !nfPlaybackActive())) drop(true);
+        }, 50);
+        var woken = false, watch = 0, seenShown = false, hiddenFor = 0, pressArmed = false;
+        function eat(e) { e.preventDefault(); e.stopPropagation(); document.removeEventListener('click', eat, true); }
+        function wake(e) {
+            if (woken) return;
+            woken = true;
+            clearInterval(watch);
+            try {
+                if (e && e.type === 'pointerdown') {
+                    var osd = document.getElementById('videoOsdPage');
+                    if (osd && e.target !== osd && osd.contains(e.target)) {
+                        // A press that landed on a control nobody could see is not
+                        // a press on that control: it brings the controls up, and
+                        // that is all.
+                        e.preventDefault();
+                        e.stopPropagation();
+                        document.addEventListener('click', eat, true);
+                        setTimeout(function () { document.removeEventListener('click', eat, true); }, 700);
+                    } else if (e.pointerType === 'touch') {
+                        // A tap on the picture TOGGLES the controls in jellyfin-web,
+                        // and they count as shown while nobody can see them — so
+                        // the tap would hide them. It reveals them instead.
+                        e.stopPropagation();
+                    }
+                }
+            } catch (x) {}
+            root.classList.remove('nf-ident-hold');
+            ['mousemove', 'keydown', 'pointerdown'].forEach(function (ev) { document.removeEventListener(ev, wake, true); });
+            window.removeEventListener('command', wake, true);
+        }
+        // A press counts from the moment the film can be seen: it must do what it
+        // does in stock (pause, full screen), and for that the hold has to end with
+        // it. Called by drop().
+        function armPress() {
+            if (pressArmed || woken) return;
+            pressArmed = true;
+            document.addEventListener('pointerdown', wake, true);
+        }
+        // One press of anything starts a film the engine would not start by itself —
+        // and the listening goes on until a press has really started it.
+        function nudge(fv) {
+            var kinds = ['pointerdown', 'touchend', 'click', 'keydown'];
+            var off = function () { kinds.forEach(function (k) { document.removeEventListener(k, go, true); }); };
+            var go = function () {
+                try {
+                    if (!fv.paused) { off(); return; }
+                    var pr = fv.play();
+                    if (pr && pr.then) pr.then(off, function () {}); else off();
+                } catch (e) {}
+            };
+            kinds.forEach(function (k) { document.addEventListener(k, go, true); });
+            setTimeout(off, 120000);
+        }
+        // A pointer that moves, a key, a remote: not at once — the pointer is still
+        // settling from the click that started it all, and a remote repeats a button
+        // that is held (the OK that skipped the ident must not open the controls).
+        setTimeout(function () {
+            if (woken) return;
+            ['mousemove', 'keydown'].forEach(function (ev) { document.addEventListener(ev, wake, true); });
+            // A remote does not press keys (see onCommand in nfIdentPlay). On window,
+            // capturing: before the player's own listener, which is about to try to
+            // put the focus on a button that cannot take it while it is unseen.
+            window.addEventListener('command', wake, true);
+        }, 700);
+        // By now the stock controls would have hidden themselves anyway.
+        setTimeout(wake, 9000);
+        // And the hold is the player's own first showing of its controls: it ends
+        // when they have gone again by themselves — GONE, not going: the class that
+        // starts their fade must have stood for a moment, or their last third would
+        // flash — or with the player, if the film is left sooner.
+        watch = setInterval(function () {
+            if (!gone) return;
+            if (!nfPlaybackActive()) { wake(); return; }
+            var bar = document.querySelector('.videoOsdBottom');
+            if (bar && bar.classList.contains('hide')) { if (seenShown) wake(); return; }
+            var shown = !!bar && !bar.classList.contains('videoOsdBottom-hidden');
+            if (shown) { seenShown = true; hiddenFor = 0; }
+            else if (seenShown && ++hiddenFor >= 2) wake();
+        }, 400);
+    }
+
+    // The wrap lives on the ApiClient INSTANCE (jellyfin-web makes a new one on
+    // sign-in, so this is re-run from applyDynamic). It returns the original call's
+    // own promise, untouched, whenever the ident is not going to play.
+    function nfIdentWrap() {
+        try {
+            var c = window.ApiClient;
+            if (!c || c.__nfIdent || typeof c.getIntros !== 'function') return;
+            var orig = c.getIntros;
+            c.__nfIdent = true;
+            c.getIntros = function (itemId) {
+                var self = this, args = arguments;
+                var stock = function () { return orig.apply(self, args); };
+                try {
+                    if (!nfIdentHere() || !nfIdentUrl()) return stock();
+                    // One ident for one Play pressed twice — and, once it is on
+                    // screen, for whatever else is asked meanwhile: a second film
+                    // must not start under it. Before that (the type is still being
+                    // looked up) a question about ANOTHER item is the server's.
+                    if (nfIdentRun) return (nfIdentRunFor === itemId || nfIdentBusy()) ? nfIdentRun : stock();
+                    // A load has just failed: not again until it has had its rest.
+                    if (nfIdentFails > 0 && !nfIdentBlob && Date.now() - nfIdentTried < nfIdentWait()) return stock();
+                    var clear = function () { if (nfIdentRun === run) { nfIdentRun = null; nfIdentRunFor = ''; } };
+                    // The run is over the moment the question is handed on to the
+                    // server: that answer has no time limit, and nothing here may
+                    // wait on it.
+                    var run = nfIdentScope(itemId).then(function (due) {
+                        if (!due) { clear(); return stock(); }
+                        return nfIdentPlay().then(function (ctx) {
+                            if (ctx.left) {
+                                // The viewer went Back: nothing is to play. The player
+                                // is waiting on this answer and on nothing else — it
+                                // has set nothing up yet but its spinner — so it is
+                                // simply never given one.
+                                clear();
+                                try { if (window.Loading && Loading.hide) Loading.hide(); } catch (e) {}
+                                return new Promise(function () {});
+                            }
+                            // The film is owed whatever happens in here: nothing of
+                            // the ident may outlive a mistake in its own tidying up.
+                            try { nfIdentHold(ctx); } catch (e) {
+                                try { ctx.layer.parentNode.removeChild(ctx.layer); } catch (e2) {}
+                                try { document.documentElement.classList.remove('nf-ident-hold'); nfIdentUnmute(ctx.muted); } catch (e3) {}
+                            }
+                            return { Items: [], TotalRecordCount: 0 };
+                        }, function () { clear(); return stock(); });
+                    });
+                    nfIdentRun = run;
+                    nfIdentRunFor = itemId;
+                    run.then(clear, clear);
+                    return run;
+                } catch (e) { return stock(); }
+            };
+        } catch (e) {}
+    }
+
     function init() {
+        nfBrandChrome();
+        nfIdentWrap();
         setupCardPreviews();
         setupCwLongPress();
         setupHeaderScroll();

@@ -1990,6 +1990,25 @@ a[data-role="button"].show-focus:focus {
    silently re-breaking the AnimSpeed="off" switch this release just repaired. */
 #videoOsdPage { animation: none !important; }
 
+/* After the theme's own ident (headerButton.js, nfIdentHold) the film must not open
+   on three seconds of player controls — that flash is the very thing the ident was
+   built to be rid of. The player page and the top bar are put out of sight as
+   WHOLES: nothing is declared on .videoOsdBottom or .sliderBubble (text properties
+   only, gotcha P).
+   The PAGE by opacity, not visibility: it has to stay the thing a press lands on,
+   because jellyfin-web hangs click-to-pause and double-click-to-full-screen on the
+   page itself, and a hidden box is not hit — the first click of the film would go
+   nowhere. (A press that lands on one of its unseen buttons is caught in script.)
+   The bar by visibility: nothing is hung on it, and a press there should reach the
+   picture. The class goes with the first real input, with the controls' own first
+   hiding, or with the player. */
+html.nf-ident-hold #videoOsdPage { opacity: 0 !important; cursor: none !important; }
+/* …and a tap on the unseen scrub strip must not seek: a range input moves on the
+   touch itself, before any click there is to catch. */
+html.nf-ident-hold #videoOsdPage input[type="range"] { pointer-events: none !important; }
+html.nf-ident-hold .osdHeader { visibility: hidden !important; }
+html.nf-ident-hold, html.nf-ident-hold body { cursor: none !important; }
+
 @keyframes nfFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

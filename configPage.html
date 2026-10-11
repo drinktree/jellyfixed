@@ -43,6 +43,16 @@
         .ct-status { margin-top: 14px; padding: 10px 14px; border-radius: 4px; display: none; }
         .ct-status.success { display: block; background: rgba(70,211,105,0.15); color: #46d369; }
         .ct-status.error { display: block; background: rgba(229,9,20,0.15); color: #E50914; }
+        /* The intro's file row: the path, a button that opens Jellyfin's own server
+           file browser, and under it what the SERVER makes of the path. */
+        .ct-path { display: flex; align-items: center; gap: 8px; flex: 0 1 460px; min-width: 0; }
+        .ct-row .ct-path input[type="text"] { flex: 1 1 auto; min-width: 0; }
+        .ct-browse { flex: none; background: transparent; color: #ddd; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 7px 12px; font-size: 0.85rem; cursor: pointer; font-family: var(--font-netflix, inherit); }
+        .ct-browse:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+        .ct-note { font-size: 0.85rem; line-height: 1.4; color: #999; padding: 8px 0 10px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .ct-note:empty { display: none; }
+        .ct-note.ok { color: #46d369; }
+        .ct-note.bad { color: #ff7a7a; }
         </style>
         <div data-role="content">
             <div class="content-primary ct-wrap">
@@ -109,6 +119,13 @@
                 ['TextColor', 'color', 'Text color'],
                 ['MutedColor', 'color', 'Muted text'],
                 ['ProgressColor', 'select', 'Progress bar', [['accent','Accent'],['red','Red'],['green','Green'],['blue','Blue'],['purple','Purple']]]
+            ]],
+            ['Intro', [
+                ['IdentEnabled', 'toggle', 'Play an intro before films. The theme plays the video itself: full screen, with sound, no player controls, and the film follows'],
+                ['IdentPath', 'text', 'Intro video file on the server (an MP4 with H.264 video and AAC sound plays everywhere)'],
+                ['IdentEpisodes', 'toggle', 'Also before an episode started on its own — from its page, a card or Next Up (never between auto-playing episodes)'],
+                ['IdentSkippable', 'toggle', 'Skippable with Esc, Enter, Space, a click, or OK on a remote (Back always leaves without starting the film)'],
+                ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental: try it on your device before relying on it)']
             ]],
             ['Logo & Header', [
                 ['LogoStyle', 'select', 'Logo style', [['jellyfin','Jellyfin'],['netflix','Netflix N'],['letter','Letter'],['custom','Custom image'],['none','None']]],
@@ -177,6 +194,9 @@
                         html += '<input type="checkbox" id="ct' + key + '">';
                     } else if (type === 'color') {
                         html += '<input type="color" id="ct' + key + '">';
+                    } else if (key === 'IdentPath') {
+                        html += '<span class="ct-path"><input type="text" id="ctIdentPath" placeholder="e.g. /media/intro.mp4" spellcheck="false" autocomplete="off">'
+                            + '<button type="button" class="ct-browse" id="ctIdentBrowse">Browse…</button></span>';
                     } else if (type === 'text') {
                         html += '<input type="text" id="ct' + key + '"' + (key === 'CustomLogoUrl' ? ' placeholder="https://..."' : '') + '>';
                     } else {
@@ -185,12 +205,109 @@
                         html += '</select>';
                     }
                     html += '</div>';
+                    if (key === 'IdentPath') html += '<div class="ct-note" id="ctIdentNote" role="status"></div>';
                 });
                 html += '</div>';
             });
             document.getElementById('ctSections').innerHTML = html;
             document.getElementById('ctLogoStyle').addEventListener('change', updateVisibility);
             document.getElementById('ctBrand').addEventListener('change', updateVisibility);
+            document.getElementById('ctIdentPath').addEventListener('change', checkIdent);
+            document.getElementById('ctIdentEnabled').addEventListener('change', checkIdent);
+            setupIdentBrowse();
+        }
+
+        // What the SERVER makes of the intro path: the one setting here that can be
+        // wrong without anything looking wrong (a path as the Mac sees it, a folder,
+        // a file the server's account may not read). Asked of the plugin itself.
+        var IDENT_REASONS = {
+            missing: 'The server cannot find a file at this path. Use the path as the server sees it — with Docker, the path inside the container.',
+            folder: 'That is a folder. Choose the video file itself.',
+            type: 'Not a video the theme can play. Use an .mp4, .m4v or .webm file.',
+            empty: 'The file is empty.',
+            large: 'The file is larger than 300 MB.',
+            unreadable: 'The server is not allowed to read this file.',
+            slow: 'The disk did not answer in time.'
+        };
+        var identAsk = 0;
+        // The last answer the server gave, and the exact text it was about: Browse
+        // only opens on a folder the server has confirmed.
+        var identSeen = null;
+        function identNote(text, cls) {
+            var note = document.getElementById('ctIdentNote');
+            note.className = 'ct-note' + (cls ? ' ' + cls : '');
+            note.textContent = text;
+        }
+        function identSize(bytes) {
+            if (!(bytes > 0)) return '';
+            return bytes < 1048576 ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        function checkIdent() {
+            var path = document.getElementById('ctIdentPath').value.trim();
+            var on = document.getElementById('ctIdentEnabled').checked;
+            var ask = ++identAsk;
+            // What is known about exactly this text stays known while it is asked
+            // again (leaving the field for the Browse button asks again).
+            if (identSeen && identSeen.path !== path) identSeen = null;
+            if (!path) {
+                identNote(on ? 'Choose the video file on the server to play before films.' : '', on ? 'bad' : '');
+                return;
+            }
+            if (typeof ApiClient === 'undefined' || !ApiClient.getJSON) return;
+            ApiClient.getJSON(ApiClient.getUrl('CustomTheme/Ident/Check', { path: path })).then(function (r) {
+                if (ask !== identAsk) return;
+                r = r || {};
+                var ok = r.Ok !== undefined ? r.Ok : r.ok;
+                var reason = r.Reason || r.reason || '';
+                var bytes = r.Bytes !== undefined ? r.Bytes : r.bytes;
+                identSeen = { path: path, ok: !!ok, reason: reason };
+                if (ok) {
+                    // Above 64 MB the page does not hold the file whole (headerButton.js,
+                    // NF_IDENT_HOLD_MAX): it is streamed when Play is pressed.
+                    identNote('✓ The server can read this file' + (identSize(bytes) ? ' (' + identSize(bytes) + ')' : '') + '.'
+                        + (bytes > 64 * 1024 * 1024 ? ' A file this large is streamed rather than kept in memory, so it may start a moment later.' : '')
+                        + (on ? '' : ' Switch the intro on above to use it.'), 'ok');
+                } else {
+                    identNote('✗ ' + (IDENT_REASONS[reason] || 'The server cannot use this file.'), 'bad');
+                }
+            }, function () {
+                if (ask === identAsk) identNote('The server did not answer the check for this path. Save, reload this page and look again.', '');
+            });
+        }
+        // Jellyfin's own picker for files ON THE SERVER (the one library folders are
+        // chosen with), so the path never has to be typed.
+        function setupIdentBrowse() {
+            var btn = document.getElementById('ctIdentBrowse');
+            if (!window.Dashboard || !Dashboard.DirectoryBrowser) { btn.style.display = 'none'; return; }
+            btn.addEventListener('click', function () {
+                var input = document.getElementById('ctIdentPath');
+                var cur = input.value.trim();
+                var opts = {
+                    includeFiles: true,
+                    header: 'Intro video',
+                    callback: function (path) {
+                        if (path) { input.value = path; checkIdent(); }
+                        picker.close();
+                    }
+                };
+                // Open on the folder of the file already chosen — but only on one the
+                // server has just confirmed for exactly this text. Handed a folder
+                // that is not there (a path as the Mac sees it, typed a second ago),
+                // Jellyfin's picker opens EMPTY, with not even the drives to start
+                // from; without a path it opens on them.
+                var seen = identSeen && identSeen.path === cur ? identSeen : null;
+                if (seen && seen.reason === 'folder') {
+                    opts.path = cur;
+                } else if (seen && (seen.ok || seen.reason === 'type' || seen.reason === 'empty' || seen.reason === 'large')) {
+                    var cut = Math.max(cur.lastIndexOf('/'), cur.lastIndexOf('\\'));
+                    var dir = cut > 0 ? cur.slice(0, cut) : (cut === 0 ? '/' : '');
+                    // A file in a Windows drive's root: "C:" alone is not the root.
+                    if (/^[A-Za-z]:$/.test(dir)) dir += '\\';
+                    if (dir) opts.path = dir;
+                }
+                var picker = new Dashboard.DirectoryBrowser();
+                picker.show(opts);
+            });
         }
 
         function apply(config) {
@@ -205,6 +322,7 @@
                 }
             });
             updateVisibility();
+            checkIdent();
         }
 
         function collect(config) {
