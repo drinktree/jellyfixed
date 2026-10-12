@@ -226,10 +226,11 @@
             type: 'Not a video the theme can play. Use an .mp4, .m4v or .webm file.',
             empty: 'The file is empty.',
             large: 'The file is larger than 300 MB.',
-            unreadable: 'The server is not allowed to read this file.',
+            unreadable: 'The server is not allowed to read this file, or to open its folder.',
             slow: 'The disk did not answer in time.'
         };
         var identAsk = 0;
+        var identSlow = 0;
         // The last answer the server gave, and the exact text it was about: Browse
         // only opens on a folder the server has confirmed.
         var identSeen = null;
@@ -242,7 +243,8 @@
             if (!(bytes > 0)) return '';
             return bytes < 1048576 ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
         }
-        function checkIdent() {
+        function checkIdent(again) {
+            if (again !== true) identSlow = 0;
             var path = document.getElementById('ctIdentPath').value.trim();
             var on = document.getElementById('ctIdentEnabled').checked;
             var ask = ++identAsk;
@@ -261,6 +263,16 @@
                 var reason = r.Reason || r.reason || '';
                 var bytes = r.Bytes !== undefined ? r.Bytes : r.bytes;
                 identSeen = { path: path, ok: !!ok, reason: reason };
+                // A disk that was asleep: this very question woke it, and the server
+                // has the answer a moment later. Ask again rather than leave a file
+                // that is fine marked as broken.
+                if (!ok && reason === 'slow' && identSlow < 3) {
+                    identSlow++;
+                    identNote('The disk is slow to answer. Asking again…', '');
+                    setTimeout(function () { if (ask === identAsk) checkIdent(true); }, 2500);
+                    return;
+                }
+                identSlow = 0;
                 if (ok) {
                     // Above 64 MB the page does not hold the file whole (headerButton.js,
                     // NF_IDENT_HOLD_MAX): it is streamed when Play is pressed.

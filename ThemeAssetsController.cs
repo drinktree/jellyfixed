@@ -114,9 +114,14 @@ namespace Jellyfin.Plugin.CustomTheme
                 return NotFound();
             }
 
-            // The address carries the file's own version (and the caller's token), so
-            // a replaced file is a new address and this one never has to be re-asked.
-            Response.Headers[HeaderNames.CacheControl] = "private, max-age=31536000";
+            // An address that carries the file's CURRENT version never has to be asked
+            // again: a replaced file is a new address. Any other address — an old
+            // version still written in a page, or none — is checked each time, which
+            // the entity tag below turns into a "not modified" when nothing changed.
+            Response.Headers[HeaderNames.CacheControl] =
+                string.Equals(Request.Query["v"].ToString(), file.Version, StringComparison.Ordinal)
+                    ? "private, max-age=31536000"
+                    : "private, no-cache";
             return PhysicalFile(
                 file.Path,
                 file.ContentType,
@@ -173,16 +178,25 @@ namespace Jellyfin.Plugin.CustomTheme
             [".webm"] = "video/webm"
         };
 
-        private static readonly object Gate = new();
-        private static string? _seenPath;
-        private static Look _seen = new(null, "none", 0);
-        private static DateTime _seenUntil = DateTime.MinValue;
-        private static string? _lookingAt;
-        private static Task<Look>? _looking;
+        // What is known about each path that has been asked about: the look that is
+        // running, the last answer and how long it stands, and the file as it was the
+        // last time a look came back with one. Per path, so that the settings page
+        // asking about OTHER paths cannot make the configured one forget that a look
+        // at it is still out — on a share that has stopped answering, each such
+        // forgetting would start one more look that never returns.
+        private sealed class Known
+        {
+            public Look Seen { get; set; } = new(null, "none", 0);
 
-        // The file as it was the last time a look at this path came back with one.
-        private static string? _goodPath;
-        private static IdentFile? _good;
+            public DateTime Until { get; set; } = DateTime.MinValue;
+
+            public Task<Look>? Looking { get; set; }
+
+            public IdentFile? Good { get; set; }
+        }
+
+        private static readonly object Gate = new();
+        private static readonly Dictionary<string, Known> Paths = new(StringComparer.Ordinal);
 
         private IdentFile(string path, string contentType, DateTimeOffset lastModified, string version, long length)
         {
@@ -240,10 +254,10 @@ namespace Jellyfin.Plugin.CustomTheme
                 return look.File;
             }
 
-            var path = config.IdentPath?.Trim();
+            var path = config.IdentPath?.Trim() ?? string.Empty;
             lock (Gate)
             {
-                return string.Equals(_goodPath, path, StringComparison.Ordinal) ? _good : null;
+                return Paths.TryGetValue(path, out var known) ? known.Good : null;
             }
         }
 
@@ -263,35 +277,43 @@ namespace Jellyfin.Plugin.CustomTheme
             }
 
             Task<Look> look;
+            Known known;
             lock (Gate)
             {
-                if (!fresh && string.Equals(_seenPath, path, StringComparison.Ordinal) && DateTime.UtcNow < _seenUntil)
+                if (!Paths.TryGetValue(path, out known!))
                 {
-                    return _seen;
+                    Forget();
+                    known = new Known();
+                    Paths[path] = known;
+                }
+
+                if (!fresh && DateTime.UtcNow < known.Until)
+                {
+                    return known.Seen;
                 }
 
                 // One look at a time per path: a look that never returns (a dead
                 // share) is joined by later callers, not multiplied by them.
-                if (_looking is { IsCompleted: false } && string.Equals(_lookingAt, path, StringComparison.Ordinal))
+                if (known.Looking is { IsCompleted: false })
                 {
-                    look = _looking;
+                    look = known.Looking;
                 }
                 else
                 {
-                    look = _looking = Task.Run(() => LookAt(path));
-                    _lookingAt = path;
+                    look = known.Looking = Task.Run(() => LookAt(path));
 
                     // Whenever it comes back — in time or long after the caller gave
                     // up — its answer is what is known about this path.
+                    var entry = known;
                     look.ContinueWith(
                         done =>
                         {
                             var answer = done.Status == TaskStatus.RanToCompletion ? done.Result : new Look(null, "unreadable", 0);
                             lock (Gate)
                             {
-                                if (ReferenceEquals(_looking, done))
+                                if (ReferenceEquals(entry.Looking, done))
                                 {
-                                    Remember(path, answer);
+                                    Remember(entry, answer);
                                 }
                             }
                         },
@@ -314,9 +336,9 @@ namespace Jellyfin.Plugin.CustomTheme
                 if (answered || look.IsCompleted)
                 {
                     var answer = look.Status == TaskStatus.RanToCompletion ? look.Result : new Look(null, "unreadable", 0);
-                    if (ReferenceEquals(_looking, look))
+                    if (ReferenceEquals(known.Looking, look))
                     {
-                        Remember(path, answer);
+                        Remember(known, answer);
                     }
 
                     return answer;
@@ -326,11 +348,10 @@ namespace Jellyfin.Plugin.CustomTheme
                 // until it answers, whichever comes first — and what was known about
                 // the file before is left as it is.
                 var slow = new Look(null, "slow", 0);
-                if (ReferenceEquals(_looking, look))
+                if (ReferenceEquals(known.Looking, look))
                 {
-                    _seenPath = path;
-                    _seen = slow;
-                    _seenUntil = DateTime.UtcNow + RememberedSlow;
+                    known.Seen = slow;
+                    known.Until = DateTime.UtcNow + RememberedSlow;
                 }
 
                 return slow;
@@ -338,21 +359,39 @@ namespace Jellyfin.Plugin.CustomTheme
         }
 
         // Caller holds Gate.
-        private static void Remember(string path, Look answer)
+        private static void Remember(Known known, Look answer)
         {
-            _seenPath = path;
-            _seen = answer;
-            _seenUntil = DateTime.UtcNow + Remembered;
-            if (answer.File != null)
+            known.Seen = answer;
+            known.Until = DateTime.UtcNow + Remembered;
+
+            // A file, or a definite "no": either way the kept one is replaced.
+            known.Good = answer.File;
+        }
+
+        // Caller holds Gate. Paths that were only tried on the settings page are not
+        // kept for ever; one with a look still out, or a file, is.
+        private static void Forget()
+        {
+            if (Paths.Count < 24)
             {
-                _goodPath = path;
-                _good = answer.File;
+                return;
             }
-            else if (string.Equals(_goodPath, path, StringComparison.Ordinal))
+
+            var now = DateTime.UtcNow;
+            var gone = new List<string>();
+            foreach (var pair in Paths)
             {
-                // A definite "no" for the path the kept file belongs to.
-                _goodPath = null;
-                _good = null;
+                if (pair.Value.Looking is { IsCompleted: false } || pair.Value.Good != null || now < pair.Value.Until)
+                {
+                    continue;
+                }
+
+                gone.Add(pair.Key);
+            }
+
+            foreach (var key in gone)
+            {
+                Paths.Remove(key);
             }
         }
 
@@ -368,6 +407,21 @@ namespace Jellyfin.Plugin.CustomTheme
                 var info = new FileInfo(path);
                 if (!info.Exists)
                 {
+                    // "Not there" and "may not look" are the same to Exists. They are
+                    // not the same to the person who typed a path that is right.
+                    try
+                    {
+                        File.GetAttributes(path);
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        return new Look(null, "unreadable", 0);
+                    }
+                    catch (Exception)
+                    {
+                        // not there
+                    }
+
                     return new Look(null, "missing", 0);
                 }
 

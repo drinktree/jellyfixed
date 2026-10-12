@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.3.0';
+    var NF_JS_VERSION = '3.3.1';
 
     // The configuration as the server baked it into THIS page load. CT_CONFIG is
     // replaced for administrators by the live copy from the plugin API, which is
@@ -1149,11 +1149,12 @@
                 type: 'Not a video the theme can play: use an .mp4, .m4v or .webm file.',
                 empty: 'The file is empty.',
                 large: 'The file is larger than 300 MB.',
-                unreadable: 'The server is not allowed to read this file.',
+                unreadable: 'The server is not allowed to read this file, or to open its folder.',
                 slow: 'The disk did not answer in time.'
             };
-            var asked = 0;
-            var check = function () {
+            var asked = 0, slowAsks = 0;
+            var check = function (again) {
+                if (again !== true) slowAsks = 0;
                 var ask = ++asked;
                 var value = (identPath.value || '').replace(/^\s+|\s+$/g, '');
                 if (!value) { say(identOn.checked ? 'Enter the video file on the server to play before films.' : '', false); return; }
@@ -1163,6 +1164,15 @@
                         r = r || {};
                         var ok = r.Ok !== undefined ? r.Ok : r.ok;
                         var reason = r.Reason || r.reason || '';
+                        // A disk that was asleep: this question woke it. Ask again.
+                        if (!ok && reason === 'slow' && slowAsks < 3) {
+                            slowAsks++;
+                            note.textContent = 'The disk is slow to answer. Asking again\u2026';
+                            note.style.display = 'block';
+                            note.style.color = '#aaa';
+                            setTimeout(function () { if (ask === asked) check(true); }, 2500);
+                            return;
+                        }
                         if (ok) say('\u2713 The server can read this file.', true);
                         else say('\u2717 ' + (why[reason] || 'The server cannot use this file.'), false);
                     }, function () { if (ask === asked) say('', false); });
@@ -3896,8 +3906,13 @@
                 };
                 probe.src = own.href;
             }
+            // Never when the title already IS the brand's: writing a title, even the
+            // same one, is a change to <title> — the observer below would call this
+            // again, and on a server that is itself named like the brand that would
+            // go round for ever and take the page with it.
             var fix = function () {
                 var t = document.title, server = '';
+                if (t === name) return;
                 try { server = (window.ApiClient && ApiClient.serverName && ApiClient.serverName()) || ''; } catch (e) {}
                 if (t === 'Jellyfin' || (server && t === server)) document.title = name;
             };
@@ -3941,6 +3956,7 @@
     var nfIdentFails = 0;        // loads that failed in a row
     var nfIdentMisses = 0;       // starts in a row that never came, though nothing was wrong with the load
     var nfIdentBad = false;      // this engine will not play it: no more tries on this page
+    var nfIdentNoBlob = false;   // …or will not play it from a held copy: use the address
     var nfIdentRun = null;       // the answer in flight (one ident for a double Play)
     var nfIdentRunFor = '';      // …and the item it is for
     var NF_IDENT_HOLD_MAX = 64 * 1024 * 1024;
@@ -3977,12 +3993,79 @@
             return u + (u.indexOf('?') < 0 ? '?' : '&') + 'ApiKey=' + encodeURIComponent(token);
         } catch (e) { return ''; }
     }
-    // Whether the file is held whole. Apple's engine gets the plain address — it
-    // wants range requests — and so does a file too big to be worth holding: the
-    // element then loads its own beginning when Play is pressed.
+    // Whether the file is held whole (in memory, and on the device: see below). A
+    // file too big to be worth holding is not — the element then loads its own
+    // beginning from the address when Play is pressed — and nor is one that
+    // Apple's engine has refused to play from a held copy.
     function nfIdentHeld() {
-        return !nfIdentApple() && nfBoot('IdentBytes') <= NF_IDENT_HOLD_MAX
+        if (!nfIdentNoBlob) {
+            // A device that would not play this very file from a held copy is not
+            // asked to again at every start of the app.
+            try { if (localStorage.getItem('nfIdentNoBlob') === (nfIdentVersion() || '-')) nfIdentNoBlob = true; } catch (e) {}
+        }
+        return !nfIdentNoBlob && nfBoot('IdentBytes') <= NF_IDENT_HOLD_MAX
             && !!window.fetch && !!window.URL && !!URL.createObjectURL;
+    }
+    // The file's version, as the server wrote it into the address.
+    function nfIdentVersion() {
+        var m = /[?&]v=([^&#]+)/.exec(String(nfBoot('IdentUrl') || ''));
+        return m ? m[1] : '';
+    }
+
+    // ---- The copy that stays on the device ----
+    // Held in memory, the file is gone with the page, and the next start of the app
+    // fetches it again — and a film started in those first moments finds no copy and
+    // has to stream the intro (which is what "buffering" was). So the file is also
+    // put into the browser's own database, where it survives the app being closed:
+    // from the second start on it is there within milliseconds and the network is
+    // not asked at all. One record, replaced when the file's version changes.
+    // IndexedDB and not the Cache API: that one needs https, and a home server is
+    // usually plain http. Every step may fail (private window, no room, a blocked
+    // database) and then the file is simply fetched as before.
+    function nfIdentDb(done) {
+        var over = false;
+        var fin = function (db) {
+            if (over) { if (db) { try { db.close(); } catch (e) {} } return; }
+            over = true;
+            done(db);
+        };
+        try {
+            if (!window.indexedDB) { fin(null); return; }
+            var req = indexedDB.open('nf-ident', 1);
+            req.onupgradeneeded = function () { try { req.result.createObjectStore('files'); } catch (e) {} };
+            req.onsuccess = function () { fin(req.result); };
+            req.onerror = function () { fin(null); };
+            req.onblocked = function () { fin(null); };
+            setTimeout(function () { fin(null); }, 2000);
+        } catch (e) { fin(null); }
+    }
+    function nfIdentKept(version, bytes, done) {
+        nfIdentDb(function (db) {
+            if (!db) { done(null); return; }
+            var shut = function () { try { db.close(); } catch (e) {} };
+            try {
+                var get = db.transaction('files', 'readonly').objectStore('files').get('ident');
+                get.onsuccess = function () {
+                    var rec = get.result;
+                    shut();
+                    done(rec && rec.v === version && rec.blob && rec.blob.size === bytes ? rec.blob : null);
+                };
+                get.onerror = function () { shut(); done(null); };
+            } catch (e) { shut(); done(null); }
+        });
+    }
+    function nfIdentKeep(version, blob) {
+        nfIdentDb(function (db) {
+            if (!db) return;
+            var shut = function () { try { db.close(); } catch (e) {} };
+            try {
+                var tx = db.transaction('files', 'readwrite');
+                tx.objectStore('files').put({ v: version, blob: blob, at: Date.now() }, 'ident');
+                tx.oncomplete = shut;
+                tx.onerror = shut;
+                tx.onabort = shut;
+            } catch (e) { shut(); }
+        });
     }
     function nfIdentWait() { return Math.min(8000 * Math.pow(4, nfIdentFails), 900000); }
     function nfIdentElement(src) {
@@ -4003,9 +4086,8 @@
     function nfIdentRelease(v) {
         try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
     }
-    // Fetched once per page into a Blob, so Play starts it from memory; the browser's
-    // own cache may keep the response between sessions (the address changes only
-    // when the file does).
+    // Made ready when the app starts, so that Play never waits for it: from the
+    // device's own copy if it has this version, otherwise fetched once and kept.
     function nfIdentPreload() {
         if (nfIdentBlob || nfIdentFetching || nfIdentRun || !nfIdentHere() || !nfIdentHeld()) return;
         // Nobody signed in yet: asked again on the next pass, which costs nothing.
@@ -4016,14 +4098,24 @@
         if (now - nfIdentTried < nfIdentWait()) return;
         nfIdentTried = now;
         nfIdentFetching = true;
-        fetch(url).then(function (r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.blob();
-        }).then(function (b) {
-            nfIdentBlob = URL.createObjectURL(b);
+        var version = nfIdentVersion(), bytes = nfBoot('IdentBytes');
+        var ready = function (blob) {
+            nfIdentBlob = URL.createObjectURL(blob);
             nfIdentFails = 0;
             nfIdentMisses = 0;
-        })['catch'](function () { nfIdentFails++; }).then(function () { nfIdentFetching = false; });
+        };
+        nfIdentKept(version, bytes, function (kept) {
+            if (kept) {
+                try { ready(kept); nfIdentFetching = false; return; } catch (e) {}
+            }
+            fetch(url).then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.blob();
+            }).then(function (b) {
+                ready(b);
+                if (version) nfIdentKeep(version, b);
+            })['catch'](function () { nfIdentFails++; }).then(function () { nfIdentFetching = false; });
+        });
     }
 
     // Films, and episodes when asked for — not a trailer, a home video, a music video
@@ -4167,7 +4259,15 @@
                         // have these bytes (that will not change), or simply never
                         // started them — which is not paid for a third time. Over
                         // the network it is the network: a rest, then another try.
-                        if (held) { if (v.error || ++nfIdentMisses >= 2) nfIdentBad = true; }
+                        if (held && nfIdentApple() && !nfIdentNoBlob) {
+                            // Apple's engine and a held copy that did not start: the
+                            // plain address is tried next time, as it always was there.
+                            nfIdentNoBlob = true;
+                            try { localStorage.setItem('nfIdentNoBlob', nfIdentVersion() || '-'); } catch (e) {}
+                            try { URL.revokeObjectURL(nfIdentBlob); } catch (e) {}
+                            nfIdentBlob = '';
+                        }
+                        else if (held) { if (v.error || ++nfIdentMisses >= 2) nfIdentBad = true; }
                         else { nfIdentFails++; nfIdentTried = Date.now(); }
                     }
                     nfIdentUnmute(muted);
@@ -4201,8 +4301,18 @@
                 // A television remote's or a gamepad's Back is leaving: the film is
                 // not started and the viewer stays where they pressed Play. Handled
                 // here and not handed on, because jellyfin-web's own "back" CLOSES
-                // the app when there is no page to go back to.
-                if (c === 461 || c === 10009 || c === 196 || k === 'GoBack' || k === 'BrowserBack' || k === 'XF86Back' || k === 'GamepadB') {
+                // the app when there is no page to go back to. Some remotes send
+                // their Back as an ordinary key: Escape in the TV layout (which is
+                // how a gamepad's B arrives there), Backspace on Hisense sets.
+                var tvBack = c === 461 || c === 10009 || c === 196 || k === 'GoBack' || k === 'BrowserBack' || k === 'XF86Back' || k === 'GamepadB';
+                if (!tvBack && (k === 'Escape' || c === 27)) {
+                    tvBack = document.documentElement.classList.contains('layout-tv') || document.body.classList.contains('layout-tv');
+                }
+                if (!tvBack && c === 8) {
+                    var ua = (navigator.userAgent || '').toLowerCase();
+                    tvBack = ua.indexOf('hisense') !== -1 && ua.indexOf('vidaa') !== -1;
+                }
+                if (tvBack) {
                     if (!e.repeat) finish(false, true);
                     return;
                 }
