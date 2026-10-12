@@ -13,7 +13,7 @@
         "changelog": "The intro is kept on the device. Until now the file was held in memory only, so every start of the app fetched it again, and a film started in those first moments had to stream the intro. It is now also stored in the browser's own storage: from the second start on it is ready at once, without asking the server, and Play never waits for it. This now applies on iPhone, iPad and Safari as well (with the plain address as the fallback there). A changed file is fetched once more; files over 64 MB are still streamed.\n\nA fix for a freeze. With the Villa Cocquette theme on a server that is itself named \"Villa Cocquette\", 3.3.0 locked the page up while keeping the tab's title: the title was written again and again. It is now left alone once it is right.\n\nAlso, for the intro: the settings line asks a disk that was asleep again instead of calling a good file broken; a folder the server may not open is reported as that, not as a missing file; a replaced intro file is picked up even by a page that still carries the old address; and on a television, Back leaves the intro without starting the film when the remote sends it as Esc (TV layout) or Backspace (Hisense).",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v3.3.1/custom-theme-v3.3.1.zip",
-        "checksum": "",
+        "checksum": "2cfd9299c05f96183b51d186d34ddd1d",
         "timestamp": "2026-10-12T14:30:41Z"
       },
       {
