@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.3.1';
+    var NF_JS_VERSION = '3.3.2';
 
     // The configuration as the server baked it into THIS page load. CT_CONFIG is
     // replaced for administrators by the live copy from the plugin API, which is
@@ -856,7 +856,8 @@
             ['IdentPath', 'text', 'Intro video file on the server (MP4)'],
             ['IdentEpisodes', 'toggle', 'Also before an episode started on its own'],
             ['IdentSkippable', 'toggle', 'Skippable (Esc, Enter, a click, OK on a remote)'],
-            ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental)']
+            ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental)'],
+            ['IdentApps', 'toggle', 'Also in apps without the theme (Android TV, Roku …)']
         ]],
         ['Logo & Header', [
             ['LogoStyle', 'select', 'Logo style', [['jellyfin','Jellyfin'],['netflix','Netflix N'],['letter','Letter'],['custom','Custom image'],['none','None']]],
@@ -4553,9 +4554,38 @@
         }, 400);
     }
 
+    // The server offers the same intro to apps that do NOT show the theme (Android
+    // TV and the like: ThemeIntroProvider.cs) — as an entry in its answer to this
+    // very question, which those apps then play with their own player. Here the
+    // theme is running, and the theme alone decides about its intro: wherever the
+    // question is handed on to the server, that one entry is taken out of the
+    // answer again. So Jellyfin's player never shows it after the theme has, nor
+    // in its place where the theme has decided against it (a device it is switched
+    // off for, a start that did not come).
+    function nfIdentOwnOut(answer) {
+        var own = String(nfBoot('IdentItem') || '').replace(/-/g, '').toLowerCase();
+        if (!own || !answer || typeof answer.then !== 'function') return answer;
+        return answer.then(function (r) {
+            try {
+                var items = r && r.Items;
+                if (items && items.length) {
+                    var kept = items.filter(function (it) {
+                        return !it || String(it.Id || '').replace(/-/g, '').toLowerCase() !== own;
+                    });
+                    if (kept.length !== items.length) {
+                        r.Items = kept;
+                        if (typeof r.TotalRecordCount === 'number') r.TotalRecordCount = kept.length;
+                    }
+                }
+            } catch (e) {}
+            return r;
+        });
+    }
+
     // The wrap lives on the ApiClient INSTANCE (jellyfin-web makes a new one on
-    // sign-in, so this is re-run from applyDynamic). It returns the original call's
-    // own promise, untouched, whenever the ident is not going to play.
+    // sign-in, so this is re-run from applyDynamic). Whenever the ident is not going
+    // to play it returns the original call's own answer — less the server's copy of
+    // the intro, see above.
     function nfIdentWrap() {
         try {
             var c = window.ApiClient;
@@ -4564,7 +4594,7 @@
             c.__nfIdent = true;
             c.getIntros = function (itemId) {
                 var self = this, args = arguments;
-                var stock = function () { return orig.apply(self, args); };
+                var stock = function () { return nfIdentOwnOut(orig.apply(self, args)); };
                 try {
                     if (!nfIdentHere() || !nfIdentUrl()) return stock();
                     // One ident for one Play pressed twice — and, once it is on

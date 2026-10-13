@@ -129,6 +129,13 @@ namespace Jellyfin.Plugin.CustomTheme
                 node["IdentBytes"] = ident.Length;
             }
 
+            // The id under which the server offers the intro to apps that do not show
+            // the theme. The script takes that entry out of the server's own answer.
+            if (IdentItem.Wanted(cfg))
+            {
+                node["IdentItem"] = IdentItem.Id.ToString("N");
+            }
+
             return node.ToJsonString();
         }
 

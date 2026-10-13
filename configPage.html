@@ -32,7 +32,7 @@
            settings drawer); #292929 with a solid #555 border was a fourth style. */
         .ct-row select, .ct-row input[type="text"] { background: #333; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 7px 10px; font-size: 0.85rem; min-width: 180px; font-family: var(--font-netflix, inherit); }
         .ct-row input[type="color"] { width: 44px; height: 30px; border: 2px solid rgba(255,255,255,0.15); border-radius: 4px; cursor: pointer; padding: 0; background: none; }
-        .ct-row input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; accent-color: var(--accent-red, #E50914); }
+        .ct-row input[type="checkbox"] { width: 22px; height: 22px; flex: 0 0 auto; cursor: pointer; accent-color: var(--accent-red, #E50914); }
         .ct-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
         .ct-save { background: var(--accent-red, #E50914); color: #fff; border: none; padding: 12px 32px; border-radius: 4px; font-size: 1rem; font-weight: 700; cursor: pointer; font-family: var(--font-netflix, inherit); }
         /* Netflix's red DARKENS on hover — lightening it is the tell this project's
@@ -125,7 +125,8 @@
                 ['IdentPath', 'text', 'Intro video file on the server (an MP4 with H.264 video and AAC sound plays everywhere)'],
                 ['IdentEpisodes', 'toggle', 'Also before an episode started on its own — from its page, a card or Next Up (never between auto-playing episodes)'],
                 ['IdentSkippable', 'toggle', 'Skippable with Esc, Enter, Space, a click, or OK on a remote (Back always leaves without starting the film)'],
-                ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental: try it on your device before relying on it)']
+                ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental: try it on your device before relying on it)'],
+                ['IdentApps', 'toggle', 'Also in apps that do not show the theme — Android TV, Roku, Kodi … They play it with their own player and controls, when their own "Cinema mode" setting is on (the Android TV app: before films only)']
             ]],
             ['Logo & Header', [
                 ['LogoStyle', 'select', 'Logo style', [['jellyfin','Jellyfin'],['netflix','Netflix N'],['letter','Letter'],['custom','Custom image'],['none','None']]],

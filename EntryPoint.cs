@@ -37,14 +37,17 @@ namespace Jellyfin.Plugin.CustomTheme
         private readonly IServerApplicationHost _appHost;
         private readonly IApplicationPaths _appPaths;
         private readonly ILogger<EntryPoint> _logger;
+        private readonly IdentItem _ident;
+        private readonly CancellationTokenSource _stopping = new();
         private bool _ftRegistered;
 
-        public EntryPoint(IConfigurationManager configManager, IServerApplicationHost appHost, IApplicationPaths appPaths, ILogger<EntryPoint> logger)
+        public EntryPoint(IConfigurationManager configManager, IServerApplicationHost appHost, IApplicationPaths appPaths, ILogger<EntryPoint> logger, IdentItem ident)
         {
             _configManager = configManager;
             _appHost = appHost;
             _appPaths = appPaths;
             _logger = logger;
+            _ident = ident;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -107,6 +110,10 @@ namespace Jellyfin.Plugin.CustomTheme
                 Plugin.Instance.ConfigurationChanged += OnConfigurationChanged;
             }
 
+            // The intro's library entry (for apps that do not show the theme) is put
+            // right in the background: not awaited, the server is still starting.
+            _ = _ident.SyncWhenStarted(_stopping.Token);
+
             return Task.CompletedTask;
         }
 
@@ -117,6 +124,7 @@ namespace Jellyfin.Plugin.CustomTheme
                 Plugin.Instance.ConfigurationChanged -= OnConfigurationChanged;
             }
 
+            _stopping.Cancel();
             return Task.CompletedTask;
         }
 
@@ -129,6 +137,9 @@ namespace Jellyfin.Plugin.CustomTheme
             // for non-admin users) — refresh the on-disk copy so it isn't stale.
             var ownInjection = Plugin.Instance?.Configuration?.OwnInjection ?? true;
             WriteIndexHtml(inject: !_ftRegistered, brandOnDisk: !ownInjection);
+
+            // Intro switched on or off, or another file: its library entry follows.
+            _ = _ident.Sync();
         }
 
         private void ApplyCss()

@@ -26,7 +26,7 @@ The plugin also injects a small script that adds a **palette settings button** i
 - **Optional header settings button** (palette icon) with the same options
 - **15 Google Fonts** — Inter, Poppins, Montserrat, Roboto, Oswald, Raleway, Nunito, Bebas Neue, Lato, Source Sans, Ubuntu, Playfair Display, Quicksand, Comfortaa, Righteous (only the selected family is loaded)
 - **Two house styles** — Netflix (default) or **Villa Cocquette**: the same layout with a gold accent and the villa's crest in the header, in the navigation drawer and above the sign-in page — and outside the page too: the browser tab's icon and name, the loading screen, and the icon and name the site gets on a phone's home screen or in a dock
-- **An intro before films** (off by default) — one video of yours, played by the theme itself: full screen, with sound, no player controls, and the film follows. See [Intro before films](#intro-before-films)
+- **An intro before films** (off by default) — one video of yours, played by the theme itself: full screen, with sound, no player controls, and the film follows. Apps that do not show the theme (Android TV and the like) are offered the same file through Jellyfin. See [Intro before films](#intro-before-films)
 - **Logo options** — red "N" (default), Jellyfin, custom letter, custom image URL, or none
 - **Color presets** — Default, Monochrome, Colorful, Christmas, Halloween, Summer, Ocean (override the colour palette)
 - Color customization — accent, background, text, muted text, progress bar
@@ -66,7 +66,7 @@ Open **Dashboard → Plugins → Custom Theme**, or click the palette icon in th
 | Injection | Self-contained middleware injection (on by default), provide File Transformation to other plugins (on by default) |
 | Features | Clean home takeover, hero carousel, genre rows, top nav tabs, hover expand card, autoplay preview clips, Top 10 rank numbers (off by default), green "x% Match" score, glass blur (off), OLED black (off) — all others on by default |
 | Colors | Color preset, accent, background, text, muted text, progress bar |
-| Intro | Play an intro before films (off by default), the video file on the server, also before episodes (on), skippable (on), also on iPhone / iPad / Safari (experimental, off) |
+| Intro | Play an intro before films (off by default), the video file on the server, also before episodes (on), skippable (on), also on iPhone / iPad / Safari (experimental, off), also in apps that do not show the theme (on) |
 | Logo & Header | Logo style (red "N" default / Jellyfin / letter / custom image / none), left-aligned nav, header blur |
 | Elements | Badges, watched marks, backdrop, round cast, description, tags, external links, similar titles, spoiler mode |
 | Detail buttons | Watched, favorite, more |
@@ -78,12 +78,22 @@ After saving, reload the web page to see the new theme.
 
 Jellyfin can only play a pre-roll as a separate entry in the player's queue: a second playback with the player's controls and the file's name on screen, loaded from scratch every time. With **Intro** switched on the theme plays one video itself instead — full screen, with sound, nothing else on screen — and only then lets Jellyfin start the film, which opens without its controls flashing up.
 
-- **The file** is a video on the *server*: an MP4 with H.264 video and AAC sound plays everywhere (`.mp4`, `.m4v` and `.webm` are accepted, up to 300 MB). On the dashboard page, **Browse…** picks it with Jellyfin's own file browser, and the line under the field says whether the server can read it. The path is the one the server sees — in Docker, the path inside the container.
+- **The file** is a video on the *server*: an MP4 with H.264 video and AAC sound plays everywhere (`.mp4`, `.m4v` and `.webm` are accepted, up to 300 MB). On the dashboard page, **Browse…** picks it with Jellyfin's own file browser, and the line under the field says whether the server can read it. The path is the one the server sees — in Docker, the path inside the container. Keep it outside your library folders, so that it does not also turn up as a film.
 - **When it plays:** when a film, or an episode started on its own (from its page, an episode card or Next Up), starts from the beginning. Not when resuming, and not between auto-playing episodes. As with Jellyfin's own intros, it is also left out when a season's Play button starts at a later episode because the earlier ones are watched, and with "play all from here". Jellyfin's own *Cinema mode* playback setting has to be on (it is by default).
 - **Skipping:** Esc, Enter, Space or a click jumps to the film (can be switched off); on a remote, OK skips. Back leaves without starting the film — the browser's Back, a remote's Back, and Esc in the TV layout.
 - **Loading:** a file of up to 64 MB is fetched once and kept on the device (in the browser's own storage), so it is there the moment the app starts — also after the app was closed — and Play never waits for the network. A changed file is fetched once more. A larger file is streamed when Play is pressed and may start a moment later. If the intro cannot be shown — missing file, a format the device cannot play, nothing on screen within two and a half seconds — the film simply starts as usual.
-- **Where:** browsers, Jellyfin Media Player and the other apps that load the server's web interface. On iPhone, iPad and Safari it is a separate, experimental switch (off by default), because Apple's engine may ask for a second tap to start the film. Apps with their own interface (most TV apps) never run the theme at all.
-- **With an intros plugin** (Local Intros and the like): where the theme plays its intro, the plugin's is not played as well; everywhere else Jellyfin behaves exactly as before, so the plugin still covers the TV apps.
+- **Where the theme plays it:** browsers, Jellyfin Media Player and the other apps that load the server's web interface (the phone apps, LG's TV app). On iPhone, iPad and Safari it is a separate, experimental switch (off by default), because Apple's engine may ask for a second tap to start the film.
+- **In apps that do not show the theme** — Android TV and Fire TV, Roku, Kodi, Samsung's TV app: such an app never runs the theme. It asks Jellyfin for a pre-roll and plays what it is given with its own player. With **Also in apps that do not show the theme** on (it is by default) the same file is offered there. What happens then is the app's own doing:
+  - its own *Cinema mode* setting has to be on — it is by default on Android TV (the gear icon → Playback → Cinema mode), and off by default on Roku (Settings → Playback → Cinema Mode) and in Kodi (the add-on's settings → Playback → Enable cinema mode);
+  - the Android TV app asks before films only, never before episodes, and only when a film starts from the beginning (*Play*, not *Resume*);
+  - skipping is the app's, and the *Skippable* switch above does not apply there: on Android TV the fast-forward key goes on to the film, and so does OK (which brings up the player's bar), then down and *next*; Back leaves without the film;
+  - if the app is set to use an external player, Android TV plays a film that has an intro in front of it with its built-in player;
+  - apps that never ask for a pre-roll (Swiftfin, Findroid, Streamyfin) show none, whatever is set here.
+
+  For this Jellyfin needs the file as an entry of its own. That entry belongs to no library and is in no list, search or row that a signed-in user sees; the dashboard's activity names it "Intro", and so does a tool that reads the whole catalogue with an API key. It is removed again when the option or the intro is switched off — the entry, never your file. Two kinds of viewer are not offered it: one whose parental settings would hide the entry, and one who has *Play next episode automatically* switched off and watches in Jellyfin's own web player (Samsung's TV app), where playback would stop after the intro.
+
+  The film that follows starts with the viewer's usual audio and subtitle track, not the intro's: the Android TV app and Jellyfin's web player would otherwise carry "the intro's audio stream, no subtitles" over to the film, and Jellyfin would remember that for the film. This is put right for those two players (measured with the Android TV app 0.19.10; its 0.20 beta switches subtitles off by itself after an intro, which a server cannot undo). Two things remain: a subtitle track picked on the film's page before pressing Play (Samsung's TV app has that page) does not survive the intro — the film starts with the viewer's default subtitles — and on Android TV a film whose default subtitles have to be burned into the picture starts twice.
+- **With an intros plugin** (Local Intros and the like): where the theme plays its intro, the plugin's is not played as well. In the apps above both would play, one after the other (Roku plays only the first it is given) — the plugin is no longer needed for them.
 
 ## Build from source
 
@@ -124,6 +134,7 @@ EntryPoint.cs              # Hosted service: applies CSS, sets up injection on s
 IndexInjectionMiddleware.cs# Built-in middleware: injects the script + applies other plugins' transformations
 ThemeTransformation.cs     # Builds/strips the inline headerButton.js injection (and the Villa icons/title in <head>)
 ThemeAssetsController.cs   # Serves the Villa icons + web-app manifest, and the intro video
+ThemeIntroProvider.cs      # The intro for apps that do not show the theme: Jellyfin's intro provider + the library-less entry it hands out
 Assets/                    # The Villa Cocquette marks and icons (embedded resources)
 FileTransformation/        # Bundled File Transformation provider (separate CustomTheme.FileTransformation.dll)
 ServiceRegistrator.cs      # Registers the services with Jellyfin's DI container

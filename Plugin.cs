@@ -82,6 +82,9 @@ namespace Jellyfin.Plugin.CustomTheme
                 // Read-only web root — the serve-time injection dies with the plugin anyway.
             }
 
+            // The intro's library entry (the entry, never the file).
+            IdentItem.Instance?.Remove();
+
             base.OnUninstalling();
         }
     }
