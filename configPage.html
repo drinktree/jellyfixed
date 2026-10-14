@@ -277,8 +277,16 @@
                 if (ok) {
                     // Above 64 MB the page does not hold the file whole (headerButton.js,
                     // NF_IDENT_HOLD_MAX): it is streamed when Play is pressed.
+                    // Apps without the theme are given a copy made for them (IdentCopy.cs);
+                    // the server says where it stands for the SAVED file only.
+                    var apps = r.Apps || r.apps || '';
+                    var appsBytes = r.AppsBytes !== undefined ? r.AppsBytes : r.appsBytes;
                     identNote('✓ The server can read this file' + (identSize(bytes) ? ' (' + identSize(bytes) + ')' : '') + '.'
                         + (bytes > 64 * 1024 * 1024 ? ' A file this large is streamed rather than kept in memory, so it may start a moment later.' : '')
+                        + (apps === 'ready' ? ' Apps without the theme get a light copy of it' + (identSize(appsBytes) ? ' (' + identSize(appsBytes) + ')' : '') + ', which starts quickly on a television.'
+                            : apps === 'making' ? ' A light copy for apps without the theme is being made; until it is ready they start films without the intro.'
+                            : apps === 'failed' ? ' No copy for apps without the theme could be made (the server log says why); they get the file itself.'
+                            : '')
                         + (on ? '' : ' Switch the intro on above to use it.'), 'ok');
                 } else {
                     identNote('✗ ' + (IDENT_REASONS[reason] || 'The server cannot use this file.'), 'bad');

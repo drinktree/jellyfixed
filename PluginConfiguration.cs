@@ -214,9 +214,11 @@ namespace Jellyfin.Plugin.CustomTheme
         /// <summary>
         /// Also in apps that do not show the theme — Android TV, Roku, Kodi … Such an
         /// app asks the SERVER for a pre-roll (its own "Cinema mode" setting) and plays
-        /// what it is given with its own player and controls, so the same file is
-        /// offered there too (<see cref="ThemeIntroProvider"/>). Where the theme's
-        /// script runs it leaves that offer out: there the theme alone decides.
+        /// what it is given with its own player and controls, so the intro is offered
+        /// there too (<see cref="ThemeIntroProvider"/>) — as a light copy the server
+        /// makes once per file (<see cref="IdentCopy"/>), because those apps fetch it
+        /// anew on every Play. Where the theme's script runs it leaves that offer out:
+        /// there the theme alone decides.
         /// </summary>
         public bool IdentApps { get; set; } = true;
     }

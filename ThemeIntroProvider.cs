@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.IO;
@@ -119,6 +122,12 @@ namespace Jellyfin.Plugin.CustomTheme
     /// another or has changed (nothing read from the old file is kept), and taken out
     /// again when the feature is switched off or the plugin is uninstalled. Removing
     /// it removes the ENTRY, never the file.
+    ///
+    /// What it points at is the copy prepared for apps (<see cref="IdentCopy"/>) as
+    /// soon as that is there — and the configured file itself until then, or for good
+    /// if no copy can be made. Switching from one to the other is a "made anew" like
+    /// any other. While it points at the file and a copy is still to come it is not
+    /// handed out (<see cref="Current"/>).
     /// </summary>
     public sealed class IdentItem
     {
@@ -138,6 +147,7 @@ namespace Jellyfin.Plugin.CustomTheme
         private readonly IFileSystem _fileSystem;
         private readonly IServerApplicationHost _appHost;
         private readonly ILogger<IdentItem> _logger;
+        private readonly IdentCopy _copy;
         private readonly SemaphoreSlim _oneAtATime = new(1, 1);
 
         // Set when the plugin is being uninstalled. Its code goes on running until the
@@ -145,12 +155,22 @@ namespace Jellyfin.Plugin.CustomTheme
         // would be nothing left afterwards to take it out again.
         private static volatile bool _retired;
 
-        public IdentItem(ILibraryManager library, IFileSystem fileSystem, IServerApplicationHost appHost, ILogger<IdentItem> logger)
+        public IdentItem(
+            ILibraryManager library,
+            IFileSystem fileSystem,
+            IServerApplicationHost appHost,
+            IMediaEncoder encoder,
+            IApplicationPaths paths,
+            ILogger<IdentItem> logger)
         {
             _library = library;
             _fileSystem = fileSystem;
             _appHost = appHost;
             _logger = logger;
+
+            // The server's data folder: kept like its database (the cache folder is
+            // emptied of anything a month old).
+            _copy = new IdentCopy(encoder, Path.Combine(paths.DataPath, "custom-theme"), logger, () => appHost.CoreStartupHasCompleted);
             Instance = this;
         }
 
@@ -188,7 +208,7 @@ namespace Jellyfin.Plugin.CustomTheme
             // are set before its media information has been read): wait for that, on
             // another thread, so that all of it is under the limit. Not in a server's
             // first moments, before it can read a media file at all.
-            if (_oneAtATime.CurrentCount == 0 || !Matches(_library.GetItemById(Id), file))
+            if (_oneAtATime.CurrentCount == 0 || !Matches(_library.GetItemById(Id), file, Target(file)))
             {
                 if (!_appHost.CoreStartupHasCompleted)
                 {
@@ -201,6 +221,19 @@ namespace Jellyfin.Plugin.CustomTheme
                 {
                     return null;
                 }
+            }
+
+            // Apps are given the copy made for them. While it is still to come they go
+            // without: the file itself is what kept a television waiting, and once the
+            // copy is there the entry is made anew under this same id — an app still
+            // fetching the file by that id would then be handed bytes of the other one.
+            // Only where no copy can be made (the log says why) is the file itself given.
+            if (string.Equals(Target(file), file.Path, StringComparison.Ordinal) && !_copy.Failed(file))
+            {
+                // Nothing is started twice, and a copy that could not be made is not
+                // tried again — this only picks up one that was never asked for.
+                _copy.Request(file, async () => await Sync().ConfigureAwait(false));
+                return null;
             }
 
             // Jellyfin hands an intro to whoever asks, but refuses to say how to play
@@ -322,11 +355,14 @@ namespace Jellyfin.Plugin.CustomTheme
         public void Remove()
         {
             _retired = true;
+            _copy.Close();
 
             // An uninstall does not wait for long on a file that is slow to read; the
-            // pass that is reading it takes the entry out itself when it is done.
+            // pass that is reading it takes the entry out itself when it is done. The
+            // copies go either way.
             if (!_oneAtATime.Wait(TimeSpan.FromSeconds(15)))
             {
+                _copy.Clear(null);
                 return;
             }
 
@@ -346,7 +382,16 @@ namespace Jellyfin.Plugin.CustomTheme
             {
                 _oneAtATime.Release();
             }
+
+            // The copies are the plugin's own; nothing of it is left behind.
+            _copy.Clear(null);
         }
+
+        /// <summary>The server is stopping: a copy that is being made is abandoned.</summary>
+        public void Stop() => _copy.Close();
+
+        /// <summary>Where the copy for apps stands, for the settings pages.</summary>
+        internal (string State, long Bytes) CopyState(IdentFile file) => _copy.Describe(file);
 
         private async Task<Guid?> SyncCore()
         {
@@ -360,6 +405,7 @@ namespace Jellyfin.Plugin.CustomTheme
                     Remove(existing);
                 }
 
+                _copy.Clear(null);
                 return null;
             }
 
@@ -372,8 +418,10 @@ namespace Jellyfin.Plugin.CustomTheme
                 return null;
             }
 
-            if (Matches(existing, file))
+            var target = Target(file);
+            if (Matches(existing, file, target))
             {
+                Settle(file, target);
                 return Id;
             }
 
@@ -396,7 +444,7 @@ namespace Jellyfin.Plugin.CustomTheme
             var video = new Video { Id = Id, Name = ItemName, DateCreated = DateTime.UnixEpoch };
             _library.CreateItem(video, null);
 
-            video.Path = file.Path;
+            video.Path = target;
 
             // "This file shares its folder with files that are not its own." Without it
             // Jellyfin takes the folder for the video's own — and an administrator who
@@ -407,13 +455,20 @@ namespace Jellyfin.Plugin.CustomTheme
             // it: it stays "Intro", and no embedded rating can hide it from a user with
             // parental controls.
             video.IsLocked = true;
-            video.DateModified = file.LastModified.UtcDateTime;
+
+            // The write time of the file it points at, to the second: should it differ,
+            // Jellyfin's reading below takes the file for a changed one and re-dates
+            // the entry to the file's own creation (the copy's: today), undoing the
+            // "long ago" above.
+            video.DateModified = string.Equals(target, file.Path, StringComparison.Ordinal)
+                ? file.LastModified.UtcDateTime
+                : File.GetLastWriteTimeUtc(target);
             video.SetProviderId(VersionKey, file.Version);
 
             // "Import", the weakest reason there is: no metadata file is ever written
             // next to the video for it.
             await video.UpdateToRepositoryAsync(ItemUpdateType.MetadataImport, CancellationToken.None).ConfigureAwait(false);
-            _logger.LogInformation("[Custom Theme] The intro is offered to apps without the theme as item {Id} ({Path})", Id, file.Path);
+            _logger.LogInformation("[Custom Theme] The intro is offered to apps without the theme as item {Id} ({Path})", Id, target);
 
             await Probe(video).ConfigureAwait(false);
 
@@ -424,13 +479,32 @@ namespace Jellyfin.Plugin.CustomTheme
                 return null;
             }
 
+            Settle(file, target);
             return Id;
         }
 
-        private static bool Matches(BaseItem? item, IdentFile file)
+        // What apps are given: the copy made for them once it is there, else the file.
+        private string Target(IdentFile file) => _copy.Ready(file) ?? file.Path;
+
+        // While apps are given the file itself, the copy is asked for (once per state
+        // of the file; when it is done, Sync points the item at it). Once they are
+        // given the copy, older copies go.
+        private void Settle(IdentFile file, string target)
+        {
+            if (string.Equals(target, file.Path, StringComparison.Ordinal))
+            {
+                _copy.Request(file, async () => await Sync().ConfigureAwait(false));
+            }
+            else
+            {
+                _copy.Clear(target);
+            }
+        }
+
+        private static bool Matches(BaseItem? item, IdentFile file, string target)
             => item is Video video
                 && video.IsInMixedFolder
-                && string.Equals(video.Path, file.Path, StringComparison.Ordinal)
+                && string.Equals(video.Path, target, StringComparison.Ordinal)
                 && string.Equals(video.GetProviderId(VersionKey), file.Version, StringComparison.Ordinal);
 
         // The entry only. DeleteFileLocation is what would make Jellyfin delete from

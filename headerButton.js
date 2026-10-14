@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.3.2';
+    var NF_JS_VERSION = '3.3.3';
 
     // The configuration as the server baked it into THIS page load. CT_CONFIG is
     // replaced for administrators by the live copy from the plugin API, which is
@@ -1174,7 +1174,14 @@
                             setTimeout(function () { if (ask === asked) check(true); }, 2500);
                             return;
                         }
-                        if (ok) say('\u2713 The server can read this file.', true);
+                        // Apps without the theme get a copy made for them (IdentCopy.cs);
+                        // where it stands is reported for the saved file only.
+                        var apps = r.Apps || r.apps || '';
+                        if (ok) say('\u2713 The server can read this file.'
+                            + (apps === 'ready' ? ' Apps without the theme get a light copy of it.'
+                                : apps === 'making' ? ' A light copy for apps without the theme is being made.'
+                                : apps === 'failed' ? ' No copy for apps without the theme could be made; they get the file itself.'
+                                : ''), true);
                         else say('\u2717 ' + (why[reason] || 'The server cannot use this file.'), false);
                     }, function () { if (ask === asked) say('', false); });
                 } catch (e) {}

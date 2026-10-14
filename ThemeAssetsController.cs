@@ -139,12 +139,28 @@ namespace Jellyfin.Plugin.CustomTheme
         public IActionResult CheckIdent([FromQuery] string? path)
         {
             var look = IdentFile.Check(path, fresh: true);
+
+            // For the file that is saved as the intro, also where its copy for apps
+            // without the theme stands (IdentCopy). Not for a path only typed so far.
+            var apps = string.Empty;
+            long appsBytes = 0;
+            var config = Plugin.Instance?.Configuration;
+            if (look.File != null
+                && IdentItem.Wanted(config)
+                && string.Equals(config!.IdentPath?.Trim(), path?.Trim(), StringComparison.Ordinal)
+                && IdentItem.Instance is { } ident)
+            {
+                (apps, appsBytes) = ident.CopyState(look.File);
+            }
+
             Response.Headers[HeaderNames.CacheControl] = "no-store";
             return new JsonResult(new Dictionary<string, object>
             {
                 ["Ok"] = look.File != null,
                 ["Reason"] = look.Reason,
-                ["Bytes"] = look.Bytes
+                ["Bytes"] = look.Bytes,
+                ["Apps"] = apps,
+                ["AppsBytes"] = appsBytes
             });
         }
     }

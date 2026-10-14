@@ -125,6 +125,7 @@ namespace Jellyfin.Plugin.CustomTheme
             }
 
             _stopping.Cancel();
+            _ident.Stop();
             return Task.CompletedTask;
         }
 
