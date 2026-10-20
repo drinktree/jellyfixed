@@ -59,9 +59,27 @@
     // (detail play button, tooltips) are driven via custom properties below.
     var LOCALES = {
         en: { home: 'Home', play: 'Play', moreInfo: 'More Info', myList: 'My List', like: 'Like', cw: 'Continue Watching', season: 'Season', seasons: 'Seasons', sound: 'Toggle sound', pause: 'Pause', slide: 'Slide', themeSettings: 'Theme settings', scrollBack: 'Scroll left', scrollFwd: 'Scroll right', labelPlay: 'Play', labelResume: 'Resume', labelReplay: 'Replay', tipWatched: 'Watched', tipFavorite: 'Favorite', tipMore: 'More',
-             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'Recently Added', match: '{0}% Match', minLeft: '{0} min left', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Remove from row', page: 'Page', more: 'more' },
+             newReleases: 'New Releases', watchAgain: 'Watch It Again', becauseYouWatched: 'Because you watched {0}', newBadge: 'Recently Added', match: '{0}% Match', minLeft: '{0} min left', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Remove from row', page: 'Page', more: 'more',
+             // Requests (Seerr, through the Jellyseerr Bridge). 'with' is quoted: a
+             // reserved word, which only ES5 and later take as a bare key.
+             requests: 'Requests', request: 'Request', requesting: 'Requesting…', requested: 'Requested', pending: 'Pending', partial: 'Partly available', available: 'Available',
+             requestMore: 'Request more seasons', requestAll: 'Request all seasons', requestN: 'Request {0} seasons', request1: 'Request 1 season', toTitle: 'Go to title',
+             searchPh: 'Search movies and series', notInLib: 'Not in your library', notInLibAny: 'Not in your library – but you can request it',
+             rowTrending: 'Trending Now', rowMovies: 'Popular Movies', rowTv: 'Popular Series', rowUpMovies: 'Coming Soon: Movies', rowUpTv: 'Coming Soon: Series',
+             movie: 'Movie', series: 'Series', episodes: '{0} episodes', done: '“{0}” requested',
+             errAlready: 'Already requested', errNone: 'All available seasons are already requested', errForbidden: 'Your profile may not request titles',
+             errDisabled: 'Requests are switched off right now', errBlocked: 'This title is blocked', errDown: 'The request service is not reachable right now', errOther: 'Something went wrong. Please try again.',
+             close: 'Close', noResults: 'No results', 'with': 'With', genres: 'Genres', creator: 'Created by', director: 'Director', streaming: 'Streaming on' },
         de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr',
-             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'Neu hinzugefügt', match: '{0} % Übereinstimmung', minLeft: 'Noch {0} Min.', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Aus Zeile entfernen', page: 'Seite', more: 'mehr' }
+             newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'Neu hinzugefügt', match: '{0} % Übereinstimmung', minLeft: 'Noch {0} Min.', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Aus Zeile entfernen', page: 'Seite', more: 'mehr',
+             requests: 'Anfragen', request: 'Anfragen', requesting: 'Wird angefragt…', requested: 'Angefragt', pending: 'Ausstehend', partial: 'Teilweise verfügbar', available: 'Verfügbar',
+             requestMore: 'Weitere Staffeln anfragen', requestAll: 'Alle Staffeln anfragen', requestN: '{0} Staffeln anfragen', request1: '1 Staffel anfragen', toTitle: 'Zur Titelseite',
+             searchPh: 'Filme und Serien suchen', notInLib: 'Nicht in deiner Bibliothek', notInLibAny: 'Nicht in deiner Bibliothek – aber anfragbar',
+             rowTrending: 'Im Trend', rowMovies: 'Beliebte Filme', rowTv: 'Beliebte Serien', rowUpMovies: 'Demnächst: Filme', rowUpTv: 'Demnächst: Serien',
+             movie: 'Film', series: 'Serie', episodes: '{0} Folgen', done: '„{0}“ angefragt',
+             errAlready: 'Bereits angefragt', errNone: 'Alle verfügbaren Staffeln sind schon angefragt', errForbidden: 'Dein Profil darf keine Titel anfragen',
+             errDisabled: 'Anfragen sind gerade ausgeschaltet', errBlocked: 'Dieser Titel ist gesperrt', errDown: 'Der Anfragedienst ist gerade nicht erreichbar', errOther: 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
+             close: 'Schließen', noResults: 'Keine Ergebnisse', 'with': 'Mit', genres: 'Genres', creator: 'Idee', director: 'Regie', streaming: 'Verfügbar bei' }
     };
     function nfL() {
         var l = (document.documentElement.getAttribute('lang') || navigator.language || 'en').toLowerCase();
@@ -939,17 +957,30 @@
     // The plugin-configuration endpoints require an administrator, so the palette
     // button is only shown to admins (non-admins used to get a button that could
     // only ever show an error panel).
-    var nfAdminState = { uid: null, admin: false };
+    // `limited` is kept for EVERY user, not only admins: a profile with a parental-
+    // rating limit (a Kids profile) is never offered Requests, because Seerr's lists
+    // carry no age rating to filter by. null = not known yet.
+    var nfAdminState = { uid: null, admin: false, limited: null };
     function updateAdmin() {
         if (typeof ApiClient === 'undefined' || !ApiClient.getCurrentUserId || !ApiClient.getCurrentUser) return;
         var uid = ApiClient.getCurrentUserId();
         if (!uid || nfAdminState.uid === uid) return;
         nfAdminState.uid = uid;
         nfAdminState.admin = false;
+        nfAdminState.limited = null;
         ApiClient.getCurrentUser().then(function (u) {
             nfAdminState.admin = !!(u && u.Policy && u.Policy.IsAdministrator);
+            // Only for the user it was asked for: a slow answer that lands after a
+            // switch of user must not open (or close) Requests for the next one.
+            if (nfAdminState.uid === uid) nfAdminState.limited = !!(u && u.Policy && u.Policy.MaxParentalRating != null);
             if (nfAdminState.admin) addButton();
             else document.querySelectorAll('.ct-settings-btn').forEach(function (b) { b.remove(); });
+            // The Requests gate has been waiting on this answer (nfRqUser), and for a
+            // user who is not an admin nothing above changes the page, so no pass
+            // would follow it until something else did.
+            if (nfAdminState.uid === uid && nfAdminState.limited === false && nfBoot('SeerrBridge')) {
+                try { applyDynamic(); } catch (e) {}
+            }
         }).catch(function () { nfAdminState.uid = null; });
     }
 
@@ -3815,6 +3846,9 @@
         // applyDynamic() as soon as the configuration arrives.
         if (CT_CONFIG === null) return;
         setupNavTabs();
+        // Requests: asks the bridge what the gate needs to know, once each. It only
+        // reads here and writes nothing to the page.
+        nfRqLive();
         setupHero();   // self-gates + cleans up the hero when off-Home
         var onHome = isHomePage();
         // These build/scan the home container and each re-derives activeHomeContainer()
@@ -4643,6 +4677,359 @@
                 } catch (e) { return stock(); }
             };
         } catch (e) {}
+    }
+
+    // ============ Requests (Seerr, through the Jellyseerr Bridge) ============
+    // Films and series that are not in the library can be asked for from inside the
+    // app, through the third-party Jellyseerr Bridge plugin: it hands what it is sent
+    // on to a Seerr server and passes Seerr's answers back unchanged. The server says
+    // in the page it serves whether the bridge was loaded when it started
+    // (nfBoot('SeerrBridge'), and only with the option on: a plugin's routes only
+    // change with a restart). Everything else is asked here, once each:
+    //  - the bridge's Status (anonymous, the same for everyone on this server): has
+    //    it a Seerr to talk to, and may requests be sent at all;
+    //  - whether THIS user may send them. The bridge tells nobody its allow-list, so
+    //    it is found out with a request it is certain to refuse (nfRqProbe).
+    // Each answer is filed under the server or the user it was asked for, so one that
+    // lands after a sign-out or a switch of server is never taken for the current
+    // one — ApiClient has no timeout, and an answer can come at any time. Until the
+    // answers are in, and whenever there is a doubt about who is asking, Requests
+    // are simply not there: the page is stock.
+    var NF_RQ_STATUS_TTL = 10 * 60 * 1000;
+    // In memory as well as in sessionStorage: nfRqLive runs on every pass, and a
+    // storage read plus a JSON.parse per mutation frame is exactly the kind of cost
+    // this file keeps off the home page. Storage is read once per server, once per user.
+    var nfRqStatusHeld = { sid: null, rec: null };   // rec: {ts, v: {...} or null, e: status of a failure}
+    var nfRqPermHeld = { uid: null, v: null };       // 'ok' | 'no' | 'off', null = not asked yet
+    var nfRqStatusAsking = '';                       // the server whose Status is in flight
+    var nfRqPermAsking = '';                         // the user whose probe is in flight
+
+    // The signed-in user Requests may be offered to, or '' — every condition that
+    // needs no answer from the bridge, checked before anything is asked of it.
+    function nfRqUser() {
+        try {
+            if (!nfBoot('SeerrBridge') || cfg('SeerrRequests', true) === false) return '';
+            if (typeof ApiClient === 'undefined' || !ApiClient.getCurrentUserId || !ApiClient.serverId) return '';
+            var uid = ApiClient.getCurrentUserId();
+            if (!uid || !ApiClient.serverId() || nfIsDashboard()
+                || document.documentElement.classList.contains('nf-session')) return '';
+            // A parental-rating limit (updateAdmin) turns the user away before the
+            // bridge is asked anything. Not known yet is a "not yet", and the bridge
+            // is not asked meanwhile either: a Kids profile costs it nothing.
+            if (nfAdminState.uid !== uid || nfAdminState.limited !== false) return '';
+            return uid;
+        } catch (e) { return ''; }
+    }
+    function nfRqStatusRec() {
+        var sid;
+        try { sid = ApiClient.serverId() || ''; } catch (e) { return null; }
+        if (nfRqStatusHeld.sid !== sid) {
+            nfRqStatusHeld.sid = sid;
+            nfRqStatusHeld.rec = null;
+            try {
+                var rec = JSON.parse(sessionStorage.getItem('nfrq1:status:' + sid) || 'null');
+                if (rec && typeof rec.ts === 'number') nfRqStatusHeld.rec = rec;
+            } catch (e) {}
+        }
+        return nfRqStatusHeld.rec;
+    }
+    function nfRqStatusKeep(sid, rec) {
+        try { sessionStorage.setItem('nfrq1:status:' + sid, JSON.stringify(rec)); } catch (e) {}
+        if (nfRqStatusHeld.sid === sid) nfRqStatusHeld.rec = rec;
+    }
+    function nfRqFresh(rec) {
+        var age = rec ? Date.now() - rec.ts : -1;
+        return age >= 0 && age <= NF_RQ_STATUS_TTL;
+    }
+    function nfRqPermOf(uid) {
+        if (nfRqPermHeld.uid !== uid) {
+            nfRqPermHeld.uid = uid;
+            nfRqPermHeld.v = null;
+            try {
+                var v = sessionStorage.getItem('nfrq1:perm:' + uid);
+                if (v === 'ok' || v === 'no' || v === 'off') nfRqPermHeld.v = v;
+            } catch (e) {}
+        }
+        return nfRqPermHeld.v;
+    }
+    // Also how a real request's own bare 403 makes the refusal stick for the session.
+    // null forgets the answer, so the user is asked again.
+    function nfRqPermKeep(uid, v) {
+        try {
+            if (v) sessionStorage.setItem('nfrq1:perm:' + uid, v);
+            else sessionStorage.removeItem('nfrq1:perm:' + uid);
+        } catch (e) {}
+        if (nfRqPermHeld.uid === uid) nfRqPermHeld.v = v || null;
+    }
+
+    // Whether Requests are there for this user, now. Synchronous and cheap: it runs
+    // on every pass, reads what is known and writes nothing to the page — whatever is
+    // still unknown is asked for (nfRqPrime), and the answer brings its own pass.
+    // Live needs the Status's yes AND this user's permission: offering the entry
+    // before the probe is back would flash it at everyone the bridge refuses.
+    function nfRqLive() {
+        try {
+            var uid = nfRqUser();
+            if (!uid) return false;
+            var rec = nfRqStatusRec();
+            var on = !!(rec && rec.v && rec.v.isConfigured);
+            var perm = on ? nfRqPermOf(uid) : null;
+            // A Status that has grown old keeps its yes while it is asked again: the
+            // entry must not blink off every ten minutes.
+            if (!nfRqFresh(rec) || (on && !perm)) nfRqPrime();
+            return on && !!perm && perm !== 'no';
+        } catch (e) { return false; }
+    }
+
+    // Asks for what is missing, one thing at a time and each at most once: the
+    // Status first (no point probing a bridge with no Seerr behind it), then the
+    // probe. Each answer is followed by a pass, which asks for the next.
+    function nfRqPrime() {
+        try {
+            var uid = nfRqUser();
+            if (!uid) return;
+            var sid = ApiClient.serverId();
+            var rec = nfRqStatusRec();
+            if (!nfRqFresh(rec)) {
+                if (nfRqStatusAsking === sid) return;
+                var was = (rec && rec.v) || null;
+                var asked = ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/Status'));
+                nfRqStatusAsking = sid;
+                var put = function (v, e) {
+                    if (nfRqStatusAsking === sid) nfRqStatusAsking = '';
+                    var r = { ts: Date.now(), v: v };
+                    if (e) r.e = e;
+                    nfRqStatusKeep(sid, r);
+                    // 'off' is the bridge's switch, not the user: the probe could not get
+                    // past it to the allow-list. Once a new Status says requests are on
+                    // again, the user is asked again - once per Status, so never in a loop.
+                    if (v && v.requestSubmissionEnabled && nfRqPermOf(uid) === 'off') nfRqPermKeep(uid, null);
+                    try { applyDynamic(); } catch (e2) {}
+                };
+                asked.then(function (d) {
+                    var ok = !!d && typeof d === 'object';
+                    put(ok ? {
+                        isConfigured: d.isConfigured === true,
+                        requestSubmissionEnabled: d.requestSubmissionEnabled === true,
+                        jellyseerrHost: typeof d.jellyseerrHost === 'string' ? d.jellyseerrHost : null
+                    } : null, ok ? 0 : -1);
+                }, function (r) {
+                    // 404: the bridge is gone (its routes left with a restart this page
+                    // was served before). Anything else (the network, a server still
+                    // starting) keeps what was known, and is asked again after the TTL.
+                    var code = (r && typeof r.status === 'number') ? r.status : -1;
+                    put(code === 404 ? null : was, code);
+                }).then(null, function () { if (nfRqStatusAsking === sid) nfRqStatusAsking = ''; });
+                return;
+            }
+            if (!rec.v || !rec.v.isConfigured || nfRqPermOf(uid) || nfRqPermAsking === uid) return;
+            nfRqPermAsking = uid;
+            nfRqProbe().then(function (v) {
+                if (nfRqPermAsking === uid) nfRqPermAsking = '';
+                nfRqPermKeep(uid, v);
+                try { applyDynamic(); } catch (e) {}
+            }, function () { if (nfRqPermAsking === uid) nfRqPermAsking = ''; });
+        } catch (e) {}
+    }
+
+    // May this user send requests? The bridge (0.1.0.5) checks a request in a fixed
+    // order, and this one is refused by the third check at the latest, so it never
+    // reaches Seerr. All three answers measured on the rig against the real bridge:
+    //  1. submissions switched off: 403 {"message":"Request submission is disabled
+    //     by the Jellyfin administrator."}                                  -> 'off'
+    //  2. not on the bridge's allow-list: 403 with no body at all (Forbid()) -> 'no'
+    //  3. allowed: 400 {"message":"mediaType must be movie or tv."}         -> 'ok'
+    // Any other answer (a future bridge that validates first, a server error, the
+    // network) is a yes: nobody is turned away on a guess, and a real request's own
+    // refusal says so plainly and is then remembered (nfRqPermKeep).
+    function nfRqProbe() {
+        try {
+            return ApiClient.ajax({
+                type: 'POST', url: ApiClient.getUrl('JellyseerrBridge/Request'),
+                data: JSON.stringify({ mediaType: 'probe', mediaId: 0 }),
+                contentType: 'application/json', dataType: 'json'
+            }).then(function () { return 'ok'; }, function (r) {
+                if (!r || r.status !== 403) return 'ok';
+                return nfRqText(r).then(function (t) {
+                    return t === null ? 'ok' : (/\S/.test(t) ? 'off' : 'no');
+                });
+            });
+        } catch (e) { return Promise.resolve('ok'); }
+    }
+
+    // A refusal's body as text, or null when it cannot be read. jellyfin-apiclient
+    // rejects any status from 400 up with the raw Response, its body still unread.
+    function nfRqText(r) {
+        try {
+            if (r && typeof r.text === 'function') {
+                return r.text().then(function (t) { return t == null ? '' : String(t); }, function () { return null; });
+            }
+        } catch (e) {}
+        return Promise.resolve(null);
+    }
+    // The words of a refusal: the bridge's and Seerr's {message}, Seerr's {error},
+    // ASP.NET's ProblemDetails {title}, or else the text itself.
+    function nfRqMessage(t) {
+        try {
+            var j = JSON.parse(t);
+            if (j && typeof j === 'object') return String(j.message || j.error || j.title || '');
+        } catch (e) {}
+        return String(t || '');
+    }
+
+    // Requests may be SENT: the bridge takes them, and takes them from this user.
+    // Browsing works without (a disabled button and one discreet note).
+    function nfRqSubmitOk() {
+        try {
+            var uid = nfRqUser();
+            if (!uid) return false;
+            var rec = nfRqStatusRec();
+            return !!(rec && rec.v && rec.v.requestSubmissionEnabled) && nfRqPermOf(uid) === 'ok';
+        } catch (e) { return false; }
+    }
+
+    // ---- Data: every call goes through ApiClient (base path and token) ----
+    // A GET under the bridge's routes: Search, Discover/<row>, Movie/<id>, Tv/<id>.
+    // A refusal arrives as the raw Response (502 {message} when Seerr cannot be
+    // reached); the caller decides what that means where it is.
+    function nfRqGet(path, params) {
+        try {
+            return ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/' + path, params));
+        } catch (e) { return Promise.reject(e); }
+    }
+
+    // Sends one request and says how it went, as a code. It never rejects, so the
+    // control it came from can always be put right again.
+    function nfRqPost(body) {
+        var out = function (code, id) { return { code: code, id: id > 0 ? id : null }; };
+        try {
+            return ApiClient.ajax({
+                type: 'POST', url: ApiClient.getUrl('JellyseerrBridge/Request'),
+                data: JSON.stringify(body), contentType: 'application/json', dataType: 'json'
+            }).then(function (d) {
+                // ApiClient resolves every status below 400 alike, with the parsed body.
+                // A 201 carries the new request and its id; Seerr's 202 {"message":"No
+                // seasons available to request"} is a success code that asked for NOTHING.
+                // Any other success is an answer nobody here knows.
+                var o = (d && typeof d === 'object') ? d : {};
+                var id = Number(o.id);
+                if (id > 0) return out('requested', id);
+                return out(typeof o.message === 'string' ? 'none' : 'error');
+            }, function (r) {
+                var st = (r && typeof r.status === 'number') ? r.status : 0;
+                // No status: the network failed, or a 2xx body was no JSON at all.
+                if (!st) return out(r && r.name === 'SyntaxError' ? 'error' : 'down');
+                if (st === 409) return out('already');
+                // 500 is the bridge's own when Seerr cannot be reached during a POST (it
+                // looks up Seerr's Radarr/Sonarr defaults outside its error handling);
+                // 502 and 504: not reachable, or too slow.
+                if (st === 500 || st === 502 || st === 504) return out('down');
+                if (st !== 403) return out('error');
+                return nfRqText(r).then(function (t) {
+                    if (t === null) return out('error');
+                    if (!/\S/.test(t)) return out('forbidden');
+                    var m = nfRqMessage(t);
+                    return out(/disabled/i.test(m) ? 'disabled' : (/blocklisted/i.test(m) ? 'blocklisted' : 'error'));
+                });
+            }).then(null, function () { return out('error'); });
+        } catch (e) { return Promise.resolve(out('error')); }
+    }
+
+    // ---- The model of one title ----
+    // Trimmed to what the tiles, the card and the window show, and safe to keep in
+    // sessionStorage. Seerr's own statuses: 1 unknown, 2 pending, 3 processing (its
+    // UI and ours say "Requested"), 4 partly available, 5 available, 6 blocklisted,
+    // 7 deleted. A title Seerr has never seen has no mediaInfo, and is requestable.
+    var NF_RQ_PATH = /^\/[A-Za-z0-9._-]+$/;
+    function nfRqPath(p) { return (typeof p === 'string' && NF_RQ_PATH.test(p)) ? p : ''; }
+    // null for a person or a collection (search and trending mix them in), for a
+    // blocklisted title (hidden, as Seerr hides it) and for an id that is no TMDB id.
+    function nfRqModel(r) {
+        try {
+            if (!r || typeof r !== 'object') return null;
+            // The details (Movie/<id>, Tv/<id>) carry no mediaType: their shape says it.
+            var mt = r.mediaType || (r.firstAirDate !== undefined || r.numberOfSeasons !== undefined ? 'tv'
+                : (r.releaseDate !== undefined || r.runtime !== undefined ? 'movie' : ''));
+            if (mt !== 'movie' && mt !== 'tv') return null;
+            var id = Number(r.id);
+            if (!(id > 0) || Math.floor(id) !== id) return null;
+            var mi = r.mediaInfo;
+            // Seerr's trending list pairs its records with titles by TMDB id alone, and
+            // a film and a series can share one: a record of the other kind is not this
+            // title's, and would offer someone else's film to play.
+            if (!mi || typeof mi !== 'object' || (mi.mediaType && mi.mediaType !== mt)) mi = null;
+            var st = mi ? Number(mi.status) : 1;
+            if (st === 6) return null;
+            if (!(st >= 1 && st <= 7) || Math.floor(st) !== st) st = 1;
+            var date = String((mt === 'movie' ? r.releaseDate : r.firstAirDate) || '');
+            var y = /^(\d{4})/.exec(date);
+            var g = Array.isArray(r.genreIds) ? r.genreIds
+                : (Array.isArray(r.genres) ? r.genres.map(function (x) { return x && x.id; }) : []);
+            // The Jellyfin item id, as Jellyfin writes it (32 hex digits): it goes into
+            // the details route and data-id, so nothing else gets through.
+            var jf = (mi && typeof mi.jellyfinMediaId === 'string') ? mi.jellyfinMediaId.replace(/-/g, '').toLowerCase() : '';
+            var vote = Number(r.voteAverage);
+            return {
+                key: mt + ':' + id, id: id, mt: mt,
+                title: String((mt === 'movie' ? (r.title || r.originalTitle) : (r.name || r.originalName)) || ''),
+                year: y ? parseInt(y[1], 10) : null,
+                date: date,
+                overview: typeof r.overview === 'string' ? r.overview : '',
+                vote: (vote >= 0 && vote <= 10) ? vote : 0,
+                votes: Math.max(0, parseInt(r.voteCount, 10) || 0),
+                poster: nfRqPath(r.posterPath),
+                backdrop: nfRqPath(r.backdropPath),
+                genres: g.filter(function (x) { return typeof x === 'number' && x > 0; }),
+                status: st,
+                jf: /^[0-9a-f]{32}$/.test(jf) ? jf : null,
+                dl: !!(mi && mi.downloadStatus && mi.downloadStatus.length > 0)
+            };
+        } catch (e) { return null; }
+    }
+
+    // TMDB artwork at the device's pixel density (nfW's rule: capped at 2x), on
+    // TMDB's own size ladder; above its top rung only 'original' is bigger. The bridge
+    // cannot proxy images, so the device loads them from TMDB itself.
+    var NF_RQ_POSTER_W = [185, 342, 500, 780];
+    var NF_RQ_BACKDROP_W = [300, 780, 1280];
+    function nfRqImg(path, kind, cssPx) {
+        try {
+            if (typeof path !== 'string' || !NF_RQ_PATH.test(path)) return '';
+            var rungs = kind === 'poster' ? NF_RQ_POSTER_W : NF_RQ_BACKDROP_W;
+            var want = (Number(cssPx) || 0) * Math.min(window.devicePixelRatio || 1, 2);
+            var size = 'original';
+            for (var i = 0; i < rungs.length; i++) { if (rungs[i] >= want) { size = 'w' + rungs[i]; break; } }
+            return 'https://image.tmdb.org/t/p/' + size + path;
+        } catch (e) { return ''; }
+    }
+
+    // A title's state as the tiles and the window show it. 7 (deleted) can be asked
+    // for again; 6 (blocklisted) never gets this far (nfRqModel).
+    function nfRqState(m) {
+        try {
+            var s = m ? m.status : 0;
+            return s === 2 ? 'pending' : s === 3 ? 'requested' : s === 4 ? 'partial' : s === 5 ? 'available' : 'request';
+        } catch (e) { return 'request'; }
+    }
+
+    // TMDB's genre ids, as Seerr names them (its Discover constants): the lists carry
+    // ids only, the names come with the details alone.
+    var NF_RQ_GENRES = {
+        28: ['Action', 'Action'], 12: ['Adventure', 'Abenteuer'], 16: ['Animation', 'Animation'],
+        35: ['Comedy', 'Komödie'], 80: ['Crime', 'Krimi'], 99: ['Documentary', 'Dokumentarfilm'],
+        18: ['Drama', 'Drama'], 10751: ['Family', 'Familie'], 14: ['Fantasy', 'Fantasy'],
+        36: ['History', 'Historie'], 27: ['Horror', 'Horror'], 10402: ['Music', 'Musik'],
+        9648: ['Mystery', 'Mystery'], 10749: ['Romance', 'Liebesfilm'], 878: ['Science Fiction', 'Science-Fiction'],
+        10770: ['TV Movie', 'TV-Film'], 53: ['Thriller', 'Thriller'], 10752: ['War', 'Kriegsfilm'],
+        37: ['Western', 'Western'], 10759: ['Action & Adventure', 'Action & Abenteuer'], 10762: ['Kids', 'Kinder'],
+        10763: ['News', 'Nachrichten'], 10764: ['Reality', 'Reality'], 10765: ['Sci-Fi & Fantasy', 'Sci-Fi & Fantasy'],
+        10766: ['Soap', 'Soap'], 10767: ['Talk', 'Talk'], 10768: ['War & Politics', 'Krieg & Politik']
+    };
+    function nfRqGenre(id) {
+        try {
+            var g = Object.prototype.hasOwnProperty.call(NF_RQ_GENRES, id) ? NF_RQ_GENRES[id] : null;
+            return g ? g[nfL() === LOCALES.de ? 1 : 0] : '';
+        } catch (e) { return ''; }
     }
 
     function init() {
