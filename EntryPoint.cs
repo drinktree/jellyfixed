@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Common.Plugins;
 using MediaBrowser.Controller;
 using MediaBrowser.Model.Branding;
 using MediaBrowser.Model.Plugins;
@@ -36,22 +37,31 @@ namespace Jellyfin.Plugin.CustomTheme
         private readonly IConfigurationManager _configManager;
         private readonly IServerApplicationHost _appHost;
         private readonly IApplicationPaths _appPaths;
+        private readonly IPluginManager _pluginManager;
         private readonly ILogger<EntryPoint> _logger;
         private readonly IdentItem _ident;
         private readonly CancellationTokenSource _stopping = new();
         private bool _ftRegistered;
 
-        public EntryPoint(IConfigurationManager configManager, IServerApplicationHost appHost, IApplicationPaths appPaths, ILogger<EntryPoint> logger, IdentItem ident)
+        public EntryPoint(IConfigurationManager configManager, IServerApplicationHost appHost, IApplicationPaths appPaths, IPluginManager pluginManager, ILogger<EntryPoint> logger, IdentItem ident)
         {
             _configManager = configManager;
             _appHost = appHost;
             _appPaths = appPaths;
+            _pluginManager = pluginManager;
             _logger = logger;
             _ident = ident;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            // First of all: whether the Jellyseerr Bridge is loaded goes into every page
+            // (the requests flag in its config, the bridge's own loader left out), and
+            // the copy of index.html on disk is written below. The plugins are made
+            // before this service starts, and their routes stay as they are until the
+            // next restart, which looks again.
+            SeerrBridge.Detect(_pluginManager, _logger);
+
             ApplyCss();
 
             // Resolve index.html once so the middleware can serve it directly (read + inject

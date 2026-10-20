@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.CustomTheme
@@ -40,6 +41,17 @@ namespace Jellyfin.Plugin.CustomTheme
             "(?<open><meta\\b[^>]*\\bname\\s*=\\s*\"application-name\"[^>]*\\bcontent\\s*=\\s*\")[^\"]*(?<close>\")",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+        // The Jellyseerr Bridge's web loader: the marked block its install-web-loader.sh
+        // writes into index.html, and the bare tag its WEB_LOADER.md has you add by hand
+        // (under any base path; letter case is ignored, as it is in tag names and routes).
+        private static readonly Regex BridgeLoaderBlock = new(
+            Regex.Escape("<!-- Jellyseerr Bridge web loader: start -->") + ".*?" + Regex.Escape("<!-- Jellyseerr Bridge web loader: end -->") + "\\s*",
+            RegexOptions.Singleline | RegexOptions.Compiled);
+
+        private static readonly Regex BridgeLoaderTag = new(
+            "<script\\b[^>]*JellyseerrBridge/Assets/request-entry\\.js[^>]*>\\s*</script>\\s*",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
         private static string? _cachedScript;
 
         /// <summary>File Transformation callback: receives the current file, returns the modified file.</summary>
@@ -56,7 +68,8 @@ namespace Jellyfin.Plugin.CustomTheme
         /// when the plugin is disabled, and then points at addresses nobody answers —
         /// so the brand's head goes into it only where the file is the one carrier
         /// (injection at serve time switched off), and Jellyfin's own tags are never
-        /// taken out of it.
+        /// taken out of it — nor another plugin's (<see cref="StripBridgeLoader"/>
+        /// works on served pages only).
         /// </summary>
         public static string InjectInto(string html, bool brand = true, bool replaceStock = true)
         {
@@ -97,6 +110,13 @@ namespace Jellyfin.Plugin.CustomTheme
                 html = InjectBrandHead(html, cfg, replaceStock);
             }
 
+            // A page that is served while the theme offers requests itself carries the
+            // theme's entry for them, not the bridge's loader as well.
+            if (replaceStock && (cfg?.SeerrRequests ?? false) && SeerrBridge.Version != null)
+            {
+                html = StripBridgeLoader(html);
+            }
+
             // The version attribute changes index.html's bytes on every plugin update, so its
             // ETag changes and browsers refetch instead of serving a stale cached page.
             return html.Replace("</body>", $"<script id=\"{Marker}\" data-ct-version=\"{Version}\">\nwindow.__ctConfig = {configJson};\n{script}\n</script>\n</body>", StringComparison.OrdinalIgnoreCase);
@@ -134,6 +154,23 @@ namespace Jellyfin.Plugin.CustomTheme
             if (IdentItem.Wanted(cfg))
             {
                 node["IdentItem"] = IdentItem.Id.ToString("N");
+            }
+
+            // Whether the page may offer requests: the version of the Jellyseerr Bridge
+            // that was loaded at start-up, present only while the option is on (the
+            // script reads it with nfBoot). That it is there is all the page learns —
+            // nothing of the bridge's settings. Its own try: a fault here must not
+            // cost the page the rest of its configuration.
+            try
+            {
+                if (cfg.SeerrRequests && SeerrBridge.Version is { } v)
+                {
+                    node["SeerrBridge"] = v;
+                }
+            }
+            catch
+            {
+                // the page offers no requests
             }
 
             return node.ToJsonString();
@@ -221,6 +258,34 @@ namespace Jellyfin.Plugin.CustomTheme
             return html;
         }
 
+        /// <summary>
+        /// Takes the Jellyseerr Bridge's web loader out of a page that is about to be
+        /// served — while the theme offers requests itself, the loader would only add a
+        /// second entry: in English (it looks for English labels, and on any other
+        /// interface finds none), leaving the app for a page of its own, and watching
+        /// the whole document every second for as long as the page is open. Served
+        /// pages only: the copy on disk is the bridge's install script's to clean up
+        /// (it looks for its own lines), and with the option off or the bridge gone the
+        /// loader is simply served again. Returns the page unchanged if anything fails,
+        /// because a throw here would cost the page the theme.
+        /// </summary>
+        internal static string StripBridgeLoader(string html)
+        {
+            if (string.IsNullOrEmpty(html) || html.IndexOf("Jellyseerr", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return html;
+            }
+
+            try
+            {
+                return BridgeLoaderTag.Replace(BridgeLoaderBlock.Replace(html, string.Empty), string.Empty);
+            }
+            catch
+            {
+                return html;
+            }
+        }
+
         private static string LoadScript()
         {
             if (_cachedScript != null)
@@ -237,8 +302,45 @@ namespace Jellyfin.Plugin.CustomTheme
             }
 
             using var reader = new StreamReader(stream);
-            _cachedScript = reader.ReadToEnd();
+            _cachedScript = StripLineComments(reader.ReadToEnd());
             return _cachedScript;
+        }
+
+        /// <summary>
+        /// The script as pages get it: without the lines that hold nothing but a //
+        /// comment, and without blank lines. It goes into index.html whole and
+        /// uncompressed on every load that is not a 304, and over a third of it is
+        /// notes for whoever edits it. Only line comments are safe to drop line by
+        /// line: inside a block comment a line that starts with // is just text, and
+        /// code may follow the comment's end on it. So a "/*" anywhere, even inside a
+        /// string, leaves the text exactly as it is. A comment after code on the same
+        /// line stays.
+        /// </summary>
+        internal static string StripLineComments(string js)
+        {
+            if (string.IsNullOrEmpty(js) || js.Contains("/*", StringComparison.Ordinal))
+            {
+                return js;
+            }
+
+            var kept = new StringBuilder(js.Length);
+            foreach (var line in js.Split('\n'))
+            {
+                var start = line.TrimStart();
+                if (start.Length == 0 || start.StartsWith("//", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (kept.Length > 0)
+                {
+                    kept.Append('\n');
+                }
+
+                kept.Append(line);
+            }
+
+            return kept.ToString();
         }
     }
 }

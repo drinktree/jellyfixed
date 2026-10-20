@@ -221,5 +221,17 @@ namespace Jellyfin.Plugin.CustomTheme
         /// there the theme alone decides.
         /// </summary>
         public bool IdentApps { get; set; } = true;
+
+        // --- Requests (Seerr, through the Jellyseerr Bridge plugin) ---
+        /// <summary>
+        /// Requests inside the app: films and series that are not in the library can be
+        /// found and requested without leaving Jellyfin, in the theme's own look. They
+        /// go to Seerr through the Jellyseerr Bridge plugin. On by default, because it
+        /// only acts when that plugin is loaded (<see cref="SeerrBridge"/>) — without
+        /// it nothing changes. While it acts, a web loader that the bridge's install
+        /// script wrote into index.html is left out of every page that is served (the
+        /// theme draws the entry itself); the file on disk keeps it.
+        /// </summary>
+        public bool SeerrRequests { get; set; } = true;
     }
 }
