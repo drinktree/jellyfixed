@@ -44,13 +44,22 @@ namespace Jellyfin.Plugin.CustomTheme
         // The Jellyseerr Bridge's web loader: the marked block its install-web-loader.sh
         // writes into index.html, and the bare tag its WEB_LOADER.md has you add by hand
         // (under any base path; letter case is ignored, as it is in tag names and routes).
+        private const string BridgeStart = "<!-- Jellyseerr Bridge web loader: start -->";
+        private const string BridgeEnd = "<!-- Jellyseerr Bridge web loader: end -->";
+
+        // The block exactly as install-web-loader.sh writes it.
+        private const string InstalledLoader = BridgeStart + "\n<script defer src=\"/JellyseerrBridge/Assets/request-entry.js\"></script>\n" + BridgeEnd;
+
         private static readonly Regex BridgeLoaderBlock = new(
-            Regex.Escape("<!-- Jellyseerr Bridge web loader: start -->") + ".*?" + Regex.Escape("<!-- Jellyseerr Bridge web loader: end -->") + "\\s*",
+            Regex.Escape(BridgeStart) + ".*?" + Regex.Escape(BridgeEnd) + "\\s*",
             RegexOptions.Singleline | RegexOptions.Compiled);
 
         private static readonly Regex BridgeLoaderTag = new(
             "<script\\b[^>]*JellyseerrBridge/Assets/request-entry\\.js[^>]*>\\s*</script>\\s*",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        // The start tag of our own script element, as InjectInto writes it.
+        private static readonly Regex OwnScriptStart = new("<script id=\"" + Marker + "\"[^>]*>", RegexOptions.Compiled);
 
         private static string? _cachedScript;
 
@@ -117,9 +126,18 @@ namespace Jellyfin.Plugin.CustomTheme
                 html = StripBridgeLoader(html);
             }
 
+            // Before the LAST </body>, the document's own. An earlier mention of the tag — in a
+            // comment or a string of another inline script, as in the 3.3.x script itself — must
+            // not get a copy: a copy inside another script cuts that one open.
+            var bodyEnd = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+            if (bodyEnd < 0)
+            {
+                return html;
+            }
+
             // The version attribute changes index.html's bytes on every plugin update, so its
             // ETag changes and browsers refetch instead of serving a stale cached page.
-            return html.Replace("</body>", $"<script id=\"{Marker}\" data-ct-version=\"{Version}\">\nwindow.__ctConfig = {configJson};\n{script}\n</script>\n</body>", StringComparison.OrdinalIgnoreCase);
+            return html.Insert(bodyEnd, $"<script id=\"{Marker}\" data-ct-version=\"{Version}\">\nwindow.__ctConfig = {configJson};\n{script}\n</script>\n");
         }
 
         private static string Version =>
@@ -238,7 +256,12 @@ namespace Jellyfin.Plugin.CustomTheme
             return html.Insert(head, block).Replace(StockTitle, VillaTitle, StringComparison.Ordinal);
         }
 
-        /// <summary>Removes any previously injected script (ours or from older versions) so injection stays single.</summary>
+        /// <summary>
+        /// Removes any previously injected script (ours or from older versions) so injection
+        /// stays single. A Jellyseerr Bridge loader that sits inside our script is moved out of
+        /// it, never removed (<see cref="LiftBridgeLoaders"/>), and what 3.3.x left of such a
+        /// script is cleared away (<see cref="DropCutOpenScript"/>).
+        /// </summary>
         public static string StripInjected(string html)
         {
             if (string.IsNullOrEmpty(html))
@@ -246,7 +269,11 @@ namespace Jellyfin.Plugin.CustomTheme
                 return html;
             }
 
+            var loaders = new List<string>();
+            html = LiftBridgeLoaders(html, loaders);
+
             html = Regex.Replace(html, "<script id=\"" + Marker + "\"[^>]*>.*?</script>\\s*", string.Empty, RegexOptions.Singleline);
+            html = DropCutOpenScript(html, loaders);
             if (html.Contains(BrandStart, StringComparison.Ordinal))
             {
                 html = Regex.Replace(html, Regex.Escape(BrandStart) + ".*?" + Regex.Escape(BrandEnd), string.Empty, RegexOptions.Singleline);
@@ -255,7 +282,161 @@ namespace Jellyfin.Plugin.CustomTheme
 
             html = html.Replace("<!-- Custom Theme -->", string.Empty, StringComparison.Ordinal);
             html = Regex.Replace(html, "<script[^>]*custom-theme-headerjs[^>]*>\\s*</script>\\s*", string.Empty, RegexOptions.Singleline | RegexOptions.IgnoreCase);
-            return html;
+            return PutBackBridgeLoaders(html, loaders);
+        }
+
+        /// <summary>
+        /// Takes a Jellyseerr Bridge loader out of our own script element. That is where the
+        /// bridge's install-web-loader.sh puts it in a copy that 3.3.x wrote to disk: it inserts
+        /// its block before the first LINE that holds "&lt;/body&gt;", and two comment lines of
+        /// that script mention the tag. A browser then ends our script at the loader's
+        /// &lt;/script&gt; and shows the rest of it as text — and the expression that takes our
+        /// script out (it ends at the first &lt;/script&gt;, too) could not take it out whole.
+        /// So every loader between the start of one of our scripts and that script's first
+        /// &lt;/script&gt; is cut out first and handed to <see cref="PutBackBridgeLoaders"/>.
+        /// Returns the page unchanged if anything fails.
+        /// </summary>
+        private static string LiftBridgeLoaders(string html, List<string> loaders)
+        {
+            if (html.IndexOf("Jellyseerr", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return html;
+            }
+
+            var original = html;
+            try
+            {
+                var found = new List<string>();
+                var at = 0;
+                for (var guard = 0; guard < 64; guard++)
+                {
+                    var own = OwnScriptStart.Match(html, at);
+                    if (!own.Success)
+                    {
+                        break;
+                    }
+
+                    var from = own.Index + own.Length;
+                    var close = html.IndexOf("</script", from, StringComparison.OrdinalIgnoreCase);
+                    var loader = FirstBridgeLoader(html, from);
+                    if (close < 0 || loader is null || loader.Index >= close)
+                    {
+                        // This one is whole: on to the next.
+                        at = close < 0 ? html.Length : close;
+                        continue;
+                    }
+
+                    found.Add(loader.Value.Trim());
+                    html = html.Remove(loader.Index, loader.Length);
+                }
+
+                loaders.AddRange(found);
+                return html;
+            }
+            catch
+            {
+                return original;
+            }
+        }
+
+        /// <summary>The bridge loader, block or bare tag, that starts first at or after <paramref name="from"/>.</summary>
+        private static Match? FirstBridgeLoader(string html, int from)
+        {
+            var block = BridgeLoaderBlock.Match(html, from);
+            var tag = BridgeLoaderTag.Match(html, from);
+            if (!block.Success)
+            {
+                return tag.Success ? tag : null;
+            }
+
+            return tag.Success && tag.Index < block.Index ? tag : block;
+        }
+
+        /// <summary>
+        /// What 3.3.x made of its script at its next start when the installer had put the loader
+        /// inside it (see <see cref="LiftBridgeLoaders"/>): it took the script out only up to the
+        /// loader's &lt;/script&gt;, the loader's start marker and tag going with it, and left the
+        /// rest — from the loader's end marker to the script's own &lt;/script&gt; — as text in
+        /// the page. The end marker even landed on the line our script had started on, which
+        /// in jellyfin-web's one-line index.html is the line with the whole &lt;head&gt;: the
+        /// bridge's uninstall script deletes that line. (It also put a copy of its script before
+        /// every "&lt;/body&gt;" in that rest; those are gone by now, being ours.) That rest is
+        /// known by an end marker with no start before it, followed by a &lt;/script&gt; that
+        /// closes no script: it is taken out, and the loader the installer wrote is handed to
+        /// <see cref="PutBackBridgeLoaders"/>. Returns the page unchanged if anything fails.
+        /// </summary>
+        private static string DropCutOpenScript(string html, List<string> loaders)
+        {
+            var end = html.IndexOf(BridgeEnd, StringComparison.Ordinal);
+            if (end < 0)
+            {
+                return html;
+            }
+
+            try
+            {
+                var start = html.IndexOf(BridgeStart, StringComparison.Ordinal);
+                if (start >= 0 && start < end)
+                {
+                    return html;
+                }
+
+                var close = html.IndexOf("</script>", end, StringComparison.OrdinalIgnoreCase);
+                if (close < 0 || html.IndexOf("<script", end, close - end, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return html;
+                }
+
+                var stop = close + "</script>".Length;
+                while (stop < html.Length && char.IsWhiteSpace(html[stop]))
+                {
+                    stop++;
+                }
+
+                loaders.Add(InstalledLoader);
+                return html.Remove(end, stop - end);
+            }
+            catch
+            {
+                return html;
+            }
+        }
+
+        /// <summary>
+        /// Puts the loaders taken out of our script back where their installer meant them: on
+        /// lines of their own, right before the last "&lt;/body&gt;". The bridge's uninstall
+        /// script deletes whole lines, so a loader must never share one with anything else. A
+        /// loader the page already holds as it is is not added a second time. Moved, never
+        /// removed: a served page loses it only to <see cref="StripBridgeLoader"/>.
+        /// </summary>
+        private static string PutBackBridgeLoaders(string html, List<string> loaders)
+        {
+            if (loaders.Count == 0)
+            {
+                return html;
+            }
+
+            var text = new StringBuilder();
+            foreach (var loader in loaders.Distinct(StringComparer.Ordinal))
+            {
+                if (!html.Contains(loader, StringComparison.Ordinal))
+                {
+                    text.Append(loader).Append('\n');
+                }
+            }
+
+            if (text.Length == 0)
+            {
+                return html;
+            }
+
+            var bodyEnd = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+            if (bodyEnd < 0)
+            {
+                return html + (html.EndsWith('\n') ? string.Empty : "\n") + text;
+            }
+
+            return html.Insert(bodyEnd, (bodyEnd > 0 && html[bodyEnd - 1] != '\n' ? "\n" : string.Empty) + text);
         }
 
         /// <summary>
@@ -310,15 +491,23 @@ namespace Jellyfin.Plugin.CustomTheme
         /// The script as pages get it: without the lines that hold nothing but a //
         /// comment, and without blank lines. It goes into index.html whole and
         /// uncompressed on every load that is not a 304, and over a third of it is
-        /// notes for whoever edits it. Only line comments are safe to drop line by
-        /// line: inside a block comment a line that starts with // is just text, and
-        /// code may follow the comment's end on it. So a "/*" anywhere, even inside a
-        /// string, leaves the text exactly as it is. A comment after code on the same
-        /// line stays.
+        /// notes for whoever edits it. Only a line comment is safe to drop line by line,
+        /// and only where the line is a line to JavaScript as well. So the text is used
+        /// exactly as it is when it holds a "/*" anywhere, even inside a string (in a
+        /// block comment a line that starts with // is just text, and code may follow
+        /// the comment's end on it), a backslash right before a line break (a string
+        /// that goes on over the next line, which may start with //), or a U+2028 or
+        /// U+2029 (line breaks to JavaScript but not to this split, so code could
+        /// follow one on a comment line). A comment after code on the same line stays.
         /// </summary>
         internal static string StripLineComments(string js)
         {
-            if (string.IsNullOrEmpty(js) || js.Contains("/*", StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(js)
+                || js.Contains("/*", StringComparison.Ordinal)
+                || js.Contains("\\\n", StringComparison.Ordinal)
+                || js.Contains("\\\r", StringComparison.Ordinal)
+                || js.IndexOf('\u2028') >= 0
+                || js.IndexOf('\u2029') >= 0)
             {
                 return js;
             }
