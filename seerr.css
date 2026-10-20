@@ -26,14 +26,32 @@
    after <head>, where the loader appends - but that is jellyfin-web's to change),
    and an !important tie goes to the later rule. `html ` in front lifts each
    selector to (0,1,1): above anything the loader sets, in either order. The
-   selectors name the loader's own classes and attribute, so they hit the entry
+   selectors name the loader's own classes and attribute, so they MATCH the entry
    whichever stock classes it copied onto it (navMenuOption, emby-tab-button,
-   MuiButton-root ...).
+   MuiButton-root ...). Winning against the theme's own rules for those stock
+   classes is another matter: see the rule after this one.
 
    The only !important display this file may carry is none: these entries are
    never meant to show, so there is no .hide-style toggle for them to override. */
 html .jellyseerr-bridge-request-tab,
 html [data-jellyseerr-bridge="request-tab"],
 html .jellyseerr-bridge-request-menu-item {
+    display: none !important;
+}
+
+/* The loader puts its tab into the header's tab strip and copies the classes of the
+   stock tab it sits next to, so it IS an `.emby-tab-button` inside `.headerTabs`,
+   and the theme styles those: netflix.css gives every
+   `.headerTabs .emby-tab-button:not(.hide)` an !important inline-flex display (tab
+   height and alignment), in two blocks - the phone block, @media (max-width: 768px),
+   and the touch block, @media (hover: none). At (0,3,0) that is above the rule
+   before this one, whichever sheet comes later: without the rule below, the loader's
+   tab shows on a phone, on a tablet and in a narrow window. Its two selectors mirror
+   the theme's and add the loader's own class, or its attribute: (0,3,1), one type
+   selector above it. If netflix.css ever grows another visible-display rule that
+   reaches one of these entries, the harness's css_checks.mjs (check C5) fails until
+   the rules here out-specify it. */
+html .headerTabs .emby-tab-button.jellyseerr-bridge-request-tab,
+html .headerTabs .emby-tab-button[data-jellyseerr-bridge="request-tab"] {
     display: none !important;
 }
