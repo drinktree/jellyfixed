@@ -4696,6 +4696,12 @@
     // answers are in, and whenever there is a doubt about who is asking, Requests
     // are simply not there: the page is stock.
     var NF_RQ_STATUS_TTL = 10 * 60 * 1000;
+    // A failed Status other than a 404 (the network not up yet, a server still
+    // starting) is asked again after a minute, not after ten: a hiccup at the first
+    // load must not hide Requests for that long. A 404 means the bridge is gone, and
+    // keeps the full TTL. The retry rides on the next pass — no timer of its own, so
+    // a page that sits idle asks nothing.
+    var NF_RQ_RETRY_TTL = 60 * 1000;
     // In memory as well as in sessionStorage: nfRqLive runs on every pass, and a
     // storage read plus a JSON.parse per mutation frame is exactly the kind of cost
     // this file keeps off the home page. Storage is read once per server, once per user.
@@ -4739,7 +4745,7 @@
     }
     function nfRqFresh(rec) {
         var age = rec ? Date.now() - rec.ts : -1;
-        return age >= 0 && age <= NF_RQ_STATUS_TTL;
+        return age >= 0 && age <= (rec.e && rec.e !== 404 ? NF_RQ_RETRY_TTL : NF_RQ_STATUS_TTL);
     }
     function nfRqPermOf(uid) {
         if (nfRqPermHeld.uid !== uid) {
@@ -4800,23 +4806,27 @@
                     var r = { ts: Date.now(), v: v };
                     if (e) r.e = e;
                     nfRqStatusKeep(sid, r);
-                    // 'off' is the bridge's switch, not the user: the probe could not get
-                    // past it to the allow-list. Once a new Status says requests are on
-                    // again, the user is asked again - once per Status, so never in a loop.
-                    if (v && v.requestSubmissionEnabled && nfRqPermOf(uid) === 'off') nfRqPermKeep(uid, null);
                     try { applyDynamic(); } catch (e2) {}
                 };
                 asked.then(function (d) {
                     var ok = !!d && typeof d === 'object';
-                    put(ok ? {
+                    var v = ok ? {
                         isConfigured: d.isConfigured === true,
                         requestSubmissionEnabled: d.requestSubmissionEnabled === true,
                         jellyseerrHost: typeof d.jellyseerrHost === 'string' ? d.jellyseerrHost : null
-                    } : null, ok ? 0 : -1);
+                    } : null;
+                    // 'off' is the bridge's switch, not the user: the probe could not get
+                    // past it to the allow-list. Once a Status fetched just now says
+                    // requests are on again, the user is asked again: once per Status, so
+                    // never in a loop. A failed refresh (below) says nothing new about the
+                    // switch, and leaves 'off' alone.
+                    if (v && v.requestSubmissionEnabled && nfRqPermOf(uid) === 'off') nfRqPermKeep(uid, null);
+                    put(v, ok ? 0 : -1);
                 }, function (r) {
                     // 404: the bridge is gone (its routes left with a restart this page
                     // was served before). Anything else (the network, a server still
-                    // starting) keeps what was known, and is asked again after the TTL.
+                    // starting) keeps what was known, and is asked again after a minute
+                    // (NF_RQ_RETRY_TTL).
                     var code = (r && typeof r.status === 'number') ? r.status : -1;
                     put(code === 404 ? null : was, code);
                 }).then(null, function () { if (nfRqStatusAsking === sid) nfRqStatusAsking = ''; });
@@ -4839,9 +4849,12 @@
     //     by the Jellyfin administrator."}                                  -> 'off'
     //  2. not on the bridge's allow-list: 403 with no body at all (Forbid()) -> 'no'
     //  3. allowed: 400 {"message":"mediaType must be movie or tv."}         -> 'ok'
-    // Any other answer (a future bridge that validates first, a server error, the
-    // network) is a yes: nobody is turned away on a guess, and a real request's own
-    // refusal says so plainly and is then remembered (nfRqPermKeep).
+    // A 403 is 'off' only when its message says "disabled": the same test a real
+    // request's refusal gets (nfRqPost). Any other 403, with a body or without, is a
+    // refusal of the user. An answer that is no 403 at all (a future bridge that
+    // validates first, a server error, the network) is a yes: nobody is turned away
+    // on a guess, and a real request's own refusal says so plainly and is then
+    // remembered (nfRqPermKeep).
     function nfRqProbe() {
         try {
             return ApiClient.ajax({
@@ -4851,7 +4864,7 @@
             }).then(function () { return 'ok'; }, function (r) {
                 if (!r || r.status !== 403) return 'ok';
                 return nfRqText(r).then(function (t) {
-                    return t === null ? 'ok' : (/\S/.test(t) ? 'off' : 'no');
+                    return /disabled/i.test(nfRqMessage(t)) ? 'off' : 'no';
                 });
             });
         } catch (e) { return Promise.resolve('ok'); }
