@@ -282,7 +282,84 @@ namespace Jellyfin.Plugin.CustomTheme
 
             html = html.Replace("<!-- Custom Theme -->", string.Empty, StringComparison.Ordinal);
             html = Regex.Replace(html, "<script[^>]*custom-theme-headerjs[^>]*>\\s*</script>\\s*", string.Empty, RegexOptions.Singleline | RegexOptions.IgnoreCase);
-            return PutBackBridgeLoaders(html, loaders);
+            return KeepBridgeLoadersOnOwnLines(PutBackBridgeLoaders(html, loaders));
+        }
+
+        /// <summary>
+        /// Gives every bridge loader in the page lines of its own. The bridge's uninstall script
+        /// deletes whole lines — from the start marker's line to the end marker's, and every
+        /// line with the loader's address — so whatever shares such a line goes with it. And
+        /// taking our script out joins the line after it to the line it started on, which in
+        /// jellyfin-web's one-line index.html is the line with the whole &lt;head&gt;: a loader
+        /// that followed our script (where the installer puts it in a copy this version wrote)
+        /// would take the head with it, and one typed right before "&lt;/body&gt;" would share
+        /// its line with our next script's start tag. A page without a loader comes back as it
+        /// was, and so does one whose loaders are already on lines of their own. Returns the
+        /// page unchanged if anything fails.
+        /// </summary>
+        private static string KeepBridgeLoadersOnOwnLines(string html)
+        {
+            if (html.IndexOf("Jellyseerr", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return html;
+            }
+
+            var original = html;
+            try
+            {
+                var at = 0;
+                for (var guard = 0; guard < 64; guard++)
+                {
+                    var loader = FirstBridgeLoader(html, at);
+                    if (loader is null)
+                    {
+                        break;
+                    }
+
+                    var start = loader.Index;
+                    var end = start + loader.Value.TrimEnd().Length;
+                    if (!AtLineStart(html, start))
+                    {
+                        html = html.Insert(start, "\n");
+                        end++;
+                    }
+
+                    if (!AtLineEnd(html, end))
+                    {
+                        html = html.Insert(end, "\n");
+                    }
+
+                    at = end;
+                }
+
+                return html;
+            }
+            catch
+            {
+                return original;
+            }
+        }
+
+        // Whether only spaces or tabs stand between i and the start of its line.
+        private static bool AtLineStart(string s, int i)
+        {
+            while (i > 0 && (s[i - 1] == ' ' || s[i - 1] == '\t'))
+            {
+                i--;
+            }
+
+            return i == 0 || s[i - 1] == '\n';
+        }
+
+        // Whether only spaces, tabs or a CR stand between i and the end of its line.
+        private static bool AtLineEnd(string s, int i)
+        {
+            while (i < s.Length && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r'))
+            {
+                i++;
+            }
+
+            return i == s.Length || s[i] == '\n';
         }
 
         /// <summary>
@@ -496,9 +573,10 @@ namespace Jellyfin.Plugin.CustomTheme
         /// exactly as it is when it holds a "/*" anywhere, even inside a string (in a
         /// block comment a line that starts with // is just text, and code may follow
         /// the comment's end on it), a backslash right before a line break (a string
-        /// that goes on over the next line, which may start with //), or a U+2028 or
-        /// U+2029 (line breaks to JavaScript but not to this split, so code could
-        /// follow one on a comment line). A comment after code on the same line stays.
+        /// that goes on over the next line, which may start with //), or a U+2028, a
+        /// U+2029 or a CR without an LF after it (line breaks to JavaScript but not to
+        /// this split, so code could follow one on a comment line). A comment after
+        /// code on the same line stays.
         /// </summary>
         internal static string StripLineComments(string js)
         {
@@ -507,7 +585,8 @@ namespace Jellyfin.Plugin.CustomTheme
                 || js.Contains("\\\n", StringComparison.Ordinal)
                 || js.Contains("\\\r", StringComparison.Ordinal)
                 || js.IndexOf('\u2028') >= 0
-                || js.IndexOf('\u2029') >= 0)
+                || js.IndexOf('\u2029') >= 0
+                || HasLoneCr(js))
             {
                 return js;
             }
@@ -530,6 +609,20 @@ namespace Jellyfin.Plugin.CustomTheme
             }
 
             return kept.ToString();
+        }
+
+        // Whether a CR stands anywhere without an LF right after it.
+        private static bool HasLoneCr(string js)
+        {
+            for (var i = js.IndexOf('\r'); i >= 0; i = js.IndexOf('\r', i + 1))
+            {
+                if (i + 1 >= js.Length || js[i + 1] != '\n')
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
