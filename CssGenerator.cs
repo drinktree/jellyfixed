@@ -23,6 +23,9 @@ namespace Jellyfin.Plugin.CustomTheme
     {
         private const string BaseResource = "Jellyfin.Plugin.CustomTheme.netflix.css";
 
+        /// <summary>The requests feature's own stylesheet, embedded the same way (see the csproj).</summary>
+        private const string SeerrResource = "Jellyfin.Plugin.CustomTheme.seerr.css";
+
         /// <summary>Logical-name prefix of the embedded brand images (see the csproj).</summary>
         private const string AssetPrefix = "Jellyfin.Plugin.CustomTheme.Assets.";
 
@@ -365,6 +368,7 @@ namespace Jellyfin.Plugin.CustomTheme
             AppendLayout(sb, config);
             AppendNetflixExtras(sb, config);
             AppendPanelStyles(sb);
+            AppendSeerr(sb, config);
 
             return sb.ToString();
         }
@@ -1266,8 +1270,34 @@ html.nf-modern .MuiDialog-paper {
 .ct-save-status { text-align: center; margin-top: 10px; font-size: 0.85rem; min-height: 20px; }");
         }
 
+        /// <summary>
+        /// The styles of the requests feature (the embedded <c>seerr.css</c>), behind the same
+        /// option as its script: with SeerrRequests off none of it is served. A file of its
+        /// own rather than more of netflix.css, so the feature's rules sit with the feature and
+        /// the base sheet stays exactly as it was for everyone who never turns it on. Comments
+        /// are stripped like the base sheet's. The two marker lines go out OUTSIDE
+        /// <see cref="Compact"/>, which would drop them as comments, so that anyone reading the
+        /// served sheet — and the test harness, whose LOCAL=1 mode splices the working copy of
+        /// the file in between them — can find the seam. A resource that is missing gives an
+        /// empty block rather than a throw: this runs at start-up, and a throw there silently
+        /// stops the stylesheet from regenerating.
+        /// </summary>
+        private static void AppendSeerr(StringBuilder sb, PluginConfiguration config)
+        {
+            if (!config.SeerrRequests)
+            {
+                return;
+            }
+
+            sb.AppendLine(SeerrStartMarker);
+            sb.Append(Compact(LoadSeerrCss()));
+            sb.AppendLine(SeerrEndMarker);
+        }
+
         internal const string BaseStartMarker = "/* === BASE THEME (netflix.css, comments stripped) === */";
         internal const string BaseEndMarker = "/* === END OF BASE THEME === */";
+        internal const string SeerrStartMarker = "/* === SEERR REQUESTS (seerr.css, comments stripped) === */";
+        internal const string SeerrEndMarker = "/* === END OF SEERR REQUESTS === */";
 
         /// <summary>
         /// Removes comments, indentation and blank lines from a stylesheet. Nothing else:
@@ -1371,6 +1401,21 @@ html.nf-modern .MuiDialog-paper {
         {
             var assembly = Assembly.GetExecutingAssembly();
             using var stream = assembly.GetManifestResourceStream(BaseResource);
+            if (stream == null)
+            {
+                return string.Empty;
+            }
+
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+
+        /// <summary>seerr.css, read as <see cref="LoadBaseCss"/> reads the base sheet; empty
+        /// when the resource is not in this assembly.</summary>
+        private static string LoadSeerrCss()
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            using var stream = assembly.GetManifestResourceStream(SeerrResource);
             if (stream == null)
             {
                 return string.Empty;

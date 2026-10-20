@@ -1,0 +1,39 @@
+/* ============================================================================
+   seerr.css - the styles of the requests ("Anfragen") feature, which
+   headerButton.js builds on top of the Jellyseerr Bridge's API.
+
+   Served only while the SeerrRequests option is on. CssGenerator.AppendSeerr
+   puts this file between its two `SEERR REQUESTS` marker lines, after the base
+   theme and the generated option rules, so it can refine both. It goes through
+   Compact() like netflix.css, which drops every comment in it: the reasons
+   written here cost nothing on the wire.
+
+   Working on it without a rebuild: the test harness's LOCAL=1 mode (shots/lib.mjs,
+   localCss) finds that block by its markers and splices THIS file in, unstripped,
+   in place of the compiled copy.
+   ============================================================================ */
+
+/* The Jellyseerr Bridge ships a web loader of its own (request-entry.js) that adds
+   an English "Request" tab and "Requests" drawer entry. While this feature is on
+   the theme has an entry of its own ("Anfragen") and takes that loader out of the
+   pages it injects into at serve time - but only out of those. Where serve-time
+   injection is switched off the page is the index.html on disk, the loader is
+   still in it, and its entries would sit next to ours. So they are hidden here.
+
+   The loader appends a <style> of its own that gives its drawer entry a flex
+   display, !important, at specificity (0,1,0). Which of the two sheets comes later
+   is not ours to know (jellyfin-web 12.2 renders the theme's inside #reactRoot,
+   after <head>, where the loader appends - but that is jellyfin-web's to change),
+   and an !important tie goes to the later rule. `html ` in front lifts each
+   selector to (0,1,1): above anything the loader sets, in either order. The
+   selectors name the loader's own classes and attribute, so they hit the entry
+   whichever stock classes it copied onto it (navMenuOption, emby-tab-button,
+   MuiButton-root ...).
+
+   The only !important display this file may carry is none: these entries are
+   never meant to show, so there is no .hide-style toggle for them to override. */
+html .jellyseerr-bridge-request-tab,
+html [data-jellyseerr-bridge="request-tab"],
+html .jellyseerr-bridge-request-menu-item {
+    display: none !important;
+}

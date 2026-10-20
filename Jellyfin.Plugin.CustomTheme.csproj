@@ -35,6 +35,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="netflix.css" />
+    <EmbeddedResource Include="seerr.css" />
     <EmbeddedResource Include="configPage.html" />
     <EmbeddedResource Include="headerButton.js" />
   </ItemGroup>
