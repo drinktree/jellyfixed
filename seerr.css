@@ -410,6 +410,19 @@ input.nf-rq-input:focus {
     .nf-rq-card.nf-rq-skel .cardImageContainer::after { animation: none; }
 }
 
+/* ---- The row under jellyfin's own search results (headerButton.js, setupSeerrSearch): a library
+   row in look. Where jellyfin found nothing and Seerr has titles, the script marks #searchPage (an
+   attribute, never an edit of React's own nodes) and jellyfin's "no results" message gives way to the
+   row. Both rules are hides, the one kind of !important display allowed on what React renders
+   (gotcha S). The second keeps the row off the Requests page in the frames between an entry's click,
+   which sets html.nf-rq-view at once, and the pass that takes the row out. */
+#searchPage[data-nf-rq-hit] .noItemsMessage {
+    display: none !important;
+}
+html.nf-rq-view #searchPage > .nf-rq-insearch {
+    display: none !important;
+}
+
 /* ---- A tile's state: the "Recently Added" tab's geometry (netflix.css, .nf-new-flag) in
    a quiet voice - page colour, body text - since a state is not an action. Green for what
    can be watched (available, or some seasons). A title that can be requested has none. */

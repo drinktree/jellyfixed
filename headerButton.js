@@ -3918,6 +3918,8 @@
         setupSeerrNav();
         // …and the Requests page itself, which lives on #/search?nfview=requests.
         setupSeerrPage();
+        // …and the row under jellyfin's own search results, #/search?query=…, on the same page.
+        setupSeerrSearch();
         setupHero();   // self-gates + cleans up the hero when off-Home
         var onHome = isHomePage();
         // These build/scan the home container and each re-derives activeHomeContainer()
@@ -6353,6 +6355,135 @@
               '<div class="cardImageContainer cardContent"></div>' +
             '</div></div>' +
           '</div>';
+    }
+
+    // ---- The row on jellyfin's own search page: #/search?query=<query> ----
+    // Under jellyfin's results, Seerr's for the same query: the titles the library does not have
+    // (design 6.6). The query is jellyfin's own - React writes it into the hash on every key, with a
+    // replace that the patched replaceState turns into a pass - and Seerr is asked once it has stood
+    // for 500 ms, as jellyfin asks itself; the newest query wins. Four tiles that are still coming
+    // stand in for the row at once, unless the answer is held (nfRqSearchLoad: two minutes). The row
+    // is one theme node, div.nf-rq.nf-rq-insearch, kept as the LAST child of #searchPage, as the
+    // Requests page keeps its box on the same React page: each comes and goes with its own route
+    // (nfRqRoute), so the two are never there together, and neither touches the other's node.
+    var NF_RQ_ROW_SEARCH_WAIT = 500;
+    var nfRqRowEl = null;     // the row while it is up: its tiles, or the four still coming
+    var nfRqRowFor = null;    // {key, q, mt}: the query the row is for
+    var nfRqRowSeq = 0;       // the newest query; an answer to an older one draws nothing
+    var nfRqRowTimer = 0;     // the 500 ms wait
+
+    // Once per pass (applyDynamic, after setupSeerrPage). It writes NOTHING when all is in place:
+    // the row moved only when React has put a child after it, the attribute and the title written
+    // only when they change. Off the route, with nothing up, it is two checks.
+    function setupSeerrSearch() {
+        try {
+            var want = nfRqRoute() === 'search' && nfRqLive() ? nfRqRowWant() : null;
+            var page = want ? document.querySelector('#searchPage:not(.hide)') : null;
+            if (!page) { nfRqRowOff(); return; }
+            if (!nfRqRowFor || nfRqRowFor.key !== want.key) nfRqRowStart(page, want);
+            var row = nfRqRowEl;
+            // A Back from a title remounts jellyfin's page: the row goes into the new one, at once.
+            if (row && row.parentNode !== page) page.appendChild(row);
+            else if (row && page.lastElementChild !== row) nfRqToEnd(page, row);
+            nfRqRowHit(page);
+        } catch (e) {}
+    }
+    // What the row is for: jellyfin's query, two characters at least, and the kind of title a
+    // search inside a library wants - films in a films library, series in a shows library. Any
+    // other library holds nothing Seerr has: no row.
+    function nfRqRowWant() {
+        var q = nfRqHashParam('query').replace(/^\s+|\s+$/g, '');
+        if (q.length < 2) return null;
+        var mt = '';
+        if (nfRqHashParam('parentId')) {
+            var ct = nfRqHashParam('collectionType').toLowerCase();
+            if (ct === 'movies') mt = 'movie';
+            else if (ct === 'tvshows') mt = 'tv';
+            else return null;
+        }
+        return { key: mt + '|' + q, q: q, mt: mt };
+    }
+    // A new query: the held answer at once, else the four tiles at once and Seerr after the wait.
+    // Four that are already up for an earlier query stay: the typing does not redraw them per key.
+    function nfRqRowStart(page, want) {
+        var seq = ++nfRqRowSeq;
+        clearTimeout(nfRqRowTimer);
+        nfRqRowTimer = 0;
+        nfRqRowFor = want;
+        var uid = ApiClient.getCurrentUserId() || '';
+        var held = nfRqSearchHeld(uid, want.q, 1);
+        if (held) { nfRqRowDraw(page, want, held); return; }
+        if (!nfRqRowEl || !nfRqRowEl.classList.contains('nf-rq-skel-row')) nfRqRowPut(page, nfRqRowSkel());
+        nfRqRowTimer = setTimeout(function () {
+            nfRqRowTimer = 0;
+            if (seq !== nfRqRowSeq || nfRqRoute() !== 'search' || !nfRqLive()) return;
+            nfRqSearchLoad(uid, want.q, 1).then(function (got) {
+                if (seq !== nfRqRowSeq) return;
+                var pg = document.querySelector('#searchPage:not(.hide)');
+                if (pg) nfRqRowDraw(pg, want, got);
+            }, function () {});
+        }, NF_RQ_ROW_SEARCH_WAIT);
+    }
+    // The answer: movie and tv titles the library does not have - an AVAILABLE one is in jellyfin's
+    // own results above it, a blocklisted one never got this far (nfRqModel) - of the kind the search
+    // wants. With none, or no answer at all, there is no row.
+    function nfRqRowDraw(page, want, got) {
+        var items = got ? got.list.filter(function (m) { return m.status !== 5 && (!want.mt || m.mt === want.mt); }) : [];
+        if (!items.length) {
+            nfRqRowPut(page, null);
+        } else {
+            var sec = nfRowSection(nfL().notInLib, items, (ApiClient.serverId && ApiClient.serverId()) || '', 'nf-rq nf-rq-row nf-rq-insearch', nfRqCardHtml);
+            nfRqRowPut(page, sec);
+            nfRowNav(sec);
+            nfLazyImages(sec);
+            nfRqTilesWire();
+        }
+        nfRqRowHit(page);
+    }
+    function nfRqRowSkel() {
+        return nfRowSection(nfL().notInLib, [0, 0, 0, 0], '', 'nf-rq nf-rq-row nf-rq-insearch nf-rq-skel-row', nfRqSkelHtml);
+    }
+    // The row in, out, or in place of the one that is up (the same place, one record).
+    function nfRqRowPut(page, el) {
+        var old = nfRqRowEl;
+        nfRqRowEl = el;
+        if (old && el && old.parentNode === page) { page.replaceChild(el, old); return; }
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+        if (el) page.appendChild(el);
+    }
+    // jellyfin found nothing and Seerr has titles: jellyfin's "no results" message gives way
+    // (#searchPage[data-nf-rq-hit], seerr.css: an attribute on its page, never an edit of React's
+    // own node) and the row says that what it shows can be requested.
+    function nfRqRowHit(page) {
+        var row = nfRqRowEl;
+        var has = !!row && row.parentNode === page && !row.classList.contains('nf-rq-skel-row');
+        var none = false;
+        for (var c = has ? page.firstElementChild : null; c; c = c.nextElementSibling) {
+            if (c.classList.contains('noItemsMessage')) { none = true; break; }
+        }
+        var hit = has && none;
+        if (page.hasAttribute('data-nf-rq-hit') !== hit) {
+            if (hit) page.setAttribute('data-nf-rq-hit', '');
+            else page.removeAttribute('data-nf-rq-hit');
+        }
+        var h = has ? row.querySelector('.sectionTitle') : null;
+        var t = h && h.firstChild;
+        var say = hit ? nfL().notInLibAny : nfL().notInLib;
+        if (t && t.nodeType === 3 && t.nodeValue !== say) t.nodeValue = say;
+    }
+    // Off the route, below two characters, or the gate closed: no wait left to run out, no answer
+    // to draw, no row, no mark on jellyfin's page.
+    function nfRqRowOff() {
+        if (nfRqRowTimer) { clearTimeout(nfRqRowTimer); nfRqRowTimer = 0; }
+        if (!nfRqRowFor && !nfRqRowEl) return;
+        nfRqRowSeq++;
+        nfRqRowFor = null;
+        var row = nfRqRowEl;
+        nfRqRowEl = null;
+        var pg = row && row.parentNode;
+        if (!pg) return;
+        pg.removeChild(row);
+        if (pg.hasAttribute && pg.hasAttribute('data-nf-rq-hit')) pg.removeAttribute('data-nf-rq-hit');
     }
 
     function init() {
