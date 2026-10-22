@@ -5650,9 +5650,15 @@
     // takes its title in type (.nf-card-name); a poster carries its own. The state tab sits
     // where "Recently Added" does, for every state but "can be requested" - none when quiet -
     // and comes before the name, which the sheet then lifts clear of it.
+    // The rows list only titles with the art their shape shows; a search finds many without
+    // (TMDB has no backdrop for about half of them). Such a tile takes the other picture, cropped,
+    // as home's tiles take a poster, and with none at all the theme's no-image state (.nf-noimg:
+    // an initial on a quiet surface). The name is set in type on every tile but one showing its
+    // own poster.
     function nfRqCardHtml(m, sid, quiet) {
         var portrait = cfg('CardStyle', 'mixed') === 'portrait';
-        var img = nfRqTileArt(m, portrait);
+        var own = nfRqTileArt(m, portrait);
+        var img = own || nfRqTileArt(m, !portrait);
         var st = nfRqState(m);
         var l = nfL();
         var tab = (quiet || st === 'request') ? ''
@@ -5662,8 +5668,9 @@
             '<div class="cardBox cardBox-bottompadded">' +
               '<div class="cardScalable">' +
                 '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
-                '<div class="cardImageContainer cardContent nf-rq-open focusable" role="button" tabindex="0" aria-label="' + title + '"' + (img ? ' data-nf-bg="' + esc(img) + '"' : '') + '></div>' +
-                tab + (portrait ? '' : '<div class="nf-card-name">' + title + '</div>') +
+                '<div class="cardImageContainer cardContent nf-rq-open focusable' + (img ? '' : ' nf-noimg') + '" role="button" tabindex="0" aria-label="' + title + '"'
+                    + (img ? ' data-nf-bg="' + esc(img) + '"' : ' data-nf-initial="' + esc((m.title.charAt(0) || '?').toUpperCase()) + '"') + '></div>' +
+                tab + (portrait && own ? '' : '<div class="nf-card-name">' + title + '</div>') +
               '</div>' +
               '<div class="cardText cardTextCentered cardText-first"><bdi>' + title + '</bdi></div>' +
             '</div>' +
@@ -5870,6 +5877,7 @@
             if (!nfRqBox || nfRqBox.parentNode !== page) nfRqMount(page);
             else if (page.lastElementChild !== nfRqBox) nfRqToEnd(page, nfRqBox);
             nfRqBarH(nfRqBox);
+            nfRqSearchFollow();
             nfRqFocusOut(page);
         } catch (e) {}
     }
@@ -5903,6 +5911,7 @@
     function nfRqLeave() {
         if (!nfRqBox) return;
         nfRqMountSeq++;
+        nfRqSearchOff();
         if (nfRqBox.isConnected && nfRqBox.parentNode) nfRqBox.parentNode.removeChild(nfRqBox);
         nfRqBox = null;
     }
@@ -5911,6 +5920,7 @@
     // next visit.
     function nfRqMount(page) {
         var seq = ++nfRqMountSeq;
+        nfRqSearchOff();
         if (nfRqBox && nfRqBox.isConnected && nfRqBox.parentNode) nfRqBox.parentNode.removeChild(nfRqBox);
         var uid = ApiClient.getCurrentUserId();
         var box = document.createElement('div');
@@ -5933,6 +5943,7 @@
         }
         nfRqBox = box;
         nfRqTilesWire();
+        nfRqSearchWire(box);
         page.appendChild(box);
         var live = function () { return seq === nfRqMountSeq && box.isConnected; };
         out.forEach(function (i) {
@@ -6048,6 +6059,300 @@
             var hero = box.querySelector('.nf-rq-hero');
             return !!hero && hero.offsetParent !== null;
         } catch (e) { return false; }
+    }
+
+    // ---- The page's own search: #/search?nfview=requests&nfq=<query> ----
+    // The heading row's field asks Seerr 400 ms after the last key (design 6.4), and the newest
+    // search wins: an answer to an older one draws nothing. While a query is up, the billboard and
+    // the rows step aside (.nf-rq-searching) for a wrapping grid of the same tiles, which takes the
+    // next page as its end comes near, five pages at most; clearing the field brings them back. The
+    // query is kept in the hash (nfq, written with a replace), so a reload or a Back to the page
+    // shows it again - from the answers held for two minutes, without asking again.
+    var NF_RQ_SEARCH_WAIT = 400;
+    var NF_RQ_SEARCH_PAGES = 5;
+    var NF_RQ_SEARCH_TTL = 2 * 60 * 1000;
+    var NF_RQ_SEARCH_HELD = 40;
+    var nfRqFound = {};        // uid|page|query -> {ts, list, pages}
+    var nfRqFinding = {};      // the same key -> the Promise in flight
+    var nfRqSearchAt = null;   // the grid on the page: {q, page, pages, busy, failed}; null while none
+    var nfRqSearchSeq = 0;     // the newest search
+    var nfRqSearchTimer = 0;   // the field's debounce
+    var nfRqSearchQ = '';      // the query the URL holds for the page, as the page last wrote or followed it
+    var nfRqMoreIO = null;     // watches the grid's end while more pages can come
+
+    // One page of Seerr's search for this user: {list, pages} - its titles (each the one held model
+    // of its title; movie and tv only, blocklisted ones out: nfRqModel) and Seerr's page count - or
+    // null when it failed or took longer than a row may (NF_RQ_ROW_WAIT). It never rejects. One call
+    // per user, query and page is out at a time, and its answer is held two minutes, a late one
+    // too. jellyfin's own search page asks the same (setupSeerrSearch).
+    function nfRqSearchHeld(uid, q, page) {
+        var k = uid + '|' + page + '|' + q;
+        var rec = Object.prototype.hasOwnProperty.call(nfRqFound, k) ? nfRqFound[k] : null;
+        var age = rec ? Date.now() - rec.ts : -1;
+        return age >= 0 && age <= NF_RQ_SEARCH_TTL ? rec : null;
+    }
+    function nfRqSearchLoad(uid, q, page) {
+        var held = nfRqSearchHeld(uid, q, page);
+        if (held) return Promise.resolve(held);
+        var k = uid + '|' + page + '|' + q;
+        if (Object.prototype.hasOwnProperty.call(nfRqFinding, k)) return nfRqFinding[k];
+        var p = new Promise(function (resolve) {
+            var over = false;
+            var timer = null;
+            var end = function (v) {
+                if (over) return;
+                over = true;
+                clearTimeout(timer);
+                if (nfRqFinding[k] === p) delete nfRqFinding[k];
+                resolve(v);
+            };
+            timer = setTimeout(function () { end(null); }, NF_RQ_ROW_WAIT);
+            nfRqGet('Search', { query: q, page: page }).then(function (d) {
+                var rec = null;
+                try {
+                    if ((ApiClient.getCurrentUserId() || '') === uid && d && Array.isArray(d.results)) {
+                        rec = { ts: Date.now(), list: nfRqCanonList(uid, d.results.map(nfRqModel)), pages: Math.max(1, parseInt(d.totalPages, 10) || 1) };
+                        nfRqFoundKeep(k, rec);
+                    }
+                } catch (e) {}
+                end(rec);
+            }, function () { end(null); });
+        });
+        nfRqFinding[k] = p;
+        return p;
+    }
+    // Each pause in the typing leaves an answer: those past their two minutes go, and no more than
+    // NF_RQ_SEARCH_HELD are kept.
+    function nfRqFoundKeep(k, rec) {
+        var now = Date.now();
+        var keys = Object.keys(nfRqFound).filter(function (x) {
+            var age = now - nfRqFound[x].ts;
+            if (age >= 0 && age <= NF_RQ_SEARCH_TTL) return true;
+            delete nfRqFound[x];
+            return false;
+        });
+        if (keys.length >= NF_RQ_SEARCH_HELD) {
+            keys.sort(function (a, b) { return nfRqFound[a].ts - nfRqFound[b].ts; });
+            for (var i = 0; i <= keys.length - NF_RQ_SEARCH_HELD; i++) delete nfRqFound[keys[i]];
+        }
+        nfRqFound[k] = rec;
+    }
+
+    // A parameter of the hash, decoded ('+' is a space: URLSearchParams writes jellyfin's query so),
+    // or '' when it is not there.
+    var nfRqParamRe = {};
+    function nfRqHashParam(name) {
+        try {
+            var re = nfRqParamRe[name] || (nfRqParamRe[name] = new RegExp('[?&]' + name + '=([^&#]*)'));
+            var m = re.exec(location.hash || '');
+            return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+        } catch (e) { return ''; }
+    }
+    // The query into the hash (nfq), or out of it, with a replace that keeps the router's own state
+    // ({usr, key, idx}): no history entry, and Back still lands where it did. jellyfin's router does
+    // not see a replace it did not make, so its search page is left as it is. Only when the URL
+    // changes: the theme's patched replaceState asks for a pass.
+    function nfRqUrlQ(q) {
+        try {
+            var h = location.hash || '';
+            var i = h.indexOf('?');
+            if (i >= 0) {
+                var parts = h.slice(i + 1).split('&');
+                var out = [];
+                var put = false;
+                for (var j = 0; j < parts.length; j++) {
+                    if (/^nfq=/.test(parts[j])) {
+                        if (q && !put) { out.push('nfq=' + encodeURIComponent(q)); put = true; }
+                    } else if (parts[j]) out.push(parts[j]);
+                }
+                if (q && !put) out.push('nfq=' + encodeURIComponent(q));
+                var nh = h.slice(0, i) + (out.length ? '?' + out.join('&') : '');
+                if (nh !== h) history.replaceState(history.state, '', nh);
+            }
+        } catch (e) {}
+        nfRqSearchQ = nfRqHashParam('nfq');
+    }
+    // A query in the URL that is not the one the page last wrote there - a reload, a Back to the
+    // page, a link to it: the field and the results follow it. Every other pass finds the two equal.
+    function nfRqSearchFollow() {
+        var q = nfRqHashParam('nfq');
+        if (q === nfRqSearchQ) return;
+        nfRqSearchQ = q;
+        var input = nfRqBox && nfRqBox.querySelector('input.nf-rq-input');
+        if (input && input.value !== q) input.value = q;
+        clearTimeout(nfRqSearchTimer);
+        nfRqSearchTimer = 0;
+        nfRqSearch(q, 1);
+    }
+    // The field, once per box: each key restarts the wait.
+    function nfRqSearchWire(box) {
+        var input = box.querySelector('input.nf-rq-input');
+        if (!input) return;
+        input.addEventListener('input', function () {
+            clearTimeout(nfRqSearchTimer);
+            nfRqSearchTimer = setTimeout(function () {
+                nfRqSearchTimer = 0;
+                if (box === nfRqBox && box.isConnected) nfRqSearch(input.value, 1);
+            }, NF_RQ_SEARCH_WAIT);
+        });
+    }
+    // Off the page, or a new box: no wait left to run out, no answer to draw, no end to watch.
+    function nfRqSearchOff() {
+        clearTimeout(nfRqSearchTimer);
+        nfRqSearchTimer = 0;
+        nfRqSearchSeq++;
+        nfRqMoreOff();
+        nfRqSearchAt = null;
+        nfRqSearchQ = '';
+    }
+
+    // Page 1 of a query: a new grid, or the page back to its rows for an empty one. Page 2 to 5:
+    // more of the grid that is up (the end in reach: nfRqMoreSeen).
+    function nfRqSearch(q, page) {
+        try {
+            var box = nfRqBox;
+            if (!box || !box.isConnected) return;
+            q = String(q == null ? '' : q).replace(/^\s+|\s+$/g, '');
+            var at = nfRqSearchAt;
+            if (page > 1) {
+                if (!at || at.q !== q || at.busy || page !== at.page + 1 || page > Math.min(at.pages, NF_RQ_SEARCH_PAGES)) return;
+            } else {
+                // The same query again (a space typed, a key typed and taken back) asks nothing,
+                // unless it failed.
+                if (at ? (at.q === q && !at.failed) : !q) return;
+                nfRqSearchSeq++;
+                nfRqMoreOff();
+                nfRqUrlQ(q);
+                if (!q) {
+                    nfRqSearchAt = null;
+                    var res = box.querySelector('.nf-rq-results');
+                    if (res) box.removeChild(res);
+                    if (box.classList.contains('nf-rq-searching')) box.classList.remove('nf-rq-searching');
+                    return;
+                }
+                at = nfRqSearchAt = { q: q, page: 0, pages: 1, busy: false, failed: false };
+                // The first query: a row of tiles that are still coming. A later one keeps the grid it
+                // had until its own answer replaces it, in one piece.
+                if (!box.querySelector('.nf-rq-results')) box.appendChild(nfRqResults(nfRqSkels(nfRqCols())));
+                if (!box.classList.contains('nf-rq-searching')) box.classList.add('nf-rq-searching');
+            }
+            var seq = nfRqSearchSeq;
+            at.busy = true;
+            nfRqSearchLoad(ApiClient.getCurrentUserId() || '', q, page).then(function (got) {
+                if (seq !== nfRqSearchSeq || nfRqSearchAt !== at || box !== nfRqBox || !box.isConnected) return;
+                at.busy = false;
+                nfRqSearchDraw(box, at, page, got);
+            }, function () {});
+        } catch (e) {}
+    }
+    // An answer into the grid. Page 1 replaces what is there, later pages add their tiles - never a
+    // title twice. A failed page 1 says Seerr could not be reached; a failed later one ends the grid.
+    function nfRqSearchDraw(box, at, page, got) {
+        try {
+            if (!got) {
+                if (page === 1) { at.failed = true; nfRqResultsPut(box, nfRqResults('')); }
+                at.pages = at.page;
+                nfRqSearchEnd(box, at);
+                return;
+            }
+            var res = box.querySelector('.nf-rq-results');
+            var grid = page > 1 && res ? res.querySelector('.nf-rq-grid') : null;
+            if (page > 1 && !grid) return;
+            var sid = (ApiClient.serverId && ApiClient.serverId()) || '';
+            var seen = {};
+            for (var c = grid ? grid.firstElementChild : null; c; c = c.nextElementSibling) seen[c.getAttribute('data-nf-rq')] = true;
+            var t = document.createElement('div');
+            t.innerHTML = got.list.filter(function (m) {
+                if (seen[m.key]) return false;
+                seen[m.key] = true;
+                return true;
+            }).map(function (m) { return nfRqCardHtml(m, sid, false); }).join('');
+            // The new tiles only: observed here, filled once they come near the screen.
+            nfLazyImages(t);
+            var frag = document.createDocumentFragment();
+            while (t.firstChild) frag.appendChild(t.firstChild);
+            at.page = page;
+            at.pages = got.pages;
+            if (page === 1) {
+                var fresh = nfRqResults('');
+                fresh.firstChild.appendChild(frag);
+                nfRqResultsPut(box, fresh);
+            } else {
+                grid.appendChild(frag);
+            }
+            nfRqSearchEnd(box, at);
+        } catch (e) {}
+    }
+    // The grid's end. While there are pages to come, a sentinel there asks for the next one as it
+    // comes in reach - observed afresh after each page, so an end still in reach (a short grid on a
+    // tall screen) reports again. With nothing to show and nothing more to ask, a note says why.
+    function nfRqSearchEnd(box, at) {
+        var res = box.querySelector('.nf-rq-results');
+        if (!res) return;
+        var grid = res.querySelector('.nf-rq-grid');
+        var more = at.page < Math.min(at.pages, NF_RQ_SEARCH_PAGES);
+        var note = res.querySelector('.nf-rq-note');
+        var say = !more && grid && !grid.firstElementChild ? (at.failed ? nfL().errDown : nfL().noResults) : '';
+        if (note && note.textContent !== say) { res.removeChild(note); note = null; }
+        if (say && !note) res.insertAdjacentHTML('beforeend', '<div class="nf-rq-note" role="status">' + esc(say) + '</div>');
+        if (!more || typeof IntersectionObserver === 'undefined') { nfRqMoreOff(); return; }
+        var end = res.querySelector('.nf-rq-end');
+        if (!end) {
+            end = document.createElement('div');
+            end.className = 'nf-rq-end';
+            res.appendChild(end);
+        }
+        if (!nfRqMoreIO) nfRqMoreIO = new IntersectionObserver(nfRqMoreSeen, { rootMargin: '0px 0px 50% 0px' });
+        nfRqMoreIO.unobserve(end);
+        nfRqMoreIO.observe(end);
+    }
+    function nfRqMoreSeen(entries) {
+        try {
+            for (var i = 0; i < entries.length; i++) {
+                if (!entries[i].isIntersecting) continue;
+                var at = nfRqSearchAt;
+                if (at && !at.busy) nfRqSearch(at.q, at.page + 1);
+                return;
+            }
+        } catch (e) {}
+    }
+    function nfRqMoreOff() {
+        if (nfRqMoreIO) { nfRqMoreIO.disconnect(); nfRqMoreIO = null; }
+        var end = nfRqBox && nfRqBox.querySelector('.nf-rq-end');
+        if (end && end.parentNode) end.parentNode.removeChild(end);
+    }
+    // The results box: the rows' section classes, so its tiles have the row tiles' look and the
+    // phones' captions (netflix.css), around the grid (seerr.css).
+    function nfRqResults(html) {
+        var res = document.createElement('div');
+        res.className = 'nf-rq-results verticalSection nf-genre-section';
+        res.innerHTML = '<div class="nf-rq-grid">' + html + '</div>';
+        return res;
+    }
+    function nfRqResultsPut(box, res) {
+        var old = box.querySelector('.nf-rq-results');
+        if (old) box.replaceChild(res, old);
+        else box.appendChild(res);
+    }
+    // One row of the grid: the ladder's whole-column count for the static grids (3 on a phone).
+    function nfRqCols() {
+        var n = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nf-cols'), 10);
+        return n > 0 && n <= 12 ? n : 6;
+    }
+    function nfRqSkels(n) {
+        var s = '';
+        for (var i = 0; i < n; i++) s += nfRqSkelHtml();
+        return s;
+    }
+    // A tile that is still coming: the tile's own box with nothing in it, which is not a control
+    // (no data-nf-rq, no focus, no pointer).
+    function nfRqSkelHtml() {
+        return '<div class="card overflowBackdropCard nf-card nf-rq-card nf-rq-skel" aria-hidden="true">' +
+            '<div class="cardBox cardBox-bottompadded"><div class="cardScalable">' +
+              '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
+              '<div class="cardImageContainer cardContent"></div>' +
+            '</div></div>' +
+          '</div>';
     }
 
     function init() {

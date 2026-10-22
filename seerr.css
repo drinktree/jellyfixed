@@ -351,6 +351,65 @@ input.nf-rq-input:focus {
     box-shadow: none !important;
 }
 
+/* ---- The page's search (headerButton.js, nfRqSearch). While a query is up the billboard and the
+   rows step aside for the results - a hide on the theme's own boxes, without !important - and the
+   heading row is in the flow under the bar: 14 px above the field, as over the billboard, so the
+   field stays where it was under the typing hand. */
+.nf-rq.nf-rq-searching > .nf-rq-hero,
+.nf-rq.nf-rq-searching > .nf-rq-rows {
+    display: none;
+}
+.nf-rq.nf-rq-searching > .nf-rq-head {
+    padding-top: 14px;
+}
+/* The results: the rows' tiles in a wrapping grid. The box carries the row section's classes, which
+   give the tiles the row tiles' look and the phones' captions; the grid has the ladder's whole-column
+   count (--nf-cols: the rows' rung, 3 on a phone) and its tile gap, on the page's rail. A tile fills
+   its column: the rows give it width: var(--nf-tile) !important at (0,3,0), and this sheet is later. */
+.nf-rq-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--nf-cols), minmax(0, 1fr));
+    column-gap: var(--nf-tile-gap);
+    row-gap: 20px;
+    row-gap: max(20px, 1.6vw);
+    padding: 8px var(--nf-gutter) 0;
+}
+.nf-rq-grid > .card.nf-card {
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0;
+    margin-inline-end: 0;
+}
+/* The grid's end: the next page is asked for as it comes in reach. */
+.nf-rq-end {
+    height: 1px;
+}
+/* A tile that is still coming: its box on a quiet surface with the loading shell's sweep (netflix.css,
+   .nf-hero-skel), and nothing to point at. */
+.nf-rq-card.nf-rq-skel {
+    pointer-events: none;
+}
+.nf-rq-card.nf-rq-skel .cardImageContainer {
+    background-color: var(--nf-surface);
+    overflow: hidden;
+}
+.nf-rq-card.nf-rq-skel .cardImageContainer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: linear-gradient(100deg, transparent 22%, rgba(255,255,255,0.05) 34%, transparent 46%);
+    -webkit-transform: translateX(-100%);
+    transform: translateX(-100%);
+    animation: nf-shimmer 2.2s linear infinite;
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .nf-rq-card.nf-rq-skel .cardImageContainer::after { animation: none; }
+}
+
 /* ---- A tile's state: the "Recently Added" tab's geometry (netflix.css, .nf-new-flag) in
    a quiet voice - page colour, body text - since a state is not an action. Green for what
    can be watched (available, or some seasons). A title that can be requested has none. */
@@ -433,4 +492,7 @@ html.nf-playing .nf-rq {
 }
 html:has(.videoPlayerContainer) .nf-rq {
     visibility: hidden !important;
+}
+html.nf-playing .nf-rq-skel .cardImageContainer::after {
+    animation: none !important;
 }
