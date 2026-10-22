@@ -142,23 +142,65 @@ html.nf-rq-view #searchPage > :not(.nf-rq) {
 html.nf-rq-view.nf-hero-top #searchPage {
     padding-top: 0 !important;
 }
+/* --nf-rq-head-h: the heading row's height over the billboard - 14 px above, the 44 px field,
+   16 px below (the stacked phone row is in the size block below). */
 .nf-rq {
     position: relative;
+    --nf-rq-head-h: 74px;
 }
 
-/* ---- The billboard: the geometry of home's .nf-hero (netflix.css), whose slide, scrims,
-   copy and buttons it uses as they are. Not .nf-hero itself: setupHero takes every .nf-hero
-   off a page that is not home. No negative top margin: home's pulls the billboard up
-   through its container's padding, and this page has none above it. The rows tuck 3vh into
-   its fade, as on home. While the rows load it is home's loading shell (.nf-hero-skel). */
+/* ---- The billboard: home's .nf-hero geometry (netflix.css) - 80vh between 480 and 860 px,
+   70vh / 420 on tablets, 62vh / 360 on phones (the size block below) - with home's slide,
+   scrims, copy and buttons as they are. Not .nf-hero itself: setupHero takes every .nf-hero
+   off a page that is not home. No negative top margin: home's pulls the billboard up through
+   its container's padding, and this page has none above it. The rows tuck 3vh into its fade,
+   as on home. While trending loads it is home's loading shell (.nf-hero-skel).
+   One difference: the heading row sits over its top, and the copy must never rise into it,
+   whatever the window's height and the title's length (Seerr has no logo art, and its titles
+   reach 100 characters and more). So here the slide is in the flow: a column with the copy at
+   its foot, as tall as the billboard at least, and with the heading row's height kept free at
+   its top. When the two do not fit, the billboard grows. */
 .nf-rq-hero {
     position: relative;
     width: 100%;
-    height: 80vh;
     min-height: 480px;
-    max-height: 860px;
+    min-height: clamp(480px, 80vh, 860px);
     margin: 0 0 -3vh;
     overflow: hidden;
+}
+.nf-rq-hero > .nf-hero-slide {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    box-sizing: border-box;
+    min-height: 480px;
+    min-height: clamp(480px, 80vh, 860px);
+}
+.nf-rq-hero .nf-hero-content {
+    position: relative;
+    left: auto;
+    bottom: auto;
+}
+/* Below the bar (48 px on Modern, --nav-height in the legacy layout) and the heading row,
+   with 12 px of air. Only while the heading row is over the billboard (html.nf-hero-top). */
+html.nf-rq-view.nf-hero-top .nf-rq-hero > .nf-hero-slide {
+    padding-top: calc(48px + var(--nf-rq-head-h) + 12px);
+}
+html.nf-rq-view.nf-hero-top:not(.nf-modern) .nf-rq-hero > .nf-hero-slide {
+    padding-top: calc(var(--nav-height) + var(--nf-rq-head-h) + 12px);
+}
+/* The title in three lines at most (two on a phone). The clamp clips at the box, and home's
+   1.02 line height lets descenders hang below it, so the box gets 0.1em of room at the foot
+   (taken back from its margin) - not enough to show the next line's letters. */
+.nf-rq-hero .nf-hero-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    padding-bottom: 0.1em;
+    margin-bottom: 16px;
+    margin-bottom: calc(16px - 0.1em);
 }
 .nf-rq-hero:not(.nf-hero-skel) {
     background: var(--bg-dark);
@@ -284,6 +326,18 @@ input.nf-rq-input::placeholder {
     color: #8c8c8c;
     opacity: 1;
 }
+/* No browser clear button (Chromium's is a blue x) or search decoration: the theme's box has
+   neither. Each its own rule: an engine that does not know one of the pseudo-elements drops
+   only that rule. */
+input.nf-rq-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+}
+input.nf-rq-input::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+}
 /* Its own focus, a white border: the theme's text-field ring (input:not([type="range"])
    :focus, (0,2,1) !important) would draw a second one outside it. (0,2,1), later. */
 input.nf-rq-input:focus {
@@ -322,6 +376,13 @@ input.nf-rq-input:focus {
 .nf-rq-card .nf-rq-state[data-state="partial"] {
     color: #46d369;
 }
+/* A textless TMDB backdrop takes its title in type (.nf-card-name, netflix.css: 7% of the
+   tile's width below it). Where a state tab sits - it comes first in the markup - the name is
+   lifted by the tab's height (0.7rem x 1.5), so the tab never covers its last line. On a phone
+   the caption under the tile carries the title, and the name goes (the size block below). */
+.nf-rq-card .nf-rq-state ~ .nf-card-name {
+    padding-bottom: calc(7% + 1.05rem);
+}
 
 /* Nothing to show: Seerr could not be reached, or gave nothing. */
 .nf-rq-note {
@@ -335,14 +396,29 @@ input.nf-rq-input:focus {
 
 /* ---- Sizes. After the rules above, so they win on order (media queries add no
    specificity). Home's billboard: 70vh / 420 on tablets, 62vh / 360 on phones. On a phone
-   the field goes under the page's name, the width of the rail. */
+   the field goes under the page's name, the width of the rail, which makes the heading row
+   14 px + the name's line + 12 px + the 44 px field + 16 px tall; the billboard's title keeps
+   to two lines there, and the tiles' captions carry their titles. */
 @media (min-width: 769px) and (max-width: 1200px) {
-    .nf-rq-hero { height: 70vh; min-height: 420px; }
+    .nf-rq-hero,
+    .nf-rq-hero > .nf-hero-slide {
+        min-height: 420px;
+        min-height: clamp(420px, 70vh, 860px);
+    }
 }
 @media (max-width: 768px) {
-    .nf-rq-hero { height: 62vh; min-height: 360px; }
+    .nf-rq {
+        --nf-rq-head-h: calc(14px + 1.2 * var(--nf-t-head) + 12px + 44px + 16px);
+    }
+    .nf-rq-hero,
+    .nf-rq-hero > .nf-hero-slide {
+        min-height: 360px;
+        min-height: clamp(360px, 62vh, 860px);
+    }
+    .nf-rq-hero .nf-hero-title { -webkit-line-clamp: 2; }
     .nf-rq-head { display: block; }
     .nf-rq-search { margin: 12px 0 0; margin-inline-start: 0; }
+    .nf-rq-card .nf-card-name { display: none; }
 }
 
 /* ---- Playback: the page is the theme's own and never part of the player UI (home's
