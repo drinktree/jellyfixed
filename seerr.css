@@ -55,3 +55,22 @@ html .headerTabs .emby-tab-button.jellyseerr-bridge-request-tab,
 html .headerTabs .emby-tab-button[data-jellyseerr-bridge="request-tab"] {
     display: none !important;
 }
+
+/* ---- The "Anfragen" entry (headerButton.js, setupSeerrNav) ----
+   In the Modern bar it is a foreign <a> in the classes of React's Favorites button,
+   with the "current" pair (MuiButton-*Primary) turned to Inherit, so the nav voice of
+   netflix.css styles it as one of React's own. React marks no node it does not own as
+   current, so the Requests page's "current" state is this rule: white at the medium
+   weight, the voice netflix.css gives the theme's Home entry (a.nf-nav-home.nf-nav-active)
+   and the current library. Never the accent: that is for function. At (0,6,3) and
+   (0,7,3) it is above the nav voice (0,5,3) and its hover (0,6,3), and on a tie this
+   sheet comes later.
+   The other three places need nothing here: the phone drawer's row is a copy of the
+   Favorites row and is selected with MUI's own Mui-selected, the legacy strip's tab is
+   an .nf-nav-tab with .active, and the legacy drawer's link is a .navMenuOption with
+   navMenuOption-selected - each styled by the rules that style its neighbours. */
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req.nf-nav-active,
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req.nf-nav-active:hover {
+    color: var(--text-main);
+    font-weight: var(--nf-w-med);
+}

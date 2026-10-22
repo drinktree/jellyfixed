@@ -1315,6 +1315,7 @@
     var navViewsUid = null;   // the user the cached views were fetched for
     var navFetching = false;
     var nfNavHash = null;
+    var nfNavRq = false;      // the strip was built with the Requests tab
 
     // Mirrors appRouter.getRouteUrl in jellyfin-web 10.11 exactly. The old
     // ".html" legacy paths (movies.html, list.html, …) no longer exist as
@@ -1333,6 +1334,9 @@
     function navIsActive(href) {
         var hash = (location.hash || '').toLowerCase();
         var h = href.toLowerCase();
+        // The Requests page is a parameter on the search route. Only that parameter
+        // is the tab's: jellyfin's own search page belongs to no tab.
+        if (h === NF_RQ_HREF) return nfRqRoute() === 'page';
         var base = h.replace('#', '').split('?')[0];
         if (base.indexOf('home') !== -1) return isHomePage();
         if (base === '' || hash.indexOf(base) === -1) return false;
@@ -1350,7 +1354,23 @@
         var anchor = document.querySelector('.headerLeft');
         if (!anchor || !navViews) return;
 
+        // Requests come and go with their gate, whose answers from the bridge can land
+        // after the strip was built: the strip is then built again, with or without the
+        // tab, and the memo below goes with the old one. A remote's (or keyboard's)
+        // focus on the old strip moves to the same tab of the new one: dropped with the
+        // old strip it fell to <body>, and the TV user's place was gone (measured with a
+        // bridge that answered 4 s late). The Requests tab itself hands it to its
+        // neighbour, the last tab.
+        var rq = nfRqLive();
         var existing = anchor.querySelector('.nf-nav-tabs');
+        var refocus = null;
+        if (existing && nfNavRq !== rq) {
+            var was = document.activeElement;
+            if (was && was !== existing && existing.contains(was)) refocus = was.getAttribute('href') || '';
+            existing.parentNode.removeChild(existing);
+            existing = null;
+            nfNavHash = null;
+        }
         if (existing) {
             // navIsActive() is a getAttribute + toLowerCase + replace + split +
             // indexOf plus a regex, PER TAB — and the answer depends only on
@@ -1360,20 +1380,35 @@
             if (nfNavHash === location.hash) return;
             nfNavHash = location.hash;
             existing.querySelectorAll('.nf-nav-tab').forEach(function (a) {
-                a.classList.toggle('active', navIsActive(a.getAttribute('href')));
+                var on = navIsActive(a.getAttribute('href'));
+                a.classList.toggle('active', on);
+                if (a.classList.contains('nf-nav-req')) nfRqCurrent(a, on);
             });
             return;
         }
         nfNavHash = location.hash;
+        nfNavRq = rq;
 
         var tabs = [[nfL().home, '#/home']];
         navViews.forEach(function (v) { tabs.push([v.Name, navRouteFor(v)]); });
+        // Last, where Netflix keeps "New & Popular".
+        if (rq) tabs.push([nfL().requests, NF_RQ_HREF]);
         var nav = document.createElement('div');
         nav.className = 'nf-nav-tabs';
         nav.innerHTML = tabs.map(function (t) {
-            return '<a class="nf-nav-tab' + (navIsActive(t[1]) ? ' active' : '') + '" href="' + t[1] + '">' + esc(t[0]) + '</a>';
+            var on = navIsActive(t[1]);
+            var req = t[1] === NF_RQ_HREF;
+            return '<a class="nf-nav-tab' + (req ? ' nf-nav-req' : '') + (on ? ' active' : '') + '" href="' + t[1] + '"'
+                + (req && on ? ' aria-current="page"' : '') + '>' + esc(t[0]) + '</a>';
         }).join('');
         anchor.appendChild(nav);
+        if (refocus !== null) {
+            var to = nav.lastElementChild;
+            for (var c = nav.firstElementChild; c; c = c.nextElementSibling) {
+                if (c.getAttribute('href') === refocus) { to = c; break; }
+            }
+            try { if (to) to.focus(); } catch (e) {}
+        }
     }
 
     function setupNavTabs() {
@@ -3846,9 +3881,9 @@
         // applyDynamic() as soon as the configuration arrives.
         if (CT_CONFIG === null) return;
         setupNavTabs();
-        // Requests: asks the bridge what the gate needs to know, once each. It only
-        // reads here and writes nothing to the page.
-        nfRqLive();
+        // Requests: the "Anfragen" entries. Through nfRqLive it also asks the bridge,
+        // once each, what the gate still needs to know.
+        setupSeerrNav();
         setupHero();   // self-gates + cleans up the hero when off-Home
         var onHome = isHomePage();
         // These build/scan the home container and each re-derives activeHomeContainer()
@@ -5043,6 +5078,213 @@
             var g = Object.prototype.hasOwnProperty.call(NF_RQ_GENRES, id) ? NF_RQ_GENRES[id] : null;
             return g ? g[nfL() === LOCALES.de ? 1 : 0] : '';
         } catch (e) { return ''; }
+    }
+
+    // ---- The way in: "Anfragen" wherever the theme draws navigation ----
+    // jellyfin-web lets nobody add a route: an unknown one is its "page not found", and
+    // on a phone it takes the drawer away. So the Requests page lives on the search
+    // route, under a parameter of the theme's own that jellyfin's search page ignores
+    // and keeps.
+    var NF_RQ_PAGE = '/search?nfview=requests';
+    var NF_RQ_HREF = '#' + NF_RQ_PAGE;
+    // Material's "playlist_add". The drawer's rows draw MUI icons, one SVG path each.
+    var NF_RQ_ICON = 'M14 10H3v2h11v-2zm0-4H3v2h11V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM3 16h7v-2H3v2z';
+
+    // 'page' on the Requests page; 'search' on jellyfin's own search with something
+    // typed in it; else null. From the hash alone, which the router writes before
+    // anything renders.
+    function nfRqRoute() {
+        try {
+            var h = location.hash || '';
+            var q = h.indexOf('?');
+            if ((q < 0 ? h : h.slice(0, q)).toLowerCase() !== '#/search') return null;
+            var s = q < 0 ? '' : h.slice(q);
+            if (/[?&]nfview=/i.test(s)) return /[?&]nfview=requests(&|$)/i.test(s) ? 'page' : null;
+            return /[?&]query=[^&]/.test(s) ? 'search' : null;
+        } catch (e) { return null; }
+    }
+
+    // To the Requests page, through jellyfin's router: it pushes with the router's own
+    // history state. The hash is the fallback. appRouter.show skips a push only when
+    // the PATHNAME equals what it is given, and '/search?nfview=requests' never equals
+    // '/search': a second click on the page itself pushed the same URL again (measured),
+    // and Back then went nowhere. So on the page a click does nothing.
+    function nfRqGo() {
+        try {
+            if (nfRqRoute() === 'page') return;
+            var pg = window.Emby && window.Emby.Page;
+            if (pg && typeof pg.show === 'function') {
+                var p = pg.show(NF_RQ_PAGE);
+                if (p && typeof p.then === 'function') p.then(null, nfRqGoHash);
+                return;
+            }
+        } catch (e) {}
+        nfRqGoHash();
+    }
+    function nfRqGoHash() {
+        try { if (nfRqRoute() !== 'page') location.hash = NF_RQ_HREF; } catch (e) {}
+    }
+
+    // One listener for every entry, wherever it sits. In the bubble phase, after React's
+    // own (on its root and on the drawer's portal): the Modern drawer closes through its
+    // onClick on the content box and the legacy drawer through libraryMenu's handler on
+    // any <a>, so the event must go on. Only the browser's own navigation is taken. A
+    // click with a modifier stays the browser's (a new tab or window, as on any link),
+    // and so does one somebody else has already taken: React Router's Link does the same.
+    var nfRqWired = false;
+    function nfRqWire() {
+        if (nfRqWired) return;
+        nfRqWired = true;
+        document.addEventListener('click', function (e) {
+            try {
+                var t = e.target;
+                var a = t && t.closest ? t.closest('.nf-nav-req') : null;
+                if (!a || e.defaultPrevented || e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+                e.preventDefault();
+                nfRqGo();
+            } catch (err) {}
+        });
+    }
+
+    // aria-current, written only when it changes.
+    function nfRqCurrent(el, on) {
+        if (on) { if (el.getAttribute('aria-current') !== 'page') el.setAttribute('aria-current', 'page'); }
+        else if (el.hasAttribute('aria-current')) el.removeAttribute('aria-current');
+    }
+
+    // The entries, once per pass (applyDynamic, after setupNavTabs). It writes NOTHING
+    // when all is in place: no node is moved that already sits right, and no class is
+    // written that is already there. Each such write would wake the body observer for
+    // another pass, or at least restyle. Only the theme's own nodes are ever inserted or
+    // moved; React's are only read. The legacy strip's tab is renderNavTabs' own.
+    var nfRqNavUp = false;   // an entry may be on the page, so it is looked for to come out
+    function setupSeerrNav() {
+        try {
+            var live = nfRqLive();
+            var root = document.documentElement;
+            if (root.classList.contains('nf-rq-on') !== live) root.classList.toggle('nf-rq-on', live);
+            // Most servers have no bridge: one call to nfRqLive and out.
+            if (!live && !nfRqNavUp) return;
+            var active = live && nfRqRoute() === 'page';
+            if (live) nfRqWire();
+            nfRqBarEntry(live, active);
+            nfRqDrawerEntry(live, active);
+            nfRqMenuEntry(live, active);
+            nfRqNavUp = live;
+        } catch (e) {}
+    }
+
+    // Modern bar (900 px and up): a foreign <a> in UserViewNav's Stack, in the classes of
+    // React's Favorites button with the "current" pair (MuiButton-*Primary) turned to
+    // Inherit, so the nav-voice rules style it as one of theirs (setupModernHome's
+    // technique). Its "current" state is seerr.css's. It goes at the END of the group,
+    // where Netflix keeps "New & Popular": after the libraries, and before React's
+    // "More" button when there is one (below 1200 px UserViewNav shows 3 views, and
+    // moves the rest into "More" once there are more than 4). React places what it adds
+    // against its own nodes only: a view that appears later is appended after this entry
+    // when there is no "More", and put before "More" when there is. So the place is
+    // checked on every pass, and the node moved only when it is wrong.
+    // Mui-focusVisible is Favorites' own keyboard state, not to be copied.
+    function nfRqBarEntry(live, active) {
+        try {
+            var tb = nfModernToolbar();
+            if (!tb) return;
+            var own = tb.querySelector('a.nf-nav-req');
+            var fav = live ? tb.querySelector('a.MuiButton-sizeMedium[href*="home?tab=1"]') : null;
+            if (!fav) { if (own && own.parentNode) own.parentNode.removeChild(own); return; }
+            var stack = fav.parentNode;
+            var more = stack.querySelector('[aria-controls="user-view-overflow-menu"]');
+            if (more && more.parentNode !== stack) more = null;
+            if (!own) {
+                own = document.createElement('a');
+                own.setAttribute('href', NF_RQ_HREF);
+            }
+            var label = nfL().requests;
+            if (own.textContent !== label) own.textContent = label;
+            if (own.parentNode !== stack || own.nextElementSibling !== more) stack.insertBefore(own, more);
+            var cls = fav.className.replace(/MuiButton-(color|text)Primary/g, 'MuiButton-$1Inherit').replace(/\s*\bMui-focusVisible\b/g, '')
+                + ' nf-nav-req' + (active ? ' nf-nav-active' : '');
+            if (own.className !== cls) own.className = cls;
+            nfRqCurrent(own, active);
+        } catch (e) {}
+    }
+
+    // Modern drawer (below 900 px): a copy of the Favorites row, right after it in the
+    // first list, which React fills once and never adds to: the same MUI classes, and
+    // Favorites' own SVG with this icon's path drawn in it. The copy has no React fiber,
+    // so React takes a click on it for a click on the list, and the drawer's onClick
+    // closes the drawer. Mui-selected, which React sets on its own rows, is set here.
+    // React unmounts the drawer and mounts a new one when the window crosses 900 px (and
+    // on /video), so the row is looked for in the drawer of the moment, every pass. A
+    // copied ripple layer goes: the copy has no ripple of its own.
+    function nfRqDrawerEntry(live, active) {
+        try {
+            var paper = document.querySelector('.MuiDrawer-paper');
+            if (!paper) return;
+            var own = paper.querySelector('a.nf-nav-req');
+            var row = own ? own.parentNode : null;
+            var favA = live ? paper.querySelector('a[href="#/home?tab=1"]') : null;
+            var favRow = favA ? favA.parentNode : null;
+            if (!favRow || favRow.tagName !== 'LI' || !favRow.parentNode) {
+                if (row && row.parentNode) row.parentNode.removeChild(row);
+                return;
+            }
+            if (!own) {
+                row = favRow.cloneNode(true);
+                own = row.querySelector('a');
+                if (!own) return;
+                own.className = own.className.replace(/\s*\bMui-(selected|focusVisible)\b/g, '') + ' nf-nav-req';
+                own.setAttribute('href', NF_RQ_HREF);
+                var path = own.querySelector('svg path');
+                if (path) path.setAttribute('d', NF_RQ_ICON);
+                var svg = own.querySelector('svg');
+                if (svg) svg.setAttribute('data-testid', 'PlaylistAddIcon');
+                var ripple = own.querySelector('.MuiTouchRipple-root');
+                if (ripple) ripple.parentNode.removeChild(ripple);
+            }
+            var txt = own.querySelector('.MuiListItemText-primary');
+            var label = nfL().requests;
+            if (txt && txt.textContent !== label) txt.textContent = label;
+            if (row.parentNode !== favRow.parentNode || row.previousElementSibling !== favRow) favRow.parentNode.insertBefore(row, favRow.nextSibling);
+            if (own.classList.contains('Mui-selected') !== active) own.classList.toggle('Mui-selected', active);
+            nfRqCurrent(own, active);
+        } catch (e) {}
+    }
+
+    // Legacy drawer: right after the Home link, OUTSIDE the boxes libraryMenu fills (it
+    // replaces .libraryMenuOptions' innerHTML and appends into .customMenuOptions), and
+    // without lnkMediaFolder: on every page show libraryMenu takes navMenuOption-selected
+    // off each .lnkMediaFolder. It rewrites the whole container after each sign-in, and
+    // the next pass puts the link back. A plain <a>, not an emby-linkbutton: that
+    // element's own click handler would navigate a second time. It carries the
+    // emby-button class, which is only a stylesheet hook (jellyfin's React links use it
+    // the same way): without it the row measured 51 px against the Home row's 47, with
+    // a bigger glyph. With it the two rows compute alike.
+    function nfRqMenuEntry(live, active) {
+        try {
+            var box = document.querySelector('.mainDrawer-scrollContainer');
+            if (!box) return;
+            var own = box.querySelector('a.nf-nav-req');
+            var home = null;
+            if (live) {
+                for (var c = box.firstElementChild; c; c = c.nextElementSibling) {
+                    if (c.tagName === 'A' && c.classList.contains('lnkMediaFolder') && c.getAttribute('href') === '#/home') { home = c; break; }
+                }
+            }
+            if (!home) { if (own && own.parentNode) own.parentNode.removeChild(own); return; }
+            if (!own) {
+                own = document.createElement('a');
+                own.className = 'navMenuOption emby-button nf-nav-req';
+                own.setAttribute('href', NF_RQ_HREF);
+                own.innerHTML = '<span class="material-icons navMenuOptionIcon playlist_add" aria-hidden="true"></span><span class="navMenuOptionText"></span>';
+            }
+            var txt = own.lastChild;
+            var label = nfL().requests;
+            if (txt && txt.textContent !== label) txt.textContent = label;
+            if (own.parentNode !== box || own.previousElementSibling !== home) box.insertBefore(own, home.nextSibling);
+            if (own.classList.contains('navMenuOption-selected') !== active) own.classList.toggle('navMenuOption-selected', active);
+            nfRqCurrent(own, active);
+        } catch (e) {}
     }
 
     function init() {
