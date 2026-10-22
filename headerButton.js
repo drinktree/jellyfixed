@@ -63,6 +63,8 @@
              // Requests (Seerr, through the Jellyseerr Bridge). 'with' is quoted: a
              // reserved word, which only ES5 and later take as a bare key.
              requests: 'Requests', request: 'Request', requesting: 'Requesting…', requested: 'Requested', pending: 'Pending', partial: 'Partly available', available: 'Available',
+             // A tile's state tab is one word: "Teilweise verfügbar" overflows a phone's poster.
+             partialTab: 'Partial',
              requestMore: 'Request more seasons', requestAll: 'Request all seasons', requestN: 'Request {0} seasons', request1: 'Request 1 season', toTitle: 'Go to title',
              searchPh: 'Search movies and series', notInLib: 'Not in your library', notInLibAny: 'Not in your library – but you can request it',
              rowTrending: 'Trending Now', rowMovies: 'Popular Movies', rowTv: 'Popular Series', rowUpMovies: 'Coming Soon: Movies', rowUpTv: 'Coming Soon: Series',
@@ -73,6 +75,7 @@
         de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr',
              newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'Neu hinzugefügt', match: '{0} % Übereinstimmung', minLeft: 'Noch {0} Min.', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Aus Zeile entfernen', page: 'Seite', more: 'mehr',
              requests: 'Anfragen', request: 'Anfragen', requesting: 'Wird angefragt…', requested: 'Angefragt', pending: 'Ausstehend', partial: 'Teilweise verfügbar', available: 'Verfügbar',
+             partialTab: 'Teilweise',
              requestMore: 'Weitere Staffeln anfragen', requestAll: 'Alle Staffeln anfragen', requestN: '{0} Staffeln anfragen', request1: '1 Staffel anfragen', toTitle: 'Zur Titelseite',
              searchPh: 'Filme und Serien suchen', notInLib: 'Nicht in deiner Bibliothek', notInLibAny: 'Nicht in deiner Bibliothek – aber anfragbar',
              rowTrending: 'Im Trend', rowMovies: 'Beliebte Filme', rowTv: 'Beliebte Serien', rowUpMovies: 'Demnächst: Filme', rowUpTv: 'Demnächst: Serien',
@@ -2052,7 +2055,10 @@
         container.appendChild(sec);
     }
 
-    function nfRowSection(title, items, sid, extraClass) {
+    // cardFn draws one tile (buildCardHtml for a library item); the Requests rows pass
+    // their own, so a Seerr title gets the same row shell, ladder and chevrons.
+    function nfRowSection(title, items, sid, extraClass, cardFn) {
+        var card = cardFn || buildCardHtml;
         var sec = document.createElement('div');
         sec.className = 'verticalSection nf-genre-section' + (extraClass ? ' ' + extraClass : '');
         // "Recently Added" is an exception marker. On a row where most tiles would
@@ -2063,7 +2069,7 @@
         var quiet = fresh * 2 > items.length;
         sec.innerHTML = '<h2 class="sectionTitle sectionTitle-cards">' + esc(title) + '</h2>' +
             '<div class="nf-row-scroll"><div class="nf-row-track">' +
-            items.map(function (it) { return buildCardHtml(it, sid, quiet); }).join('') +
+            items.map(function (it) { return card(it, sid, quiet); }).join('') +
             '</div></div>';
         return sec;
     }
@@ -3884,6 +3890,8 @@
         // Requests: the "Anfragen" entries. Through nfRqLive it also asks the bridge,
         // once each, what the gate still needs to know.
         setupSeerrNav();
+        // …and the Requests page itself, which lives on #/search?nfview=requests.
+        setupSeerrPage();
         setupHero();   // self-gates + cleans up the hero when off-Home
         var onHome = isHomePage();
         // These build/scan the home container and each re-derives activeHomeContainer()
@@ -3937,6 +3945,9 @@
         if (onHome) {
             document.querySelectorAll('.nf-hero').forEach(function (h) { if (h.offsetParent !== null) heroVisible = true; });
         }
+        // The Requests page's billboard is the other artwork the bar floats over: the
+        // same transparent bar, top scrim and zero page padding as home's.
+        if (!heroVisible && nfRqHeroVisible()) heroVisible = true;
         // Toggle the root classes only when the value CHANGES or the header lost its class
         // (Jellyfin recreates .skinHeader on client-side navigation) — so a settled home
         // page doesn't rewrite classes every frame, but a fresh header is still re-synced.
@@ -5112,6 +5123,12 @@
     function nfRqGo() {
         try {
             if (nfRqRoute() === 'page') return;
+            // The page's view class goes on at the click, before jellyfin renders its search
+            // page: its search field takes the focus as it mounts (React's autoFocus), and on
+            // a phone a focus inside a tap's activation opens the keyboard - for a field this
+            // page hides. Already hidden, it takes no focus (measured on the drawer and the bar
+            // entry). The next pass corrects the class if the navigation does not happen.
+            if (nfRqLive()) document.documentElement.classList.add('nf-rq-view');
             var pg = window.Emby && window.Emby.Page;
             if (pg && typeof pg.show === 'function') {
                 var p = pg.show(NF_RQ_PAGE);
@@ -5421,6 +5438,464 @@
             if (own.classList.contains('navMenuOption-selected') !== active) own.classList.toggle('navMenuOption-selected', active);
             nfRqCurrent(own, active);
         } catch (e) {}
+    }
+
+    // ---- The Requests page: #/search?nfview=requests ----
+    // jellyfin's search page stays mounted underneath it: React renders its search field
+    // and one conditional child (the suggestions, or results) as ever. While
+    // html.nf-rq-view is set the sheet hides them, and the page is one theme node, div.nf-rq,
+    // kept as the LAST child of #searchPage. React appends what it mounts at the end and
+    // never looks at a node it did not make, so the box is put back behind a child React
+    // has just added after it, and is not touched otherwise:
+    //   div.nf-rq
+    //     div.nf-rq-head    the page's name and its own search field, over the billboard
+    //     div.nf-rq-hero    today's first trending title with a backdrop
+    //     div.nf-rq-rows    five rows, in the home rows' own shell, ladder and tiles
+    var NF_RQ_ROWS = [['trending', 'rowTrending'], ['movies', 'rowMovies'], ['tv', 'rowTv'],
+        ['upcoming-movies', 'rowUpMovies'], ['upcoming-tv', 'rowUpTv']];
+    // The rows are drawn from a copy held for ten minutes: Seerr's trending list is a daily
+    // one, its popular lists change slowly, and a title's own window shows its state fresh.
+    // An older copy, up to an hour, is still drawn at once, and a new one is fetched for the
+    // next visit (stale-while-revalidate).
+    var NF_RQ_ROWS_TTL = 10 * 60 * 1000;
+    var NF_RQ_ROWS_MAX = 60 * 60 * 1000;
+    var NF_RQ_ROWS_PART = 'rq:rows';
+    // TMDB's vote average means nothing on a handful of votes - a title out next month has 0
+    // of 0, which would read "0 % match" - so the match is shown from 50 votes up.
+    var NF_RQ_MIN_VOTES = 50;
+
+    // Every title the page has drawn, as ONE model per key, for the user it was fetched for.
+    // The page is rebuilt from these objects, so a state changed on one (a request) is what
+    // the next build shows, in every row that holds the title. A newer copy of a title is
+    // written into the object already held, not put beside it.
+    var nfRqKnown = { uid: null, by: {} };
+    function nfRqKeep(m, uid) {
+        if (nfRqKnown.uid !== uid) { nfRqKnown.uid = uid; nfRqKnown.by = {}; }
+        var had = Object.prototype.hasOwnProperty.call(nfRqKnown.by, m.key) ? nfRqKnown.by[m.key] : null;
+        if (!had) { nfRqKnown.by[m.key] = m; return m; }
+        if (had !== m) {
+            for (var k in m) { if (Object.prototype.hasOwnProperty.call(m, k)) had[k] = m[k]; }
+        }
+        return had;
+    }
+    function nfRqFind(key) {
+        try {
+            var uid = ApiClient.getCurrentUserId();
+            return (uid && nfRqKnown.uid === uid && Object.prototype.hasOwnProperty.call(nfRqKnown.by, key)) ? nfRqKnown.by[key] : null;
+        } catch (e) { return null; }
+    }
+    // The five lists with every title in them replaced by the one held model.
+    function nfRqCanon(uid, data) {
+        var out = {};
+        NF_RQ_ROWS.forEach(function (r) {
+            var list = data && data[r[0]];
+            out[r[0]] = Array.isArray(list) ? list.filter(function (m) { return !!m && typeof m.key === 'string'; })
+                .map(function (m) { return nfRqKeep(m, uid); }) : [];
+        });
+        return out;
+    }
+
+    // The rows' models for this user as Discover gave them, or null: the copy in memory,
+    // else the one this tab kept in sessionStorage (a reload). fresh: young enough not to
+    // be fetched again.
+    var nfRqRowsHeld = { uid: null, ts: 0, data: null };
+    function nfRqRowsCached(uid) {
+        var h = nfRqRowsHeld;
+        if (h.uid !== uid || !h.data) {
+            h.uid = uid; h.ts = 0; h.data = null;
+            try {
+                var raw = JSON.parse(sessionStorage.getItem(nfCacheKey(NF_RQ_ROWS_PART, uid)) || 'null');
+                if (raw && typeof raw.ts === 'number' && raw.v && typeof raw.v === 'object') { h.data = nfRqCanon(uid, raw.v); h.ts = raw.ts; }
+            } catch (e) {}
+        }
+        var age = h.data ? Date.now() - h.ts : -1;
+        if (age < 0 || age > NF_RQ_ROWS_MAX) return null;
+        return { data: h.data, fresh: age <= NF_RQ_ROWS_TTL };
+    }
+
+    // The five rows at once, page 1 each, one fetch at a time per user. It never rejects:
+    // {data, whole}. Only a whole answer is kept - a row that failed is asked for again on
+    // the next visit, not left out for ten minutes - and an answer for a user who is no
+    // longer signed in is dropped.
+    var nfRqRowsAsking = null;   // {uid, p}
+    function nfRqRowsLoad(uid) {
+        if (nfRqRowsAsking && nfRqRowsAsking.uid === uid) return nfRqRowsAsking.p;
+        var p = Promise.all(NF_RQ_ROWS.map(function (r) {
+            return nfRqGet('Discover/' + r[0], { page: 1 }).then(function (d) {
+                return (d && Array.isArray(d.results)) ? d.results : [];
+            }, function () { return null; });
+        })).then(function (lists) {
+            if (nfRqRowsAsking && nfRqRowsAsking.p === p) nfRqRowsAsking = null;
+            var cur = '';
+            try { cur = ApiClient.getCurrentUserId() || ''; } catch (e) {}
+            if (cur !== uid) return null;
+            var raw = {}, whole = true;
+            lists.forEach(function (list, i) {
+                if (!list) whole = false;
+                raw[NF_RQ_ROWS[i][0]] = (list || []).map(nfRqModel).filter(function (m) { return !!m; });
+            });
+            var data = nfRqCanon(uid, raw);
+            if (whole) {
+                nfRqRowsHeld.uid = uid; nfRqRowsHeld.ts = Date.now(); nfRqRowsHeld.data = data;
+                nfCacheSet(NF_RQ_ROWS_PART, data, uid);
+            }
+            return { data: data, whole: whole };
+        }).then(null, function () {
+            if (nfRqRowsAsking && nfRqRowsAsking.p === p) nfRqRowsAsking = null;
+            return null;
+        });
+        nfRqRowsAsking = { uid: uid, p: p };
+        return p;
+    }
+
+    // What the page shows of the lists: {hero, rows: [{key, title, items}]}. The billboard is
+    // the first trending title with a backdrop; it is not repeated in a row. Then the rows in
+    // their order, each title in the first row that has it (the hero counted as row 1's), a
+    // tile only with the art its shape shows (the poster for portrait cards, the backdrop
+    // otherwise), and a row only with three tiles or more - like the home rails, a row that
+    // falls short gives its titles back to the rows after it.
+    function nfRqRows(data) {
+        var out = { hero: null, rows: [] };
+        try {
+            var portrait = cfg('CardStyle', 'mixed') === 'portrait';
+            var seen = {};
+            var trend = (data && data.trending) || [];
+            for (var i = 0; i < trend.length; i++) {
+                if (trend[i] && trend[i].backdrop) { out.hero = trend[i]; seen[trend[i].key] = true; break; }
+            }
+            NF_RQ_ROWS.forEach(function (r) {
+                var local = {};
+                var items = ((data && data[r[0]]) || []).filter(function (m) {
+                    if (!m || seen[m.key] || local[m.key] || !(portrait ? m.poster : m.backdrop)) return false;
+                    local[m.key] = true;
+                    return true;
+                });
+                if (items.length < RAIL_MIN_ITEMS) return;
+                Object.keys(local).forEach(function (k) { seen[k] = true; });
+                out.rows.push({ key: r[0], title: nfL()[r[1]], items: items });
+            });
+        } catch (e) {}
+        return out;
+    }
+
+    // One tile: buildCardHtml's skeleton, so the row CSS sizes, zooms and captions it as a
+    // library tile. No data-id and no link: the library popup, the tablet first-tap card and
+    // the image rescue all key on what a Seerr title does not have. The picture is a focusable
+    // role=button; a click or Enter/Space on it is nfRqActivate's. A textless TMDB backdrop
+    // takes its title in type (.nf-card-name); a poster carries its own. The state tab sits
+    // where "Recently Added" does, for every state but "can be requested" - none when quiet.
+    function nfRqCardHtml(m, sid, quiet) {
+        var portrait = cfg('CardStyle', 'mixed') === 'portrait';
+        var img = portrait ? nfRqImg(m.poster, 'poster', nfTileCssWidth()) : nfRqImg(m.backdrop, 'backdrop', nfTileCssWidth());
+        var st = nfRqState(m);
+        var l = nfL();
+        var tab = (quiet || st === 'request') ? ''
+            : '<span class="nf-rq-state" data-state="' + st + '">' + (st === 'partial' ? l.partialTab : l[st]) + '</span>';
+        var title = esc(m.title);
+        return '<div class="card overflowBackdropCard card-hoverable nf-card nf-rq-card" data-nf-rq="' + esc(m.key) + '" data-type="' + (m.mt === 'tv' ? 'Series' : 'Movie') + '">' +
+            '<div class="cardBox cardBox-bottompadded">' +
+              '<div class="cardScalable">' +
+                '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
+                '<div class="cardImageContainer cardContent nf-rq-open focusable" role="button" tabindex="0" aria-label="' + title + '"' + (img ? ' data-nf-bg="' + esc(img) + '"' : '') + '></div>' +
+                (portrait ? '' : '<div class="nf-card-name">' + title + '</div>') + tab +
+              '</div>' +
+              '<div class="cardText cardTextCentered cardText-first"><bdi>' + title + '</bdi></div>' +
+            '</div>' +
+          '</div>';
+    }
+
+    // The billboard: home's slide, scrims, copy and buttons on a box of its own (setupHero
+    // takes every .nf-hero off the page that is not home). One title, no rotation and no clip.
+    // TMDB's w1280 backdrop: 'original' can be a 4K file of several MB. The action follows the
+    // title's state: "Anfragen" (the accent) for a title that can be requested, and for a series
+    // with seasons left to request (a film in one click, a series through its window: wired
+    // where the window is built, as is "Mehr Infos"); ▶ for a title this profile can open in
+    // the library (nfRqCanPlay); a state that cannot be acted on is an inert chip.
+    function nfRqHeroHtml(m) {
+        var l = nfL();
+        var st = nfRqState(m);
+        var bg = (typeof m.backdrop === 'string' && NF_RQ_PATH.test(m.backdrop)) ? 'https://image.tmdb.org/t/p/w1280' + m.backdrop : '';
+        var act;
+        if (st === 'request' || st === 'partial') {
+            act = '<button type="button" class="nf-hero-btn nf-rq-req"><span class="material-icons" aria-hidden="true">file_download</span> ' + l.request + '</button>';
+        } else if (st === 'available' && nfRqPlayKnown(m) === true) {
+            act = nfRqHeroPlayHtml(m);
+        } else {
+            act = '<span class="nf-hero-btn nf-rq-done" data-state="' + st + '" aria-disabled="true"><span class="material-icons" aria-hidden="true">check</span> ' + l[st] + '</span>';
+        }
+        var meta = (m.votes >= NF_RQ_MIN_VOTES ? matchHtml(m.vote, 'nf-hero-match') : '') +
+            (m.year ? '<span>' + m.year + '</span>' : '') +
+            '<span>' + (m.mt === 'tv' ? l.series : l.movie) + '</span>';
+        return '<div class="nf-rq-hero" data-nf-rq="' + esc(m.key) + '">' +
+            '<div class="nf-hero-slide active">' +
+              '<div class="nf-hero-bg"' + (bg ? ' style="background-image:url(\'' + bg + '\')"' : '') + '></div>' +
+              '<div class="nf-hero-content">' +
+                '<div class="nf-hero-title">' + esc(m.title) + '</div>' +
+                '<div class="nf-hero-meta">' + meta + '</div>' +
+                (m.overview ? '<div class="nf-hero-overview">' + esc(m.overview) + '</div>' : '') +
+                '<div class="nf-hero-actions">' + act +
+                  '<button type="button" class="nf-hero-btn nf-hero-info nf-rq-more"><span class="material-icons" aria-hidden="true">info</span> ' + l.moreInfo + '</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+    }
+    // ▶ into the library: the nf-autoplay flow (the init click capture flags it, the details
+    // page's own Play is pressed), as on home's billboard.
+    function nfRqHeroPlayHtml(m) {
+        var sid = (ApiClient.serverId && ApiClient.serverId()) || '';
+        return '<a class="nf-hero-btn nf-hero-play nf-autoplay" data-id="' + m.jf + '" href="#/details?id=' + m.jf + (sid ? '&serverId=' + esc(sid) : '') + '">' +
+            '<span class="material-icons" aria-hidden="true">play_arrow</span> ' + nfL().play + '</a>';
+    }
+    // After the billboard is on the page: the ambient glow takes its colours, as home's
+    // does (TMDB serves its images with CORS), and a title the library has gets ▶ in place
+    // of its chip once Jellyfin says this profile may open it - an upgrade, never a play
+    // button that comes and goes.
+    function nfRqHeroLater(hero, m) {
+        nfSampleAmbient(nfRqImg(m.backdrop, 'backdrop', 64));
+        if (nfRqState(m) !== 'available' || !m.jf || nfRqPlayKnown(m) !== undefined) return;
+        nfRqCanPlay(m).then(function (ok) {
+            var chip = ok && hero.isConnected ? hero.querySelector('.nf-rq-done') : null;
+            if (!chip) return;
+            var t = document.createElement('div');
+            t.innerHTML = nfRqHeroPlayHtml(m);
+            chip.parentNode.replaceChild(t.firstChild, chip);
+        });
+    }
+
+    // May this profile open the title Seerr says the library holds? jellyfinMediaId can be
+    // stale (a rescan) or an item this profile is not shown (library access, parental tags):
+    // ▶ only for an item Jellyfin hands this user. Asked once per user and item when first
+    // needed - a tile's on its first click - and the answer, yes or no, kept for the page's life.
+    var nfRqPlayHeld = {};   // uid + ':' + jf -> true | false | the Promise in flight
+    function nfRqCanPlay(m) {
+        try {
+            var uid = ApiClient.getCurrentUserId();
+            // The id goes into a link and data-id: the model checked it, and a model can come
+            // back from sessionStorage, so it is checked again here, where ▶ is decided.
+            if (!m || typeof m.jf !== 'string' || !/^[0-9a-f]{32}$/.test(m.jf) || !uid) return Promise.resolve(false);
+            var k = uid + ':' + m.jf;
+            var held = Object.prototype.hasOwnProperty.call(nfRqPlayHeld, k) ? nfRqPlayHeld[k] : null;
+            if (held === true || held === false) return Promise.resolve(held);
+            if (held) return held;
+            var jf = m.jf;
+            var p = ApiClient.getItem(uid, jf).then(function (it) {
+                return !!(it && typeof it.Id === 'string' && it.Id.replace(/-/g, '').toLowerCase() === jf);
+            }, function () { return false; }).then(function (ok) {
+                nfRqPlayHeld[k] = ok;
+                return ok;
+            });
+            nfRqPlayHeld[k] = p;
+            return p;
+        } catch (e) { return Promise.resolve(false); }
+    }
+    // The answer once it is in: true or false; undefined while it is not.
+    function nfRqPlayKnown(m) {
+        try {
+            var v = nfRqPlayHeld[ApiClient.getCurrentUserId() + ':' + m.jf];
+            return (v === true || v === false) ? v : undefined;
+        } catch (e) { return undefined; }
+    }
+
+    // The title's own window, with its request action (a section of its own). Until it is
+    // there, a title that is not played opens nothing.
+    function nfRqOpen(m) {}
+
+    // A tile's picture, clicked or pressed: a title this profile can open in the library
+    // goes to its page there; any other opens its window. One activation at a time, so a
+    // double click cannot push the details page twice.
+    function nfRqActivate(el) {
+        var card = el.closest('[data-nf-rq]');
+        var m = card ? nfRqFind(card.getAttribute('data-nf-rq')) : null;
+        if (!m || el._nfRqBusy) return;
+        if (nfRqState(m) !== 'available' || !m.jf) { nfRqOpen(m); return; }
+        el._nfRqBusy = true;
+        nfRqCanPlay(m).then(function (ok) {
+            if (!ok) {
+                el._nfRqBusy = false;
+                if (el.isConnected) nfRqOpen(m);
+                return;
+            }
+            // The page is on its way out; busy a moment longer in case it is not.
+            setTimeout(function () { el._nfRqBusy = false; }, 1500);
+            if (el.isConnected) nfRqShow('/details?id=' + m.jf + '&serverId=' + ApiClient.serverId());
+        });
+    }
+    // Through jellyfin's router (a push with its own history state); the hash is the fallback.
+    function nfRqShow(path) {
+        var hash = function () { try { if (location.hash !== '#' + path) location.hash = '#' + path; } catch (e) {} };
+        try {
+            var pg = window.Emby && window.Emby.Page;
+            if (pg && typeof pg.show === 'function') {
+                var p = pg.show(path);
+                if (p && typeof p.then === 'function') p.then(null, hash);
+                return;
+            }
+        } catch (e) {}
+        hash();
+    }
+    // One click and one keydown listener for every tile, wherever one sits (bubble phase:
+    // nothing of jellyfin's is in the way of a tile without data-id). The picture is a div,
+    // so Enter and Space are the button's keys here: on a TV remote OK is Enter, and Space
+    // would scroll the page.
+    var nfRqTilesWired = false;
+    function nfRqTilesWire() {
+        if (nfRqTilesWired) return;
+        nfRqTilesWired = true;
+        document.addEventListener('click', function (e) {
+            try {
+                var t = e.target;
+                var el = t && t.closest ? t.closest('.nf-rq-open') : null;
+                if (!el || e.defaultPrevented || e.button) return;
+                nfRqActivate(el);
+            } catch (err) {}
+        });
+        document.addEventListener('keydown', function (e) {
+            try {
+                var el = e.target;
+                if (!el || !el.classList || !el.classList.contains('nf-rq-open')) return;
+                var k = e.key;
+                if (!(k === 'Enter' || k === ' ' || k === 'Spacebar' || e.keyCode === 13 || e.keyCode === 32)) return;
+                if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                e.preventDefault();
+                nfRqActivate(el);
+            } catch (err) {}
+        });
+    }
+
+    // ---- The page, once per pass (applyDynamic, after setupSeerrNav) ----
+    // It writes NOTHING when all is in place: the root class only when it changes, the box
+    // moved only when React has put a child after it, the page built only once per mount
+    // of jellyfin's search page (a Back from a title remounts it, and the build is then
+    // drawn from the held copy, in the same pass).
+    var nfRqBox = null;      // the page's div.nf-rq while it is up
+    var nfRqMountSeq = 0;    // a fetch that answers after a newer mount, or a leave, draws nothing
+    function setupSeerrPage() {
+        try {
+            var on = nfRqRoute() === 'page' && nfRqLive();
+            var root = document.documentElement;
+            if (root.classList.contains('nf-rq-view') !== on) root.classList.toggle('nf-rq-view', on);
+            if (!on) { nfRqLeave(); return; }
+            var page = document.querySelector('#searchPage:not(.hide)');
+            if (!page) return;
+            if (!nfRqBox || nfRqBox.parentNode !== page) nfRqMount(page);
+            else if (page.lastElementChild !== nfRqBox) nfRqToEnd(page, nfRqBox);
+            nfRqFocusOut(page);
+        } catch (e) {}
+    }
+    // Behind the child React has just appended (its suggestions land a moment after the
+    // page mounts). A move takes the focus off whatever had it inside the box - measured: the
+    // TV remote's button went to <body> - so it is given back, without a scroll.
+    function nfRqToEnd(page, box) {
+        var ae = document.activeElement;
+        var keep = ae && ae !== document.body && box.contains(ae) ? ae : null;
+        page.appendChild(box);
+        if (keep && document.activeElement !== keep) {
+            try { keep.focus({ preventScroll: true }); } catch (e) {}
+        }
+    }
+    // Off the page (or the gate closed): the box goes when it is still in a search page - a
+    // Back to jellyfin's own search re-renders the same page, without remounting it.
+    function nfRqLeave() {
+        if (!nfRqBox) return;
+        nfRqMountSeq++;
+        if (nfRqBox.isConnected && nfRqBox.parentNode) nfRqBox.parentNode.removeChild(nfRqBox);
+        nfRqBox = null;
+    }
+    function nfRqMount(page) {
+        var seq = ++nfRqMountSeq;
+        if (nfRqBox && nfRqBox.isConnected && nfRqBox.parentNode) nfRqBox.parentNode.removeChild(nfRqBox);
+        var uid = ApiClient.getCurrentUserId();
+        var box = document.createElement('div');
+        box.className = 'nf-rq';
+        box.innerHTML = nfRqHeadHtml() + '<div class="nf-rq-rows"></div>';
+        var got = nfRqRowsCached(uid);
+        // Nothing held: the billboard's place is kept (home's loading shell) while the rows load.
+        if (!got) {
+            var skel = document.createElement('div');
+            skel.className = 'nf-rq-hero nf-hero-skel';
+            box.insertBefore(skel, box.lastChild);
+        }
+        nfRqBox = box;
+        nfRqTilesWire();
+        page.appendChild(box);
+        if (got) {
+            nfRqFill(box, got.data, true);
+            if (!got.fresh) nfRqRowsLoad(uid);
+            return;
+        }
+        nfRqRowsLoad(uid).then(function (r) {
+            if (r && seq === nfRqMountSeq && box.isConnected) nfRqFill(box, r.data, r.whole);
+        });
+    }
+    // The page's name and its own search field, in the .searchfields-txtSearch voice (its
+    // search is wired on its own).
+    function nfRqHeadHtml() {
+        var l = nfL();
+        return '<div class="nf-rq-head">' +
+            '<h1 class="nf-rq-title">' + esc(l.requests) + '</h1>' +
+            '<div class="nf-rq-search">' +
+              '<span class="material-icons nf-rq-search-icon" aria-hidden="true">search</span>' +
+              '<input type="search" class="nf-rq-input" placeholder="' + esc(l.searchPh) + '" aria-label="' + esc(l.searchPh) + '" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">' +
+            '</div>' +
+          '</div>';
+    }
+    // The billboard and the rows into a mounted box. The rows go in as home's do: on the
+    // page first, then nfRowNav (chevrons, page dots) and nfLazyImages (art near the viewport,
+    // decoded, then faded in). A page with nothing to show says why: Seerr not reachable, or
+    // nothing there.
+    function nfRqFill(box, data, whole) {
+        var plan = nfRqRows(data);
+        var rows = box.querySelector('.nf-rq-rows');
+        var old = box.querySelector('.nf-rq-hero');
+        if (plan.hero) {
+            var t = document.createElement('div');
+            t.innerHTML = nfRqHeroHtml(plan.hero);
+            var hero = t.firstChild;
+            if (old) box.replaceChild(hero, old);
+            else box.insertBefore(hero, rows);
+            nfRqHeroLater(hero, plan.hero);
+        } else if (old) {
+            box.removeChild(old);
+        }
+        var sid = (ApiClient.serverId && ApiClient.serverId()) || '';
+        plan.rows.forEach(function (r) {
+            var sec = nfRowSection(r.title, r.items, sid, 'nf-rq-row', nfRqCardHtml);
+            sec.setAttribute('data-nf-rq-row', r.key);
+            rows.appendChild(sec);
+            nfRowNav(sec);
+            nfLazyImages(sec);
+        });
+        if (!plan.hero && !plan.rows.length) {
+            rows.innerHTML = '<div class="nf-rq-note" role="status">' + esc(whole ? nfL().noResults : nfL().errDown) + '</div>';
+        }
+        if (document.documentElement.classList.contains('layout-tv') && (!document.activeElement || document.activeElement === document.body)) nfRqFocusFirst(box);
+    }
+    // jellyfin's search field takes the focus when its page mounts (React's autoFocus), and
+    // on this page it is hidden: whatever was typed next went into a field nobody could see.
+    // Through an entry it never gets it (nfRqGo hides it first); after a Back, a reload or a
+    // link straight to the page it does, and is let go here. On a TV the remote's focus goes
+    // to the billboard's first button instead, where Netflix puts it (a TV has no pointer).
+    function nfRqFocusOut(page) {
+        var ae = document.activeElement;
+        if (!ae || ae.id !== 'searchTextInput' || !page.contains(ae)) return;
+        ae.blur();
+        if (document.documentElement.classList.contains('layout-tv') && nfRqBox) nfRqFocusFirst(nfRqBox);
+    }
+    function nfRqFocusFirst(box) {
+        var el = box.querySelector('.nf-rq-hero .nf-hero-actions > a, .nf-rq-hero .nf-hero-actions > button, .nf-rq-open');
+        if (el) { try { el.focus(); } catch (e) {} }
+    }
+    // The billboard is up and in view: applyDynamic's hero test, so html.nf-hero-top gives
+    // this page home's transparent bar and zero page padding. Not while the page is showing
+    // its search results (.nf-rq-searching), where there is no billboard.
+    function nfRqHeroVisible() {
+        try {
+            var box = nfRqBox;
+            if (!box || !box.isConnected || box.classList.contains('nf-rq-searching') || nfRqRoute() !== 'page') return false;
+            var hero = box.querySelector('.nf-rq-hero');
+            return !!hero && hero.offsetParent !== null;
+        } catch (e) { return false; }
     }
 
     function init() {

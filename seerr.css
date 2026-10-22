@@ -122,3 +122,235 @@ html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
+
+/* ============================================================================
+   The Requests page (headerButton.js, setupSeerrPage)
+   ============================================================================
+   It lives on jellyfin's search route (#/search?nfview=requests), whose React page stays
+   mounted underneath it: its search field and its one conditional child (suggestions, or
+   results). While html.nf-rq-view is set those are hidden, and the page is the theme's own
+   div.nf-rq, the last child of #searchPage. A hide rule is the one kind of !important
+   display that may sit on a node jellyfin's .hide also toggles (gotcha S). (1,2,1). */
+html.nf-rq-view #searchPage > :not(.nf-rq) {
+    display: none !important;
+}
+/* The billboard bleeds to the top of the viewport under the bar, as home's does. Modern
+   gives the page no top padding of its own, and its bar's spacer goes with html.nf-hero-top
+   (netflix.css); the legacy layout's 7.44em and the TV layout's 140 px are zeroed here while
+   the billboard shows. With no billboard the page keeps its offset and the heading row
+   below sits in the flow. (1,2,1) over the phone rule's (0,6,1). */
+html.nf-rq-view.nf-hero-top #searchPage {
+    padding-top: 0 !important;
+}
+.nf-rq {
+    position: relative;
+}
+
+/* ---- The billboard: the geometry of home's .nf-hero (netflix.css), whose slide, scrims,
+   copy and buttons it uses as they are. Not .nf-hero itself: setupHero takes every .nf-hero
+   off a page that is not home. No negative top margin: home's pulls the billboard up
+   through its container's padding, and this page has none above it. The rows tuck 3vh into
+   its fade, as on home. While the rows load it is home's loading shell (.nf-hero-skel). */
+.nf-rq-hero {
+    position: relative;
+    width: 100%;
+    height: 80vh;
+    min-height: 480px;
+    max-height: 860px;
+    margin: 0 0 -3vh;
+    overflow: hidden;
+}
+.nf-rq-hero:not(.nf-hero-skel) {
+    background: var(--bg-dark);
+}
+/* Home's landing strip: the last stretch of the fade is solid page colour under the row
+   that overlaps it. */
+.nf-rq-hero::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 7vh;
+    background: linear-gradient(180deg, rgba(var(--nf-bg-rgb),0) 0%, rgba(var(--nf-bg-rgb),.92) 55%, var(--bg-dark) 100%);
+    z-index: 2;
+    pointer-events: none;
+}
+/* The request action is the page's one accent fill, in the submit voice: the accent with
+   its own ink (gold takes the near-black --nf-on-accent). */
+.nf-hero-btn.nf-rq-req {
+    background: var(--accent-red);
+    color: var(--nf-on-accent, #fff);
+}
+.nf-hero-btn.nf-rq-req:hover {
+    background: var(--accent-red-hover);
+}
+/* A state, not an action: no hover and no press, quieter than "Mehr Infos" beside it (the
+   round buttons' rest fill). A title the library holds that this profile cannot open has
+   the match green on its check. */
+.nf-hero-btn.nf-rq-done {
+    background: var(--nf-ring-fill);
+    color: var(--nf-text-2);
+    cursor: default;
+}
+.nf-hero-btn.nf-rq-done:active {
+    transform: none !important;
+    filter: none !important;
+}
+.nf-hero-btn.nf-rq-done[data-state="available"] .material-icons {
+    color: #46d369;
+}
+
+/* ---- The heading row: the page's name and its search field, over the billboard's top
+   just below the bar - where Netflix's genre pages put theirs. Over the billboard it is
+   placed absolutely: below the Modern bar (MUI's dense toolbar, 48 px at every width -
+   measured), or the legacy header (--nav-height). Without one it is in the flow. */
+.nf-rq-head {
+    position: relative;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    padding: 24px var(--nf-gutter) 16px;
+}
+html.nf-rq-view.nf-hero-top .nf-rq-head {
+    position: absolute;
+    top: 48px;
+    left: 0;
+    right: 0;
+    padding-top: 14px;
+}
+html.nf-rq-view.nf-hero-top:not(.nf-modern) .nf-rq-head {
+    top: var(--nav-height);
+}
+.nf-rq-title {
+    margin: 0;
+    font-family: var(--font-netflix);
+    font-size: var(--nf-t-head);
+    font-weight: var(--nf-w-bold);
+    line-height: 1.2;
+    letter-spacing: var(--nf-track-head);
+    color: var(--text-main);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.45);
+    white-space: nowrap;
+}
+.nf-rq-search {
+    position: relative;
+    flex: 0 1 340px;
+    min-width: 0;
+    margin-left: 32px;
+    margin-inline-start: 32px;
+}
+[dir="rtl"] .nf-rq-search {
+    margin-left: 0;
+}
+/* The field is jellyfin's search box in the theme's voice (netflix.css, .searchfields-
+   txtSearch and its icon): square, a thin bright border, the magnifier in a 44 px well. */
+.nf-rq-search > .nf-rq-search-icon {
+    position: absolute;
+    top: 0;
+    left: 14px;
+    z-index: 1;
+    height: 44px;
+    line-height: 44px;
+    font-size: 22px;
+    color: rgba(255,255,255,0.75);
+    pointer-events: none;
+}
+[dir="rtl"] .nf-rq-search > .nf-rq-search-icon {
+    left: auto;
+    right: 14px;
+}
+input.nf-rq-input {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    height: 44px;
+    margin: 0;
+    padding: 0 14px 0 44px;
+    background-color: rgba(0,0,0,0.75);
+    border: 1px solid rgba(255,255,255,0.85);
+    border-radius: 0;
+    color: #fff;
+    font-family: var(--font-netflix);
+    font-size: 1rem;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+[dir="rtl"] input.nf-rq-input {
+    padding: 0 44px 0 14px;
+}
+input.nf-rq-input::placeholder {
+    color: #8c8c8c;
+    opacity: 1;
+}
+/* Its own focus, a white border: the theme's text-field ring (input:not([type="range"])
+   :focus, (0,2,1) !important) would draw a second one outside it. (0,2,1), later. */
+input.nf-rq-input:focus {
+    outline: none !important;
+    border-color: #fff !important;
+    background-color: rgba(0,0,0,0.9);
+    box-shadow: none !important;
+}
+
+/* ---- A tile's state: the "Recently Added" tab's geometry (netflix.css, .nf-new-flag) in
+   a quiet voice - page colour, body text - since a state is not an action. Green for what
+   can be watched (available, or some seasons). A title that can be requested has none. */
+.nf-rq-card .nf-rq-state {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    z-index: 2;
+    -webkit-transform: translateX(-50%);
+    transform: translateX(-50%);
+    max-width: 92%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: rgba(var(--nf-bg-rgb),0.82);
+    color: var(--nf-text-2);
+    font-family: var(--font-netflix);
+    font-size: 0.7rem;
+    font-weight: var(--nf-w-bold);
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+    padding: 0 8px;
+    border-radius: var(--r-badge) var(--r-badge) 0 0;
+    pointer-events: none;
+}
+.nf-rq-card .nf-rq-state[data-state="available"],
+.nf-rq-card .nf-rq-state[data-state="partial"] {
+    color: #46d369;
+}
+
+/* Nothing to show: Seerr could not be reached, or gave nothing. */
+.nf-rq-note {
+    padding: 12vh var(--nf-gutter) 10vh;
+    text-align: center;
+    color: var(--nf-text-3);
+    font-family: var(--font-netflix);
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+/* ---- Sizes. After the rules above, so they win on order (media queries add no
+   specificity). Home's billboard: 70vh / 420 on tablets, 62vh / 360 on phones. On a phone
+   the field goes under the page's name, the width of the rail. */
+@media (min-width: 769px) and (max-width: 1200px) {
+    .nf-rq-hero { height: 70vh; min-height: 420px; }
+}
+@media (max-width: 768px) {
+    .nf-rq-hero { height: 62vh; min-height: 360px; }
+    .nf-rq-head { display: block; }
+    .nf-rq-search { margin: 12px 0 0; margin-inline-start: 0; }
+}
+
+/* ---- Playback: the page is the theme's own and never part of the player UI (home's
+   billboard and rows are gated the same way in netflix.css). Each its own rule: an engine
+   without :has() drops only that one. */
+html.nf-playing .nf-rq {
+    visibility: hidden !important;
+}
+html:has(.videoPlayerContainer) .nf-rq {
+    visibility: hidden !important;
+}
