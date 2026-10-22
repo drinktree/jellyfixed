@@ -720,6 +720,19 @@
         return cfg('CardStyle', 'mixed') === 'portrait' ? w * 2 + 6 : w;
     }
 
+    // The server's own artwork, or a third party's (TMDB's, on the Requests page): an
+    // absolute URL on another origin than the server's - ApiClient's address, else the
+    // page's. A relative URL is the server's.
+    var NF_ORIGIN = /^(?:[a-z][a-z0-9+.-]*:)?\/\/[^\/?#]+/i;
+    function nfOwnArt(u) {
+        var m = NF_ORIGIN.exec(u || '');
+        if (!m) return true;
+        var srv = '';
+        try { srv = (typeof ApiClient !== 'undefined' && ApiClient.serverAddress && ApiClient.serverAddress()) || ''; } catch (e) {}
+        var s = NF_ORIGIN.exec(srv || location.href);
+        return !!s && s[0].toLowerCase() === m[0].toLowerCase();
+    }
+
     // ---- Lazy row artwork: a home build used to fire ~120 thumbnail requests at
     // once. Cards carry data-nf-bg; one shared observer fills them near-viewport,
     // decoding BEFORE the swap so tiles cross-fade in instead of popping.
@@ -745,7 +758,20 @@
                 var oi = nfObserved.indexOf(el);
                 if (oi !== -1) nfObserved.splice(oi, 1);
             };
-            pre.onload = pre.onerror = swap;
+            pre.onload = swap;
+            // A preload that failed on a third party's server is NOT handed to CSS: the
+            // browser would fetch it a second time, and that fetch carries the page's
+            // address as its Referer (measured: no-referrer keeps it off the Image, not
+            // off the CSS fetch). The tile keeps its placeholder, and is done with. The
+            // server's own art keeps the old way: CSS asks for it all the same.
+            pre.onerror = function () {
+                if (nfOwnArt(u)) { swap(); return; }
+                if (swapped) return;
+                swapped = true;   // the hand-over below leaves it alone too
+                el.removeAttribute('data-nf-bg');
+                var oi = nfObserved.indexOf(el);
+                if (oi !== -1) nfObserved.splice(oi, 1);
+            };
             // A request that neither loads nor errors (busy server) would otherwise
             // leave the tile blank forever — hand it to the browser after 4s.
             setTimeout(swap, 4000);
@@ -5132,8 +5158,14 @@
             // page: its search field takes the focus as it mounts (React's autoFocus), and on
             // a phone a focus inside a tap's activation opens the keyboard - for a field this
             // page hides. Already hidden, it takes no focus (measured on the drawer and the bar
-            // entry). The next pass corrects the class if the navigation does not happen.
-            if (nfRqLive()) document.documentElement.classList.add('nf-rq-view');
+            // entry). The next pass corrects the class if the navigation does not happen - and
+            // one is asked for a second from now: a show() that never pushes leaves a page
+            // that changes nothing, where no pass would come, and the class would hide
+            // jellyfin's search page for good. Where the page is right, that pass writes nothing.
+            if (nfRqLive()) {
+                document.documentElement.classList.add('nf-rq-view');
+                setTimeout(function () { try { applyDynamic(); } catch (e) {} }, 1000);
+            }
             var pg = window.Emby && window.Emby.Page;
             if (pg && typeof pg.show === 'function') {
                 var p = pg.show(NF_RQ_PAGE);
@@ -5837,8 +5869,23 @@
             if (!page) return;
             if (!nfRqBox || nfRqBox.parentNode !== page) nfRqMount(page);
             else if (page.lastElementChild !== nfRqBox) nfRqToEnd(page, nfRqBox);
+            nfRqBarH(nfRqBox);
             nfRqFocusOut(page);
         } catch (e) {}
+    }
+    // The Modern bar's real height, for the heading row over the billboard (seerr.css,
+    // --nf-rq-bar-h, 48 px unless set here). Below 1200 px MUI lets the toolbar wrap, and with
+    // long library names it is two rows, 86 px (measured), over a heading row placed at 48.
+    // Read off OffsetAppBar's spacer, whose inline height React keeps equal to the bar's (a
+    // ResizeObserver of its own): an attribute, not a layout read. Written only when it changes.
+    function nfRqBarH(box) {
+        var hdr = document.querySelector('header.MuiAppBar-root');
+        var sp = hdr && hdr.nextElementSibling;
+        var h = sp && sp.getAttribute('aria-hidden') === 'true' ? parseFloat(sp.style.height) : 0;
+        var v = h > 0 && Math.ceil(h) !== 48 ? Math.ceil(h) + 'px' : '';
+        if (box.style.getPropertyValue('--nf-rq-bar-h') === v) return;
+        if (v) box.style.setProperty('--nf-rq-bar-h', v);
+        else box.style.removeProperty('--nf-rq-bar-h');
     }
     // Behind the child React has just appended (its suggestions land a moment after the
     // page mounts). A move takes the focus off whatever had it inside the box - measured: the

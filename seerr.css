@@ -143,10 +143,13 @@ html.nf-rq-view.nf-hero-top #searchPage {
     padding-top: 0 !important;
 }
 /* --nf-rq-head-h: the heading row's height over the billboard - 14 px above, the 44 px field,
-   16 px below (the stacked phone row is in the size block below). */
+   16 px below (the stacked phone row is in the size block below). --nf-rq-bar-h: the Modern
+   bar's height, MUI's dense 48 px - unless the bar has wrapped onto a second row (below 1200 px,
+   with long library names), when the script writes its real height on the box. */
 .nf-rq {
     position: relative;
     --nf-rq-head-h: 74px;
+    --nf-rq-bar-h: 48px;
 }
 
 /* ---- The billboard: home's .nf-hero geometry (netflix.css) - 80vh between 480 and 860 px,
@@ -182,10 +185,10 @@ html.nf-rq-view.nf-hero-top #searchPage {
     left: auto;
     bottom: auto;
 }
-/* Below the bar (48 px on Modern, --nav-height in the legacy layout) and the heading row,
-   with 12 px of air. Only while the heading row is over the billboard (html.nf-hero-top). */
+/* Below the bar (--nf-rq-bar-h on Modern, --nav-height in the legacy layout) and the heading
+   row, with 12 px of air. Only while the heading row is over the billboard (html.nf-hero-top). */
 html.nf-rq-view.nf-hero-top .nf-rq-hero > .nf-hero-slide {
-    padding-top: calc(48px + var(--nf-rq-head-h) + 12px);
+    padding-top: calc(var(--nf-rq-bar-h) + var(--nf-rq-head-h) + 12px);
 }
 html.nf-rq-view.nf-hero-top:not(.nf-modern) .nf-rq-hero > .nf-hero-slide {
     padding-top: calc(var(--nav-height) + var(--nf-rq-head-h) + 12px);
@@ -245,8 +248,9 @@ html.nf-rq-view.nf-hero-top:not(.nf-modern) .nf-rq-hero > .nf-hero-slide {
 
 /* ---- The heading row: the page's name and its search field, over the billboard's top
    just below the bar - where Netflix's genre pages put theirs. Over the billboard it is
-   placed absolutely: below the Modern bar (MUI's dense toolbar, 48 px at every width -
-   measured), or the legacy header (--nav-height). Without one it is in the flow. */
+   placed absolutely: below the Modern bar (MUI's dense toolbar, 48 px on one row - measured
+   - and its real height when it wraps: --nf-rq-bar-h), or the legacy header (--nav-height).
+   Without one it is in the flow. */
 .nf-rq-head {
     position: relative;
     z-index: 4;
@@ -256,7 +260,7 @@ html.nf-rq-view.nf-hero-top:not(.nf-modern) .nf-rq-hero > .nf-hero-slide {
 }
 html.nf-rq-view.nf-hero-top .nf-rq-head {
     position: absolute;
-    top: 48px;
+    top: var(--nf-rq-bar-h);
     left: 0;
     right: 0;
     padding-top: 14px;
