@@ -5189,9 +5189,12 @@
     // checked on every pass, and the node moved only when it is wrong.
     // Mui-focusVisible is Favorites' own keyboard state, not to be copied.
     // How much of the entry shows depends on the bar's room (the section below). Its glyph
-    // is in it from the start, hidden by the hidden attribute (so a sheet without
-    // seerr.css's rules shows the word alone): a change of step never adds or removes a
-    // node, it only changes classes, which the body observer does not see.
+    // is in it from the start: seerr.css takes it out (display: none) outside the glyph
+    // step and shows it in that step, so a change of step never adds or removes a node,
+    // it only changes classes, which the body observer does not see. Its zero width and
+    // height attributes keep it at 0x0 wherever no rule of that sheet reaches it, and the
+    // entry is then its word alone. (The hidden attribute would not do: the user agent's
+    // [hidden] rule reaches HTML elements only, not an inline svg.)
     function nfRqBarEntry(live, active) {
         try {
             var tb = nfModernToolbar();
@@ -5208,7 +5211,7 @@
             if (!own) {
                 own = document.createElement('a');
                 own.setAttribute('href', NF_RQ_HREF);
-                own.innerHTML = '<svg class="nf-nav-req-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" hidden><path d="'
+                own.innerHTML = '<svg class="nf-nav-req-icon" viewBox="0 0 24 24" width="0" height="0" aria-hidden="true" focusable="false"><path d="'
                     + NF_RQ_ICON + '"></path></svg><span class="nf-nav-req-word"></span>';
             }
             var word = own.lastChild;

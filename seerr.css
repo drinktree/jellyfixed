@@ -86,13 +86,21 @@ html.nf-modern.nf-nav-snug header.MuiAppBar-root > .MuiToolbar-root:first-child 
 }
 /* The glyph: the drawer's playlist_add, at the 22 px the bar's own icons are drawn at,
    in the entry's own colour - so the nav voice's rest, hover and current colours (and
-   the focus ring) are its too. It carries the hidden attribute until this rule shows it,
-   so a sheet without this block falls back to the word. The word stays in the DOM for
-   the entry's name and the toolbar's text, visually hidden, out of the flow.
+   the focus ring) are its too. The svg is always in the entry. The first rule below
+   takes it out (display: none) outside the glyph step, and the glyph rule, one class
+   more specific, shows it. The hidden attribute would not do this: the user agent's
+   [hidden] rule reaches HTML elements only, and an inline svg with it still computes
+   display: block (measured). Where neither rule applies - a sheet without this block -
+   the svg's zero width and height attributes keep it at 0x0, so the entry falls back
+   to its word. The word stays in the DOM for the entry's name and the toolbar's text,
+   visually hidden, out of the flow.
    The glyph is the entry at its smallest, and it does not shrink below that: where the
    bar is over-full even without the entry (from 1200 px, where the nav voice's
    min-width: 0 squeezes every word), the bar's own words take the squeeze, as they would
    without it - measured at 1200 px with three long names: 21.1 px of glyph otherwise. */
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req > .nf-nav-req-icon {
+    display: none;
+}
 html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req.nf-nav-req-glyph {
     flex-shrink: 0;
 }
