@@ -74,3 +74,43 @@ html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req
     color: var(--text-main);
     font-weight: var(--nf-w-med);
 }
+
+/* The bar's room (headerButton.js, "The bar entry's room"). Where the entry's word does
+   not fit beside the bar's own words, the script steps down only as far as it must:
+   first html.nf-nav-snug - every word in the bar 10 px apart instead of the nav voice's
+   18 px (the mark's 25 px rail is a size-large button and stays) - and then, on top of
+   that, a.nf-nav-req-glyph: only the entry's glyph. Where the word fits, neither class
+   is set and the bar is exactly the nav voice above. (0,6,3) over the voice's (0,5,3). */
+html.nf-modern.nf-nav-snug header.MuiAppBar-root > .MuiToolbar-root:first-child a.MuiButton-sizeMedium {
+    margin-right: 10px;
+}
+/* The glyph: the drawer's playlist_add, at the 22 px the bar's own icons are drawn at,
+   in the entry's own colour - so the nav voice's rest, hover and current colours (and
+   the focus ring) are its too. It carries the hidden attribute until this rule shows it,
+   so a sheet without this block falls back to the word. The word stays in the DOM for
+   the entry's name and the toolbar's text, visually hidden, out of the flow.
+   The glyph is the entry at its smallest, and it does not shrink below that: where the
+   bar is over-full even without the entry (from 1200 px, where the nav voice's
+   min-width: 0 squeezes every word), the bar's own words take the squeeze, as they would
+   without it - measured at 1200 px with three long names: 21.1 px of glyph otherwise. */
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req.nf-nav-req-glyph {
+    flex-shrink: 0;
+}
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req.nf-nav-req-glyph > .nf-nav-req-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+html.nf-modern header.MuiAppBar-root > .MuiToolbar-root:first-child a.nf-nav-req.nf-nav-req-glyph > .nf-nav-req-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}

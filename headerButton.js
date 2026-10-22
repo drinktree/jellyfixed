@@ -5170,7 +5170,10 @@
             nfRqBarEntry(live, active);
             nfRqDrawerEntry(live, active);
             nfRqMenuEntry(live, active);
-            nfRqNavUp = live;
+            // A builder whose container is missing on this pass (no toolbar on the
+            // dashboard: nfModernToolbar) cannot take its entry out, so the clean-up goes
+            // on until nothing of the entries is left.
+            nfRqNavUp = live || !!document.querySelector('.nf-nav-req') || root.classList.contains('nf-nav-snug');
         } catch (e) {}
     }
 
@@ -5185,28 +5188,158 @@
     // when there is no "More", and put before "More" when there is. So the place is
     // checked on every pass, and the node moved only when it is wrong.
     // Mui-focusVisible is Favorites' own keyboard state, not to be copied.
+    // How much of the entry shows depends on the bar's room (the section below). Its glyph
+    // is in it from the start, hidden by the hidden attribute (so a sheet without
+    // seerr.css's rules shows the word alone): a change of step never adds or removes a
+    // node, it only changes classes, which the body observer does not see.
     function nfRqBarEntry(live, active) {
         try {
             var tb = nfModernToolbar();
-            if (!tb) return;
-            var own = tb.querySelector('a.nf-nav-req');
-            var fav = live ? tb.querySelector('a.MuiButton-sizeMedium[href*="home?tab=1"]') : null;
-            if (!fav) { if (own && own.parentNode) own.parentNode.removeChild(own); return; }
+            var own = tb ? tb.querySelector('a.nf-nav-req') : null;
+            var fav = live && tb ? tb.querySelector('a.MuiButton-sizeMedium[href*="home?tab=1"]') : null;
+            if (!fav) {
+                if (own && own.parentNode) own.parentNode.removeChild(own);
+                nfRqBarOff();
+                return;
+            }
             var stack = fav.parentNode;
             var more = stack.querySelector('[aria-controls="user-view-overflow-menu"]');
             if (more && more.parentNode !== stack) more = null;
             if (!own) {
                 own = document.createElement('a');
                 own.setAttribute('href', NF_RQ_HREF);
+                own.innerHTML = '<svg class="nf-nav-req-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" hidden><path d="'
+                    + NF_RQ_ICON + '"></path></svg><span class="nf-nav-req-word"></span>';
             }
+            var word = own.lastChild;
             var label = nfL().requests;
-            if (own.textContent !== label) own.textContent = label;
+            if (word && word.textContent !== label) word.textContent = label;
             if (own.parentNode !== stack || own.nextElementSibling !== more) stack.insertBefore(own, more);
-            var cls = fav.className.replace(/MuiButton-(color|text)Primary/g, 'MuiButton-$1Inherit').replace(/\s*\bMui-focusVisible\b/g, '')
-                + ' nf-nav-req' + (active ? ' nf-nav-active' : '');
-            if (own.className !== cls) own.className = cls;
+            nfRqBarApply(own, fav, active, nfRqBarStep);
+            var key = nfRqBarKeyOf(tb, stack);
+            if (key !== nfRqBarKey) {
+                nfRqBarStep = nfRqBarDecide(tb, stack, own, fav, active);
+                nfRqBarKey = key;
+            }
+            nfRqBarName(own, nfRqBarStep === 2 ? label : null);
             nfRqCurrent(own, active);
         } catch (e) {}
+    }
+
+    // ---- The bar entry's room ----
+    // Below 1200 px MUI lets the app toolbar wrap, and from 1200 px the nav voice's
+    // min-width: 0 (netflix.css) lets its words squeeze instead. The rig's five views
+    // leave 51 px or more beside the entry at every width, but three ordinary German
+    // library names (Dokumentationen, Kinderfilme, Konzertfilme) wrap the bar at 900 and
+    // 950 px with the entry and not without it (measured in review). So the entry takes
+    // only the room there is, and steps down only as far as it must:
+    //   0  its word at the stock gaps: wherever it fits - the rig's names at every width,
+    //      today's look, nothing written;
+    //   1  html.nf-nav-snug: every word in the bar 10 px apart instead of 18 (seerr.css);
+    //   2  that, and only the entry's glyph: the drawer's playlist_add at the bar's 22 px
+    //      icon size, with the word kept in the DOM, hidden, and its name on aria-label
+    //      and title.
+    // When even step 2 does not fit, the bar was full without the entry, and jellyfin's
+    // own layout stands (a second row below 1200 px, squeezed words from there up): the
+    // entry stays at its smallest and nothing else is done about it.
+    // The step is found by trying them in order, with synchronous layout reads, and only
+    // when what it depends on has changed (nfRqBarKeyOf). Every other pass builds that
+    // key from the DOM without a layout read, finds it unchanged, and writes nothing. A
+    // try writes classes only, never a node; the user never sees one, because no frame
+    // is painted while the task runs.
+    var nfRqBarStep = 0;
+    var nfRqBarKey = null;
+    // The width a root scrollbar takes on this device: 0 for overlay scrollbars, -1 until
+    // one has been seen. The theme draws a 10 px one (::-webkit-scrollbar), and where
+    // scrollbars are classic it takes that width from the bar when the page grows long
+    // enough to scroll, with no resize to say so. So a step chosen while the page cannot
+    // scroll keeps that much room free, and the bar does not wrap when the page grows.
+    var nfRqSbW = -1;
+
+    function nfRqBarOff() {
+        nfRqBarStep = 0;
+        nfRqBarKey = null;
+        var root = document.documentElement;
+        if (root.classList.contains('nf-nav-snug')) root.classList.remove('nf-nav-snug');
+    }
+
+    // The classes of a step, written only where they differ.
+    function nfRqBarApply(own, fav, active, step) {
+        var cls = fav.className.replace(/MuiButton-(color|text)Primary/g, 'MuiButton-$1Inherit').replace(/\s*\bMui-focusVisible\b/g, '')
+            + ' nf-nav-req' + (step === 2 ? ' nf-nav-req-glyph' : '') + (active ? ' nf-nav-active' : '');
+        if (own.className !== cls) own.className = cls;
+        var root = document.documentElement;
+        if (root.classList.contains('nf-nav-snug') !== (step > 0)) root.classList.toggle('nf-nav-snug', step > 0);
+    }
+
+    // What the step depends on. The width; the layout epoch, which nfRelayout moves when
+    // a resize settles or a webfont arrives; the toolbar's node count (a cast or SyncPlay
+    // button coming or going); and the bar's words and which of them is current, since
+    // the current one is set at the medium weight, which is wider. No layout read.
+    function nfRqBarKeyOf(tb, stack) {
+        var k = window.innerWidth + '|' + nfLayoutEpoch + '|' + tb.getElementsByTagName('*').length;
+        for (var c = stack.firstElementChild; c; c = c.nextElementSibling) {
+            k += '|' + (/Primary|nf-nav-active/.test(c.className) ? '*' : '') + c.textContent;
+        }
+        return k;
+    }
+
+    // The room to keep free for a root scrollbar that is not there yet.
+    function nfRqBarReserve() {
+        try {
+            var de = document.documentElement;
+            var sb = window.innerWidth - de.clientWidth;
+            if (sb > 0) { nfRqSbW = sb; return 0; }
+            // The page scrolls, and no scrollbar takes room: they are overlay ones here.
+            if (de.scrollHeight > window.innerHeight + 1 && getComputedStyle(de).overflowY !== 'hidden'
+                && getComputedStyle(document.body).overflowY !== 'hidden') { nfRqSbW = 0; return 0; }
+            return nfRqSbW < 0 ? 10 : nfRqSbW;
+        } catch (e) { return 0; }
+    }
+
+    // Does the bar hold all of it? One row at the toolbar's own height (a second row, or
+    // a name broken onto two lines, makes it taller), no nav word squeezed below its width
+    // (the words only: the mark is a logo the brand restyles, and its height is checked
+    // above), and the free room the step must keep: the toolbar's flex-grow box after the
+    // nav holds the slack, its buttons packed at its far end.
+    function nfRqBarFits(tb, stack, minH, reserve) {
+        if (tb.offsetHeight > minH + 1) return false;
+        for (var c = stack.firstElementChild; c; c = c.nextElementSibling) {
+            if (c.tagName === 'A' && c.classList.contains('MuiButton-sizeMedium') && c.scrollWidth > c.clientWidth + 1) return false;
+        }
+        var box = stack.nextElementSibling;
+        if (!reserve || !box) return true;
+        var lo = Infinity, hi = -Infinity;
+        for (var k = box.firstElementChild; k; k = k.nextElementSibling) {
+            var r = k.getBoundingClientRect();
+            if (!r.width) continue;
+            if (r.left < lo) lo = r.left;
+            if (r.right > hi) hi = r.right;
+        }
+        return box.getBoundingClientRect().width - (hi > lo ? hi - lo : 0) >= reserve;
+    }
+
+    function nfRqBarDecide(tb, stack, own, fav, active) {
+        var minH = parseFloat(getComputedStyle(tb).minHeight) || 48;
+        var reserve = nfRqBarReserve();
+        for (var s = 0; s < 2; s++) {
+            nfRqBarApply(own, fav, active, s);
+            if (nfRqBarFits(tb, stack, minH, reserve)) return s;
+        }
+        nfRqBarApply(own, fav, active, 2);
+        return 2;
+    }
+
+    // The glyph's name, for those who do not see its word: aria-label, and title for a
+    // pointer. The other steps show the word and carry neither.
+    function nfRqBarName(own, name) {
+        if (name) {
+            if (own.getAttribute('aria-label') !== name) own.setAttribute('aria-label', name);
+            if (own.getAttribute('title') !== name) own.setAttribute('title', name);
+        } else {
+            if (own.hasAttribute('aria-label')) own.removeAttribute('aria-label');
+            if (own.hasAttribute('title')) own.removeAttribute('title');
+        }
     }
 
     // Modern drawer (below 900 px): a copy of the Favorites row, right after it in the
