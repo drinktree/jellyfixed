@@ -5863,7 +5863,8 @@
         }
         // The answer is for the id the model has now: the one that goes into the link.
         if (st === 'available' && nfRqPlayKnown(m) === true) return nfRqHeroPlayHtml(m.jf);
-        return '<span class="nf-hero-btn nf-rq-done" data-state="' + st + '" aria-disabled="true"><span class="material-icons" aria-hidden="true">check</span> ' + l[st] + '</span>';
+        // Status 2 in the window's word (✓ Requested): the same title is not "Pending" here and "Requested" there.
+        return '<span class="nf-hero-btn nf-rq-done" data-state="' + st + '" aria-disabled="true"><span class="material-icons" aria-hidden="true">check</span> ' + (st === 'pending' ? l.requested : l[st]) + '</span>';
     }
     // ▶ into the library: the nf-autoplay flow (the init click capture flags it, the details
     // page's own Play is pressed), as on home's billboard. jf is the id nfRqCanPlay verified.
@@ -6801,7 +6802,7 @@
     // ---- Asking for a title ----
     // What a refusal says, by nfRqPost's code.
     var NF_RQ_ERR = { already: 'errAlready', none: 'errNone', forbidden: 'errForbidden', disabled: 'errDisabled', blocklisted: 'errBlocked', down: 'errDown', error: 'errOther' };
-    var nfRqSending = {};   // a title's key -> its request while it is out
+    var nfRqSending = {};   // '<user id>|<title key>' -> its request while it is out
     // One request: a film, or a series' seasons, by their numbers. One per title at a time - a second press while it is
     // out gets the same answer. It never rejects; it resolves nfRqPost's code. The answer is said where the request was
     // asked: in the title's window when it is open, else in a toast (the billboard asks without one).
@@ -6815,27 +6816,33 @@
                 ns = (Array.isArray(seasons) ? seasons : []).filter(function (n) { return typeof n === 'number' && n > 0 && Math.floor(n) === n; });
                 if (!ns.length) return Promise.resolve('error');
             }
-            if (Object.prototype.hasOwnProperty.call(nfRqSending, m.key)) return nfRqSending[m.key];
             var uid = ApiClient.getCurrentUserId() || '';
             if (!uid) return Promise.resolve('error');
+            // Filed per user, as every held answer is: after a sign-out the next user's press is theirs, not the old promise.
+            var sk = uid + '|' + m.key;
+            if (Object.prototype.hasOwnProperty.call(nfRqSending, sk)) return nfRqSending[sk];
             // Requests switched off at the bridge, or the probe could not get past that switch: nothing is sent, and
             // nothing is remembered - what is known about this user stays as it is (a stored 'no' among it).
             if (!nfRqSubmitOk()) { nfRqTell(m, nfL().errDisabled); return Promise.resolve('disabled'); }
             var body = { mediaType: m.mt, mediaId: m.id, is4k: false };
             if (ns) body.seasons = ns;
             var p = nfRqPost(body).then(function (r) {
-                delete nfRqSending[m.key];
+                delete nfRqSending[sk];
                 var code = (r && r.code) || 'error';
                 // An answer for a user who has gone (a sign-out, a switch) changes nothing for the next one.
                 try { if ((ApiClient.getCurrentUserId() || '') === uid) nfRqAnswered(m, uid, code, body, r && r.msg); } catch (e) {}
                 return code;
             });
-            nfRqSending[m.key] = p;
+            nfRqSending[sk] = p;
             var w = nfRqDlgOf(m);
             if (w) { w.msg = ''; nfRqDlgDraw(w); }
             nfRqRefreshTiles(m);
             return p;
         } catch (e) { return Promise.resolve('error'); }
+    }
+    // A request for the title is out, for the user signed in now.
+    function nfRqBusy(m) {
+        return Object.prototype.hasOwnProperty.call(nfRqSending, (ApiClient.getCurrentUserId() || '') + '|' + m.key);
     }
     // What a request answered, said where it was asked: in the title's window when that is open, else in a toast.
     function nfRqTell(m, say) {
@@ -6976,7 +6983,7 @@
         var acts = hero.querySelector('.nf-hero-actions');
         var first = acts && acts.firstElementChild;
         if (!first || first.classList.contains('nf-rq-more')) return;
-        var html = nfRqHeroAct(m, Object.prototype.hasOwnProperty.call(nfRqSending, m.key));
+        var html = nfRqHeroAct(m, nfRqBusy(m));
         if (first.outerHTML === html) return;
         var t = document.createElement('div');
         t.innerHTML = html;
@@ -7276,7 +7283,7 @@
         var l = nfL();
         var st = nfRqState(m);
         var tv = m.mt === 'tv';
-        var busy = Object.prototype.hasOwnProperty.call(nfRqSending, m.key);
+        var busy = nfRqBusy(m);
         var off = !nfRqSubmitOk();
         var left = tv && (w.seasons === null || nfRqDlgAnyPick(w));
         var play = !!w.play && w.play === m.jf && (st === 'available' || st === 'partial');
@@ -7342,7 +7349,7 @@
         var list = w.seasons;
         if (w.m.mt !== 'tv' || w.blocked || !list || !list.length) return '';
         var l = nfL();
-        var off = !nfRqSubmitOk() || Object.prototype.hasOwnProperty.call(nfRqSending, w.m.key);
+        var off = !nfRqSubmitOk() || nfRqBusy(w.m);
         var rows = '';
         var can = 0;
         var on = 0;
@@ -7364,7 +7371,7 @@
         }
         var foot = '';
         if (can) {
-            var busy = Object.prototype.hasOwnProperty.call(nfRqSending, w.m.key);
+            var busy = nfRqBusy(w.m);
             // Nothing ticked: the plain word, drawn off - never "0 Staffeln anfragen".
             var label = busy ? l.requesting : (!on ? l.request : (on === list.length && on > 1 ? l.requestAll : (on === 1 ? l.request1 : l.requestN.replace('{0}', on))));
             foot = '<div class="nf-rq-seasons-foot">' + nfRqDlgBtn('foot', 'foot', 'nf-rq-req' + (busy ? ' nf-rq-busy' : ''), 'file_download', label, off || !on) + '</div>';
