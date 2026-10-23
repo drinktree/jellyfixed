@@ -4811,10 +4811,11 @@
     // The drawer's line under "Requests in the app" (renderPanel). Requests come through a
     // second plugin, and the part of them that can be wrong is set up there, so the drawer
     // says where the bridge stands: installed and loaded, given a Seerr to talk to, taking
-    // requests from this administrator. The line has the most to say exactly where the
-    // server leaves the Requests block below out of the page - no bridge loaded: not
-    // installed, waiting for a restart, disabled - so it stands outside that block, and so
-    // do the probe it shares with the block's gate and the two helpers that read a refusal.
+    // requests from this administrator, getting answers from that Seerr (nfRqSeerrAnswers).
+    // The line has the most to say exactly where the server leaves the Requests block below
+    // out of the page - no bridge loaded: not installed, waiting for a restart, disabled - so
+    // it stands outside that block, and so do the probe it shares with the block's gate and
+    // the two helpers that read a refusal.
     // The dashboard page asks the same (configPage.html checkSeerr) and cannot reach this
     // script, so it carries its own copy of these steps and words: keep the two alike. Asked
     // afresh each time - an administrator who has just mended the bridge's settings wants to
@@ -4844,12 +4845,36 @@
                     var host = typeof s.jellyseerrHost === 'string' && s.jellyseerrHost ? s.jellyseerrHost : 'Seerr';
                     return nfRqProbe().then(function (v) {
                         if (v === 'no') return ['✗ Your own account is not on the bridge\'s allowed list. If you listed users there, use the IDs without dashes.', 'bad'];
-                        if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
-                        return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
+                        return nfRqSeerrAnswers().then(function (yes) {
+                            if (!yes) return ['✗ Seerr at ' + host + ' did not answer through the bridge. Check that Seerr is running and that the bridge\'s Seerr address and API key are right.', 'bad'];
+                            if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
+                            return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
+                        });
                     });
                 });
             }).then(null, function () { return failed; });
         } catch (e) { return Promise.resolve(failed); }
+    }
+
+    // Whether Seerr itself answers through the bridge, for the line's "Connected": nothing above
+    // reaches Seerr - the Status is the bridge's own settings, and the probe is refused by the
+    // bridge before anything is sent on - so with Seerr down, or a wrong API key in the bridge,
+    // the line said ✓. One Discover call, the trending list's first page as the Requests page
+    // asks for it: a 2xx with a results array is a yes. Anything else is a no: an error status
+    // (the bridge's 502 when Seerr cannot be reached), a body without results, or no answer
+    // within 15 s - the cap the page's own rows have (NF_RQ_ROW_WAIT), since the bridge waits up
+    // to 30 s for Seerr and ApiClient has no timeout. Never rejects.
+    var NF_RQ_CHECK_WAIT = 15000;
+    function nfRqSeerrAnswers() {
+        return new Promise(function (resolve) {
+            var timer = setTimeout(function () { resolve(false); }, NF_RQ_CHECK_WAIT);
+            var done = function (yes) { clearTimeout(timer); resolve(yes); };
+            try {
+                ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/Discover/trending', { page: 1 })).then(function (d) {
+                    done(!!d && typeof d === 'object' && Array.isArray(d.results));
+                }, function () { done(false); });
+            } catch (e) { done(false); }
+        });
     }
 
     // May this user send requests? The bridge (0.1.0.5) checks a request in a fixed

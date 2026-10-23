@@ -338,10 +338,10 @@
 
         // Requests come through a second plugin, the Jellyseerr Bridge, and the part of
         // them that can be wrong is set up there — so this line says where the bridge
-        // stands: installed and loaded, given a Seerr to talk to, and taking requests from
-        // this administrator. The settings drawer says the same (headerButton.js,
-        // nfRqSetupLine), but this page cannot reach the theme's script, so it carries its
-        // own copy of the steps and the words: keep the two alike.
+        // stands: installed and loaded, given a Seerr to talk to, taking requests from this
+        // administrator, and getting answers from that Seerr. The settings drawer says the
+        // same (headerButton.js, nfRqSetupLine), but this page cannot reach the theme's
+        // script, so it carries its own copy of the steps and the words: keep the two alike.
         var SEERR_BRIDGE_ID = 'd2fcf9c8c3c747e89dd68de9867e36bb';
         // An update or a disable lists the bridge once per version until the next restart;
         // the entry that counts is the best of them. Deleted (uninstalled) and Superseded
@@ -396,10 +396,30 @@
                     var host = typeof s.jellyseerrHost === 'string' && s.jellyseerrHost ? s.jellyseerrHost : 'Seerr';
                     return seerrProbe().then(function (v) {
                         if (v === 'no') return ['✗ Your own account is not on the bridge\'s allowed list. If you listed users there, use the IDs without dashes.', 'bad'];
-                        if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
-                        return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
+                        return seerrAnswers().then(function (yes) {
+                            if (!yes) return ['✗ Seerr at ' + host + ' did not answer through the bridge. Check that Seerr is running and that the bridge\'s Seerr address and API key are right.', 'bad'];
+                            if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
+                            return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
+                        });
                     });
                 });
+            });
+        }
+        // Whether Seerr itself answers through the bridge (the theme script's nfRqSeerrAnswers,
+        // copied): neither the Status nor the probe ever reaches Seerr, so without this the line
+        // said ✓ with Seerr down or a wrong API key in the bridge. One Discover call, the trending
+        // list's first page: a 2xx with a results array is a yes; an error status, a body without
+        // results, or no answer within 15 s (the bridge waits up to 30 s for Seerr) is a no.
+        // Never rejects.
+        function seerrAnswers() {
+            return new Promise(function (resolve) {
+                var timer = setTimeout(function () { resolve(false); }, 15000);
+                var done = function (yes) { clearTimeout(timer); resolve(yes); };
+                try {
+                    ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/Discover/trending', { page: 1 })).then(function (d) {
+                        done(!!d && typeof d === 'object' && Array.isArray(d.results));
+                    }, function () { done(false); });
+                } catch (e) { done(false); }
             });
         }
         // Switched off, there is nothing to report and nothing is asked. The counter keeps
