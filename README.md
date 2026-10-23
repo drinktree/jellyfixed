@@ -27,6 +27,7 @@ The plugin also injects a small script that adds a **palette settings button** i
 - **15 Google Fonts** — Inter, Poppins, Montserrat, Roboto, Oswald, Raleway, Nunito, Bebas Neue, Lato, Source Sans, Ubuntu, Playfair Display, Quicksand, Comfortaa, Righteous (only the selected family is loaded)
 - **Two house styles** — Netflix (default) or **Villa Cocquette**: the same layout with a gold accent and the villa's crest in the header, in the navigation drawer and above the sign-in page — and outside the page too: the browser tab's icon and name, the loading screen, and the icon and name the site gets on a phone's home screen or in a dock
 - **An intro before films** (off by default) — one video of yours, played by the theme itself: full screen, with sound, no player controls, and the film follows. Apps that do not show the theme (Android TV and the like) are offered it through Jellyfin, as a light copy the server makes for them. See [Intro before films](#intro-before-films)
+- **Requests through Seerr** (with the Jellyseerr Bridge plugin) — films and series that are not in the library can be requested inside the app: a Requests page in the navigation with a trending billboard, rows and a search of its own, a "Not in your library" row on Jellyfin's search, and a request window with seasons for series. No script to run on the server. See [Requests (Seerr)](#requests-seerr)
 - **Logo options** — red "N" (default), Jellyfin, custom letter, custom image URL, or none
 - **Color presets** — Default, Monochrome, Colorful, Christmas, Halloween, Summer, Ocean (override the colour palette)
 - Color customization — accent, background, text, muted text, progress bar
@@ -67,6 +68,7 @@ Open **Dashboard → Plugins → Custom Theme**, or click the palette icon in th
 | Features | Clean home takeover, hero carousel, genre rows, top nav tabs, hover expand card, autoplay preview clips, Top 10 rank numbers (off by default), green "x% Match" score, glass blur (off), OLED black (off) — all others on by default |
 | Colors | Color preset, accent, background, text, muted text, progress bar |
 | Intro | Play an intro before films (off by default), the video file on the server, also before episodes (on), skippable (on), also on iPhone / iPad / Safari (experimental, off), also in apps that do not show the theme (on) |
+| Requests | Requests in the app, through Seerr and the Jellyseerr Bridge plugin (on by default; does nothing without the bridge), with a line under it that says where the bridge stands |
 | Logo & Header | Logo style (red "N" default / Jellyfin / letter / custom image / none), left-aligned nav, header blur |
 | Elements | Badges, watched marks, backdrop, round cast, description, tags, external links, similar titles, spoiler mode |
 | Detail buttons | Watched, favorite, more |
@@ -99,6 +101,18 @@ Jellyfin can only play a pre-roll as a separate entry in the player's queue: a s
 
   The film that follows starts with the viewer's usual audio and subtitle track, not the intro's: the Android TV app and Jellyfin's web player would otherwise carry "the intro's audio stream, no subtitles" over to the film, and Jellyfin would remember that for the film. This is put right for those two players (measured with the Android TV app 0.19.10; its 0.20 beta switches subtitles off by itself after an intro, which a server cannot undo). Two things remain: a subtitle track picked on the film's page before pressing Play (Samsung's TV app has that page) does not survive the intro — the film starts with the viewer's default subtitles — and on Android TV a film whose default subtitles have to be burned into the picture starts twice.
 - **With an intros plugin** (Local Intros and the like): where the theme plays its intro, the plugin's is not played as well. In the apps above both would play, one after the other (Roku plays only the first it is given) — the plugin is no longer needed for them.
+
+### Requests (Seerr)
+
+Films and series that are not in the library can be asked for from inside the app, through a [Seerr](https://github.com/seerr-team/seerr) server (formerly Jellyseerr). The navigation gets a **Requests** page in the theme's own look: today's trending title as the billboard, then rows of what is trending, popular films and series, and what is coming soon. The page has a search of its own, which stays in the address, so Back and a reload come back to it. Jellyfin's own search gets a **Not in your library** row under its results. A title opens in a window like the theme's own popups, with the request button: a series is requested season by season or all at once, and the billboard's *Request* asks for a film in one click. A request that cannot be made says why (already requested, switched off, not allowed, Seerr out of reach), and a title the library already has offers *Play* instead, to a profile that may watch it.
+
+- **What to install:** the third-party [Jellyseerr Bridge](https://github.com/monjaka/jellyfin-plugin-jellyseerr-bridge) plugin. Add its repository (`https://raw.githubusercontent.com/monjaka/jellyfin-plugin-jellyseerr-bridge/main/manifest.json`) in *Dashboard → Plugins → Repositories*, install it from the catalogue and restart Jellyfin. In its settings, enter Seerr's address as the server reaches it and Seerr's API key (Seerr → *Settings → General*), and tick *Enable request submission*: it is off by default, and until it is on the catalogue can be browsed and searched but nothing can be requested. The theme's own switch, **Requests in the app** under *Requests*, is on by default and does nothing until the bridge is there. The line under it, on the dashboard page and in the palette drawer, says where the bridge stands: not installed, waiting for a restart, disabled, not given a Seerr yet, requests switched off, your own account not on its allowed list, or connected.
+- **No script on the server:** the bridge also offers a web loader (`install-web-loader.sh`, run with sudo) that writes a tag into Jellyfin's web files for an entry of its own. The theme does not need it: it draws its own entry. If you ran it already, the theme leaves that loader out of the pages it serves while **Requests in the app** is on, and hides what it would add. To take it out with the bridge's `uninstall-web-loader.sh`, restart Jellyfin once *before* you run that script. The script deletes every whole line that holds the loader, and a tag typed onto the `</body></html>` line would take the end of the page with it; a restart is what moves such a tag onto a line of its own.
+- **Where it shows:** wherever the theme itself runs — browsers, Jellyfin Media Player and the iPhone and Android phone apps, in English and German. Apps that do not show the theme (Android TV, Roku, Kodi) have no Requests.
+- **Who sees it:** profiles with a parental rating limit (*Max parental rating*) do not see Requests at all, because Seerr's lists carry no age rating to filter by. A profile restricted only by tags, or only by blocking unrated items, still sees the whole catalogue.
+- **Requests go in as Seerr's administrator:** the bridge talks to Seerr with its API key, so every request reaches Seerr as its administrator and is approved at once. Seerr starts on it straight away, and there is no undo from the app. Who may send requests is the bridge's own list, *Allowed Jellyfin User IDs*: left empty, every signed-in user may; once it names anyone, everyone else has no Requests. In that list the user IDs go without dashes — written with dashes they match nobody, and the line in the settings says so for your own account. Requests are always for the regular version, never 4K.
+- **Language:** titles and summaries come in Seerr's display language, set in Seerr's general settings (*Settings → General → Display Language*).
+- **Pictures** come straight from TMDB (`image.tmdb.org`), so a device needs internet access to show them.
 
 ## Build from source
 
@@ -141,10 +155,12 @@ ThemeTransformation.cs     # Builds/strips the inline headerButton.js injection 
 ThemeAssetsController.cs   # Serves the Villa icons + web-app manifest, and the intro video
 ThemeIntroProvider.cs      # The intro for apps that do not show the theme: Jellyfin's intro provider + the library-less entry it hands out
 IdentCopy.cs               # The light copy of the intro those apps are given (made once per file, with the server's ffmpeg)
+SeerrBridge.cs             # Looks for the Jellyseerr Bridge plugin at start-up: Requests are offered only while it is loaded
 Assets/                    # The Villa Cocquette marks and icons (embedded resources)
 FileTransformation/        # Bundled File Transformation provider (separate CustomTheme.FileTransformation.dll)
 ServiceRegistrator.cs      # Registers the services with Jellyfin's DI container
-*.css                      # Base skin stylesheet (embedded resource)
+netflix.css                # Base skin stylesheet (embedded resource)
+seerr.css                  # The Requests styles (embedded resource, served only while Requests in the app is on)
 configPage.html            # Dashboard settings page
 headerButton.js            # Header button + slide-in settings panel + hero/preview/Top 10
 manifest.json              # Plugin repository manifest
@@ -174,6 +190,7 @@ layout the way it always did, so either choice looks right.
 
 - Jellyfin 12.0+ (on Jellyfin 10.11 the plugin repository serves the final 10.11 build, 2.5.77)
 - *(optional)* [Jellyfin Media Bar](https://github.com/IAmParadox27/jellyfin-plugin-media-bar) — for the big cinematic hero banner; works without the separate File Transformation plugin because Custom Theme provides that service
+- *(optional)* [Jellyseerr Bridge](https://github.com/monjaka/jellyfin-plugin-jellyseerr-bridge) and a [Seerr](https://github.com/seerr-team/seerr) server — to request films and series inside the app (see [Requests (Seerr)](#requests-seerr))
 - No File Transformation plugin required (it is bundled/provided by this plugin)
 - .NET 10 SDK (only to build from source)
 

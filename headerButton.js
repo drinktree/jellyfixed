@@ -6,7 +6,7 @@
     // cache and that — not the stylesheet — is why a fix "did not work".
     // Declared FIRST: `var` hoists the declaration but not the assignment, so the
     // marker below would write "undefined" if this sat under it.
-    var NF_JS_VERSION = '3.3.3';
+    var NF_JS_VERSION = '3.4.0';
 
     // The configuration as the server baked it into THIS page load. CT_CONFIG is
     // replaced for administrators by the live copy from the plugin API, which is
