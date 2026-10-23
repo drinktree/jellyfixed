@@ -5967,9 +5967,15 @@
         var hero = b.closest('.nf-rq-hero');
         var m = hero ? nfRqFind(hero.getAttribute('data-nf-rq')) : null;
         if (!m || b.getAttribute('aria-disabled') === 'true') return;
+        if (b.classList.contains('nf-rq-req') && Date.now() - (b._nfRqArmAt || 0) < NF_RQ_ARM) return;
         if (b.classList.contains('nf-rq-req') && m.mt === 'movie' && nfRqState(m) === 'request') nfRqRequest(m, null);
         else nfRqOpen(m);
     }
+    // A request is irreversible (auto-approved, the download starts), and a double OK is the commonest remote slip: a
+    // request control takes no press in its first NF_RQ_ARM ms - the window's from its opening and from a series' jump
+    // to its seasons button (nfRqDlgArmed), the billboard's Request from a focus the code put on it (dialogHelper giving it
+    // back as a window closes, a redraw, a move of the box) rather than the user's own key or pointer.
+    var NF_RQ_ARM = 600;
     // One click and one keydown listener for every tile, wherever one sits (bubble phase:
     // nothing of jellyfin's is in the way of a tile without data-id), and for the billboard's
     // buttons. The picture is a div, so Enter and Space are the button's keys here: on a TV
@@ -5978,6 +5984,20 @@
     function nfRqTilesWire() {
         if (nfRqTilesWired) return;
         nfRqTilesWired = true;
+        // The billboard's Request arms late after a focus no key or pointer of the user's made (see NF_RQ_ARM). The
+        // window's capture phase runs before any of jellyfin's key handlers, whose remote moves focus in the same task.
+        var input = 0;
+        var mark = function () { input = Date.now(); };
+        window.addEventListener('keydown', mark, true);
+        window.addEventListener('mousedown', mark, true);
+        window.addEventListener('pointerdown', mark, true);
+        window.addEventListener('touchstart', mark, true);
+        document.addEventListener('focusin', function (e) {
+            try {
+                var t = e.target;
+                if (t && t.classList && t.classList.contains('nf-rq-req') && t.closest('.nf-rq-hero') && Date.now() - input > 100) t._nfRqArmAt = Date.now();
+            } catch (err) {}
+        }, true);
         document.addEventListener('click', function (e) {
             try {
                 var t = e.target;
@@ -6184,7 +6204,7 @@
     // on this page it is hidden: whatever was typed next went into a field nobody could see.
     // Through an entry it never gets it (nfRqGo hides it first); after a Back, a reload or a
     // link straight to the page it does, and is let go here. On a TV the remote's focus goes
-    // to the billboard's first button instead, where Netflix puts it (a TV has no pointer).
+    // to the billboard instead (a TV has no pointer): its More Info (nfRqFocusFirst).
     function nfRqFocusOut(page) {
         var ae = document.activeElement;
         if (!ae || ae.id !== 'searchTextInput' || !page.contains(ae)) return;
@@ -6194,9 +6214,11 @@
     // With nfq in the URL the page shows its search's results, and the billboard and the rows are
     // hidden: a hidden button takes no focus, and the remote's stayed on <body> (its first key then
     // went to the bar's logo). The grid's first tile has it then, once the grid is drawn.
+    // The first press on a TV must commit nothing: More Info, else ▶, else the first tile - never the billboard's Request,
+    // which asks for a film in one press.
     function nfRqFocusFirst(box) {
         var el = box.classList.contains('nf-rq-searching') ? box.querySelector('.nf-rq-results .nf-rq-open')
-            : box.querySelector('.nf-rq-hero .nf-hero-actions > a, .nf-rq-hero .nf-hero-actions > button, .nf-rq-open');
+            : box.querySelector('.nf-rq-hero .nf-rq-more') || box.querySelector('.nf-rq-hero .nf-hero-play') || box.querySelector('.nf-rq-rows .nf-rq-open');
         if (el) { try { el.focus(); } catch (e) {} }
     }
     // Something was drawn: on a TV, the remote's focus goes there when it is nowhere yet.
@@ -7050,7 +7072,7 @@
             dlg.setAttribute('data-nf-rq-dlg', m.key);
             var w = { dh: dh, dlg: dlg, m: m, d: null, seasons: null, picked: {}, blocked: false, failed: false, msg: '', msgAt: 'top',
                 play: null, jump: false, gen: 0, leaving: false, closing: false, shut: false, opener: document.activeElement, drawn: {}, closed: null,
-                at: Date.now(), guard: null };
+                at: Date.now(), jumpAt: 0, guard: null };
             dlg.innerHTML = nfRqDlgShell(m);
             nfRqDlgWire(w);
             // dialogHelper's own event as any close begins (the close ring, Escape, Back, the backdrop, the playback edge),
@@ -7117,6 +7139,13 @@
             } catch (err) {}
         };
     }
+    // The window's request controls take no press in their first NF_RQ_ARM ms: from its opening (dialogHelper puts the
+    // focus on its primary - a film's Request - at once on a TV browser, where the second OK of a double press lands on it,
+    // as the second click of a double-click on a tile can) and from a series' jump to its seasons button.
+    function nfRqDlgArmed(w) {
+        var now = Date.now();
+        return now - w.at >= NF_RQ_ARM && now - w.jumpAt >= NF_RQ_ARM;
+    }
     // The playback edge (applyDynamic): a window still open goes.
     function nfRqDlgShut() {
         var w = nfRqDlgAt;
@@ -7159,13 +7188,13 @@
                 if (!t || !dlg.contains(t) || t.getAttribute('aria-disabled') === 'true') return;
                 var act = t.getAttribute('data-nf-act');
                 if (act === 'close') nfRqDlgClose(w);
-                else if (act === 'req') { w.msgAt = 'top'; nfRqRequest(w.m, null); }
+                else if (act === 'req') { if (nfRqDlgArmed(w)) { w.msgAt = 'top'; nfRqRequest(w.m, null); } }
                 else if (act === 'jump') nfRqDlgJump(w);
                 else if (act === 'play' || act === 'title') nfRqDlgGo(w, act);
                 else if (act === 'season') nfRqDlgPick(w, parseInt(t.getAttribute('data-n'), 10));
                 else if (act === 'foot') {
                     var picked = nfRqDlgPicked(w);
-                    if (picked.length) { w.msgAt = 'foot'; nfRqRequest(w.m, picked); }
+                    if (picked.length && nfRqDlgArmed(w)) { w.msgAt = 'foot'; nfRqRequest(w.m, picked); }
                 }
             } catch (err) {}
         });
@@ -7395,7 +7424,10 @@
         if (!sec || !sec.firstChild) return;
         try { dlg.scrollTop += sec.getBoundingClientRect().top - dlg.getBoundingClientRect().top - 12; } catch (e) {}
         var to = dlg.querySelector('.nf-rq-seasons-foot button') || sec.querySelector('.nf-rq-season-pick');
-        if (to) { try { to.focus({ preventScroll: true }); } catch (e) {} }
+        if (to) {
+            w.jumpAt = Date.now();
+            try { to.focus({ preventScroll: true }); } catch (e) {}
+        }
     }
     function nfRqDlgLoad(w) {
         var g = ++w.gen;
