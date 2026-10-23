@@ -151,6 +151,14 @@ html.nf-rq-view.nf-hero-top #searchPage {
     --nf-rq-head-h: 74px;
     --nf-rq-bar-h: 48px;
 }
+/* The page's end, as home's: home's rows end in their container's 24 px and the tab's 5em of page
+   padding. The search page is size-contained (jellyfin's .page), so its own padding is no part of
+   what scrolls, and the last row's margin went with it: the page ended 32 px under its last row,
+   home 161 (1680 px, measured). Not on the row on jellyfin's search, which is .nf-rq too. */
+#searchPage > .nf-rq:not(.nf-rq-insearch) {
+    padding-bottom: calc(24px + 5em);
+    padding-bottom: calc(24px + env(safe-area-inset-bottom) + 5em);
+}
 
 /* ---- The billboard: home's .nf-hero geometry (netflix.css) - 80vh between 480 and 860 px,
    70vh / 420 on tablets, 62vh / 360 on phones (the size block below) - with home's slide,
