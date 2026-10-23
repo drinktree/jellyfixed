@@ -460,6 +460,18 @@ html.nf-rq-view #searchPage > .nf-rq-insearch {
     padding-bottom: calc(7% + 1.05rem);
 }
 
+/* The hover zoom (CssGenerator, CardHoverScale: the hovered tile's .cardScalable at scale(1.2),
+   its neighbours slid aside to make room). jellyfin 12.2 gives every card `contain: layout style
+   paint` (.card:not(.show-animation)), and paint containment clips at the card's box: the
+   picture grew inside its own frame while the neighbours moved away from it - an empty band on
+   either side of a tile that did not seem to grow (measured: 18.7 px a side at 1680 px). On home
+   the hover card covers the tile; this page has none. The hovered tile alone lets its paint out. */
+@media (hover: hover) {
+    .nf-rq-row .nf-row-track > .card.nf-rq-card:hover {
+        contain: layout style;
+    }
+}
+
 /* Nothing to show: Seerr could not be reached, or gave nothing. */
 .nf-rq-note {
     padding: 12vh var(--nf-gutter) 10vh;
