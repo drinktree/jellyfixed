@@ -6177,7 +6177,7 @@
                     rows.innerHTML = '<div class="nf-rq-note" role="status">' + esc(st.failed ? nfL().errDown : nfL().noResults) + '</div>';
                 }
             }
-            if (drew && document.documentElement.classList.contains('layout-tv') && (!document.activeElement || document.activeElement === document.body)) nfRqFocusFirst(box);
+            if (drew) nfRqFocusIdle(box);
         } catch (e) {}
     }
     // jellyfin's search field takes the focus when its page mounts (React's autoFocus), and
@@ -6191,9 +6191,17 @@
         ae.blur();
         if (document.documentElement.classList.contains('layout-tv') && nfRqBox) nfRqFocusFirst(nfRqBox);
     }
+    // With nfq in the URL the page shows its search's results, and the billboard and the rows are
+    // hidden: a hidden button takes no focus, and the remote's stayed on <body> (its first key then
+    // went to the bar's logo). The grid's first tile has it then, once the grid is drawn.
     function nfRqFocusFirst(box) {
-        var el = box.querySelector('.nf-rq-hero .nf-hero-actions > a, .nf-rq-hero .nf-hero-actions > button, .nf-rq-open');
+        var el = box.classList.contains('nf-rq-searching') ? box.querySelector('.nf-rq-results .nf-rq-open')
+            : box.querySelector('.nf-rq-hero .nf-hero-actions > a, .nf-rq-hero .nf-hero-actions > button, .nf-rq-open');
         if (el) { try { el.focus(); } catch (e) {} }
+    }
+    // Something was drawn: on a TV, the remote's focus goes there when it is nowhere yet.
+    function nfRqFocusIdle(box) {
+        if (document.documentElement.classList.contains('layout-tv') && (!document.activeElement || document.activeElement === document.body)) nfRqFocusFirst(box);
     }
     // The billboard is up and in view: applyDynamic's hero test, so html.nf-hero-top gives
     // this page home's transparent bar and zero page padding. Not while the page is showing
@@ -6427,6 +6435,7 @@
                 grid.appendChild(frag);
             }
             nfRqSearchEnd(box, at);
+            if (page === 1) nfRqFocusIdle(box);
         } catch (e) {}
     }
     // The grid's end. While there are pages to come, a sentinel there asks for the next one as it
