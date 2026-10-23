@@ -429,6 +429,23 @@ input.nf-rq-input:focus {
 html.nf-rq-view #searchPage > .nf-rq-insearch {
     display: none !important;
 }
+/* jellyfin's results end in the page's bottom padding (.padded-bottom-page, 5em !important), and the
+   row comes after them: it stood 124 px under the last section where jellyfin's sections are 40 px
+   apart, with 31 px of page left under it (1680 px, measured). While the row is there that padding
+   goes under the row, and under jellyfin's sections its heading drops the top padding home's row
+   headings have (0.5em) and jellyfin's do not: 40 px, as theirs. Where jellyfin found nothing the
+   row comes right under the field, and that padding stays. !important against .verticalSection's
+   `padding: 0 4%`. */
+#searchPage > .searchResults.padded-bottom-page:not(:last-child) {
+    padding-bottom: 0 !important;
+}
+#searchPage > .nf-rq-insearch {
+    padding-bottom: 5em !important;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 5em) !important;
+}
+#searchPage > .searchResults + .nf-rq-insearch > .sectionTitle {
+    padding-top: 0 !important;
+}
 
 /* ---- A tile's state: the "Recently Added" tab's geometry (netflix.css, .nf-new-flag) in
    a quiet voice - page colour, body text - since a state is not an action. Green for what
