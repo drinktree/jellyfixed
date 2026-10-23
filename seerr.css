@@ -245,6 +245,13 @@ html.nf-rq-view.nf-hero-top:not(.nf-modern) .nf-rq-hero > .nf-hero-slide {
 .nf-hero-btn.nf-rq-done[data-state="available"] .material-icons {
     color: #46d369;
 }
+/* The billboard's actions are buttons, a link (▶) and a span (a state). On a phone netflix.css
+   gives each the 44 px floor (min-height) and 10 px of padding, and only a button counts that
+   padding inside its height: the state and ▶ stood 64 px tall beside 44 px buttons (measured at
+   390 px). One box model for all of them. */
+.nf-rq-hero .nf-hero-btn {
+    box-sizing: border-box;
+}
 
 /* ---- The heading row: the page's name and its search field, over the billboard's top
    just below the bar - where Netflix's genre pages put theirs. Over the billboard it is
