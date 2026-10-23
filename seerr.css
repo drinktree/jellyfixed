@@ -554,6 +554,15 @@ html.nf-rq-view #searchPage > .nf-rq-insearch {
     max-width: none;
     max-height: none;
 }
+/* The glass option leaves a dialog 97% opaque on touch, without the blur a pointer device gets
+   (CssGenerator, GlassEffect). Unblurred, the page behind this window read through it: on a
+   phone the rows' white titles and captions were legible behind the window's actions and meta
+   (+4 levels on the OLED surface, measured). Over a page of tiles the window is opaque there. */
+@media (hover: none) {
+    .dialog.nf-rq-dlg {
+        background: var(--nf-surface) !important;
+    }
+}
 /* The window takes the focus itself as it opens (before dialogHelper moves it to the first control)
    and when a click lands on its text, so its keys reach it. A ring around the whole window says
    nothing: (0,3,1) against the theme's [tabindex] rings at (0,3,1) and below, later in the sheet. */
