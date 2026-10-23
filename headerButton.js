@@ -5783,7 +5783,7 @@
     // (TMDB has no backdrop for about half of them). Such a tile takes the other picture, cropped,
     // as home's tiles take a poster, and with none at all the theme's no-image state (.nf-noimg:
     // an initial on a quiet surface). The name is set in type on every tile but one showing its
-    // own poster.
+    // own poster, in a span of its own that carries the two-line clamp (seerr.css).
     function nfRqCardHtml(m, sid, quiet) {
         var portrait = cfg('CardStyle', 'mixed') === 'portrait';
         var own = nfRqTileArt(m, portrait);
@@ -5799,7 +5799,7 @@
                 '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
                 '<div class="cardImageContainer cardContent nf-rq-open focusable' + (img ? '' : ' nf-noimg') + '" role="button" tabindex="0" aria-label="' + title + '"'
                     + (img ? ' data-nf-bg="' + esc(img) + '"' : ' data-nf-initial="' + esc((m.title.charAt(0) || '?').toUpperCase()) + '"') + '></div>' +
-                tab + (portrait && own ? '' : '<div class="nf-card-name">' + title + '</div>') +
+                tab + (portrait && own ? '' : '<div class="nf-card-name"><span>' + title + '</span></div>') +
               '</div>' +
               '<div class="cardText cardTextCentered cardText-first"><bdi>' + title + '</bdi></div>' +
             '</div>' +

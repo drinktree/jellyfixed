@@ -491,6 +491,25 @@ html.nf-rq-view #searchPage > .nf-rq-insearch {
 .nf-rq-card .nf-rq-state ~ .nf-card-name {
     padding-bottom: calc(7% + 1.05rem);
 }
+/* The name clamps to two lines. netflix.css puts the clamp on .nf-card-name itself, and a clamp's
+   overflow is clipped at the padding edge, so a third line showed in the bottom padding under the
+   ellipsis: "The Lord of the Rings: The / Rings of Power Global Fan... / Screening" (1680 px,
+   landscape tiles, measured). Here the clamp is on the name's own span, which has no padding. At this
+   line height the descenders stay inside the second line's box; 0.05em at its foot keeps their
+   antialiasing, far above the third line's letters, and a margin takes it back, so the text sits where
+   it did. */
+.nf-rq-card .nf-card-name {
+    display: block;
+    -webkit-line-clamp: none;
+}
+.nf-rq-card .nf-card-name > span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    padding-bottom: 0.05em;
+    margin-bottom: -0.05em;
+}
 
 /* The hover zoom (CssGenerator, CardHoverScale: the hovered tile's .cardScalable at scale(1.2),
    its neighbours slid aside to make room). jellyfin 12.2 gives every card `contain: layout style
