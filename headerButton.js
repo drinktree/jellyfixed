@@ -68,7 +68,7 @@
              requestMore: 'Request more seasons', requestAll: 'Request all seasons', requestN: 'Request {0} seasons', request1: 'Request 1 season', toTitle: 'Go to title',
              searchPh: 'Search movies and series', notInLib: 'Not in your library', notInLibAny: 'Not in your library – but you can request it',
              rowTrending: 'Trending Now', rowMovies: 'Popular Movies', rowTv: 'Popular Series', rowUpMovies: 'Coming Soon: Movies', rowUpTv: 'Coming Soon: Series',
-             movie: 'Movie', series: 'Series', episodes: '{0} episodes', episode1: '1 episode', done: '“{0}” requested',
+             movie: 'Movie', series: 'Series', episodes: '{0} episodes', episode1: '1 episode', noEpisodes: 'No episodes yet', done: '“{0}” requested',
              errAlready: 'Already requested', errNone: 'All available seasons are already requested', errForbidden: 'Your profile may not request titles',
              errDisabled: 'Requests are switched off right now', errBlocked: 'This title is blocked', errDown: 'The request service is not reachable right now', errOther: 'Something went wrong. Please try again.',
              close: 'Close', noResults: 'No results', 'with': 'With', genres: 'Genres', creator: 'Created by', director: 'Director', streaming: 'Streaming on' },
@@ -79,7 +79,7 @@
              requestMore: 'Weitere Staffeln anfragen', requestAll: 'Alle Staffeln anfragen', requestN: '{0} Staffeln anfragen', request1: '1 Staffel anfragen', toTitle: 'Zur Titelseite',
              searchPh: 'Filme und Serien suchen', notInLib: 'Nicht in deiner Bibliothek', notInLibAny: 'Nicht in deiner Bibliothek – aber anfragbar',
              rowTrending: 'Im Trend', rowMovies: 'Beliebte Filme', rowTv: 'Beliebte Serien', rowUpMovies: 'Demnächst: Filme', rowUpTv: 'Demnächst: Serien',
-             movie: 'Film', series: 'Serie', episodes: '{0} Folgen', episode1: '1 Folge', done: '„{0}“ angefragt',
+             movie: 'Film', series: 'Serie', episodes: '{0} Folgen', episode1: '1 Folge', noEpisodes: 'Noch keine Folgen', done: '„{0}“ angefragt',
              errAlready: 'Bereits angefragt', errNone: 'Alle verfügbaren Staffeln sind schon angefragt', errForbidden: 'Dein Profil darf keine Titel anfragen',
              errDisabled: 'Anfragen sind gerade ausgeschaltet', errBlocked: 'Dieser Titel ist gesperrt', errDown: 'Der Anfragedienst ist gerade nicht erreichbar', errOther: 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
              close: 'Schließen', noResults: 'Keine Ergebnisse', 'with': 'Mit', genres: 'Genres', creator: 'Idee', director: 'Regie', streaming: 'Verfügbar bei' }
@@ -5024,7 +5024,15 @@
                     if (t === null) return out('error');
                     if (!/\S/.test(t)) return out('forbidden');
                     var m = nfRqMessage(t);
-                    return out(/disabled/i.test(m) ? 'disabled' : (/blocklisted/i.test(m) ? 'blocklisted' : 'error'));
+                    if (/disabled/i.test(m)) return out('disabled');
+                    if (/blocklisted/i.test(m)) return out('blocklisted');
+                    // Any other refusal is said in its own words - Seerr's CSRF protection, say: "invalid csrf
+                    // token" (design 6.5: "403 with a message -> that message"), trimmed and held to 200
+                    // characters. Markup (a proxy's error page) is no message.
+                    var o = out('error');
+                    var say = String(m).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+                    if (say && !/</.test(say)) o.msg = say.length > 200 ? say.slice(0, 200) : say;
+                    return o;
                 });
             }).then(null, function () { return out('error'); });
         } catch (e) { return Promise.resolve(out('error')); }
@@ -5537,8 +5545,10 @@
     // links. A model read back from sessionStorage may have been written by another build (or
     // by anything else on this origin), so each one is checked before it is drawn.
     function nfRqShapeOk(m) {
+        // The id is what a request sends (mediaId): it must be the key's, or the window would ask for another title.
         return !!m && typeof m === 'object' && typeof m.key === 'string' && /^(movie|tv):[1-9][0-9]*$/.test(m.key)
-            && m.key.indexOf(m.mt + ':') === 0 && typeof m.title === 'string'
+            && m.key.indexOf(m.mt + ':') === 0 && typeof m.id === 'number' && m.id === parseInt(m.key.slice(m.key.indexOf(':') + 1), 10)
+            && typeof m.title === 'string'
             && (m.year === null || (typeof m.year === 'number' && Math.floor(m.year) === m.year))
             && typeof m.status === 'number' && m.status >= 1 && m.status <= 7 && m.status !== 6 && Math.floor(m.status) === m.status
             && (m.jf === null || (typeof m.jf === 'string' && /^[0-9a-f]{32}$/.test(m.jf)))
@@ -5728,12 +5738,13 @@
           '</div>';
     }
     // The billboard's action for the title's state; drawn again in place when the state changes (nfRqRefreshTiles). While
-    // a request for it is out (busy) the request button says so and takes no second press.
+    // a request for it is out (busy) the request button says so and takes no second press; while requests cannot be
+    // sent (design 6.2: switched off at the bridge) it is drawn off, as the window draws its own.
     function nfRqHeroAct(m, busy) {
         var l = nfL();
         var st = nfRqState(m);
         if (st === 'request' || st === 'partial') {
-            return '<button type="button" class="nf-hero-btn nf-rq-req' + (busy ? ' nf-rq-busy' : '') + '"' + (busy ? ' aria-disabled="true"' : '') + '>'
+            return '<button type="button" class="nf-hero-btn nf-rq-req' + (busy ? ' nf-rq-busy' : '') + '"' + (busy || !nfRqSubmitOk() ? ' aria-disabled="true"' : '') + '>'
                 + '<span class="material-icons" aria-hidden="true">file_download</span> ' + (busy ? l.requesting : l.request) + '</button>';
         }
         // The answer is for the id the model has now: the one that goes into the link.
@@ -6646,24 +6657,32 @@
     // What a refusal says, by nfRqPost's code.
     var NF_RQ_ERR = { already: 'errAlready', none: 'errNone', forbidden: 'errForbidden', disabled: 'errDisabled', blocklisted: 'errBlocked', down: 'errDown', error: 'errOther' };
     var nfRqSending = {};   // a title's key -> its request while it is out
-    // One request: a film, or a series' seasons ('all', or their numbers). One per title at a time - a second press while
-    // it is out gets the same answer. It never rejects; it resolves nfRqPost's code. The answer is said where the request
-    // was asked: in the title's window when it is open, else in a toast (the billboard asks without one).
+    // One request: a film, or a series' seasons, by their numbers. One per title at a time - a second press while it is
+    // out gets the same answer. It never rejects; it resolves nfRqPost's code. The answer is said where the request was
+    // asked: in the title's window when it is open, else in a toast (the billboard asks without one).
     function nfRqRequest(m, seasons) {
         try {
             if (!m || !nfRqShapeOk(m)) return Promise.resolve('error');
+            // A series is asked for by the seasons it names, and nothing else: the bridge takes a body without seasons as
+            // ALL of them, and that is the irreversible request design 4 warns of. A caller that names none sends nothing.
+            var ns = null;
+            if (m.mt === 'tv') {
+                ns = (Array.isArray(seasons) ? seasons : []).filter(function (n) { return typeof n === 'number' && n > 0 && Math.floor(n) === n; });
+                if (!ns.length) return Promise.resolve('error');
+            }
             if (Object.prototype.hasOwnProperty.call(nfRqSending, m.key)) return nfRqSending[m.key];
             var uid = ApiClient.getCurrentUserId() || '';
             if (!uid) return Promise.resolve('error');
-            // Requests switched off at the bridge, or the probe could not get past that switch: nothing is sent.
-            if (!nfRqSubmitOk()) { nfRqAnswered(m, uid, 'disabled', null); return Promise.resolve('disabled'); }
+            // Requests switched off at the bridge, or the probe could not get past that switch: nothing is sent, and
+            // nothing is remembered - what is known about this user stays as it is (a stored 'no' among it).
+            if (!nfRqSubmitOk()) { nfRqTell(m, nfL().errDisabled); return Promise.resolve('disabled'); }
             var body = { mediaType: m.mt, mediaId: m.id, is4k: false };
-            if (m.mt === 'tv' && (seasons === 'all' || (Array.isArray(seasons) && seasons.length))) body.seasons = seasons === 'all' ? 'all' : seasons.slice();
+            if (ns) body.seasons = ns;
             var p = nfRqPost(body).then(function (r) {
                 delete nfRqSending[m.key];
                 var code = (r && r.code) || 'error';
                 // An answer for a user who has gone (a sign-out, a switch) changes nothing for the next one.
-                try { if ((ApiClient.getCurrentUserId() || '') === uid) nfRqAnswered(m, uid, code, body); } catch (e) {}
+                try { if ((ApiClient.getCurrentUserId() || '') === uid) nfRqAnswered(m, uid, code, body, r && r.msg); } catch (e) {}
                 return code;
             });
             nfRqSending[m.key] = p;
@@ -6673,7 +6692,20 @@
             return p;
         } catch (e) { return Promise.resolve('error'); }
     }
-    function nfRqAnswered(m, uid, code, body) {
+    // What a request answered, said where it was asked: in the title's window when that is open, else in a toast.
+    function nfRqTell(m, say) {
+        var w = nfRqDlgOf(m);
+        if (!w) { nfRqToast(say); return; }
+        w.msg = say;
+        nfRqDlgDraw(w);
+    }
+    // The billboard's request button for whatever title it shows: the bridge's switch is everybody's.
+    function nfRqHeroAgain() {
+        var hero = nfRqBox ? nfRqBox.querySelector('.nf-rq-hero[data-nf-rq]') : null;
+        var hm = hero ? nfRqFind(hero.getAttribute('data-nf-rq')) : null;
+        if (hm) nfRqHeroActPut(hero, hm);
+    }
+    function nfRqAnswered(m, uid, code, body, msg) {
         try {
             var l = nfL();
             var w = nfRqDlgOf(m);
@@ -6697,19 +6729,18 @@
                 setTimeout(function () {
                     nfRqDetails(m, true).then(function (d) { if (d && (ApiClient.getCurrentUserId() || '') === uid) nfRqTake(m, d, uid); }, function () {});
                 }, 1500);
-            } else {
-                // A bare 403: the bridge takes no requests from this user. Remembered for the session, so Requests go
-                // (nfRqLive), while the window stays to say why. 'disabled': the bridge's switch is off - remembered as the
-                // probe remembers it ('off'), so every request control is off until a fresh Status says it is on again.
-                if (code === 'forbidden') nfRqPermKeep(uid, 'no');
-                else if (code === 'disabled') nfRqPermKeep(uid, 'off');
-                var say = l[NF_RQ_ERR[code] || 'errOther'];
-                if (w) w.msg = say;
-                else nfRqToast(say);
-                nfRqRefreshTiles(m);
-                if (code === 'forbidden') applyDynamic();
+                if (w) nfRqDlgDraw(w);
+                return;
             }
-            if (w) nfRqDlgDraw(w);
+            // A bare 403: the bridge takes no requests from this user. Remembered for the session, so Requests go
+            // (nfRqLive), while the window stays to say why. 'disabled': the bridge's switch is off - remembered as the
+            // probe remembers it ('off'), so every request control is off until a fresh Status says it is on again. A
+            // refusal in words of its own (nfRqPost's msg) is shown in them.
+            if (code === 'forbidden') nfRqPermKeep(uid, 'no');
+            else if (code === 'disabled') { nfRqPermKeep(uid, 'off'); nfRqHeroAgain(); }
+            nfRqRefreshTiles(m);
+            nfRqTell(m, code === 'error' && msg ? msg : l[NF_RQ_ERR[code] || 'errOther']);
+            if (code === 'forbidden') applyDynamic();
         } catch (e) {}
     }
     // The title's details into its one held model, which every tile, row and search of the page draws from: when what
@@ -6895,18 +6926,28 @@
             dlg.setAttribute('tabindex', '-1');
             dlg.setAttribute('data-nf-rq-dlg', m.key);
             var w = { dh: dh, dlg: dlg, m: m, d: null, seasons: null, picked: {}, blocked: false, failed: false, msg: '', msgAt: 'top',
-                play: null, jump: false, gen: 0, leaving: false, closing: false, shut: false, opener: document.activeElement, drawn: {}, closed: null };
+                play: null, jump: false, gen: 0, leaving: false, closing: false, shut: false, opener: document.activeElement, drawn: {}, closed: null,
+                at: Date.now(), guard: null };
             dlg.innerHTML = nfRqDlgShell(m);
             nfRqDlgWire(w);
-            // dialogHelper's own event as any close begins (the close ring, Back, the backdrop, the playback edge).
+            // dialogHelper's own event as any close begins (the close ring, Escape, Back, the backdrop, the playback edge),
+            // sent before its fade-out: from here on the window takes no second close (nfRqDlgClose) and no press.
             dlg.addEventListener('closing', function () { w.closing = true; });
             nfRqDlgDraw(w);
             // Resolves once the window has closed, its history entry stepped back over.
             w.closed = dh.open(dlg);
             nfRqDlgAt = w;
-            w.closed.then(function () {
+            w.guard = nfRqDlgGuard(w);
+            document.addEventListener('click', w.guard, true);
+            document.addEventListener('contextmenu', w.guard, true);
+            var gone = function () {
                 w.shut = true;
                 if (nfRqDlgAt === w) nfRqDlgAt = null;
+                document.removeEventListener('click', w.guard, true);
+                document.removeEventListener('contextmenu', w.guard, true);
+            };
+            w.closed.then(function () {
+                gone();
                 // The focus goes back where the window was opened from (dialogHelper does that on TV only) - unless the
                 // window led away from the page.
                 var o = w.opener;
@@ -6914,13 +6955,13 @@
                 if (!w.leaving && o && o.isConnected && typeof o.focus === 'function' && (!ae || ae === document.body) && !nfRqTv()) {
                     try { o.focus({ preventScroll: true }); } catch (e) {}
                 }
-            }, function () {
-                w.shut = true;
-                if (nfRqDlgAt === w) nfRqDlgAt = null;
-            });
-            // The keys go to the window from the first moment; dialogHelper moves the focus to its first control once
-            // the entry animation has run.
-            try { dlg.focus({ preventScroll: true }); } catch (e) {}
+            }, gone);
+            // The keys go to the window from the first moment. dialogHelper moves the focus to its first control once its
+            // entry animation has run - or within open() itself where it runs no animations (a TV browser: webOS, Tizen),
+            // and that focus must stay where it is: from the window itself no remote key reaches a control.
+            if (!dlg.contains(document.activeElement)) {
+                try { dlg.focus({ preventScroll: true }); } catch (e) {}
+            }
             nfLazyImages(dlg);
             nfRqDlgLoad(w);
             nfRqDlgPlay(w);
@@ -6930,10 +6971,28 @@
         return document.documentElement.classList.contains('layout-tv') || (!!document.body && document.body.classList.contains('layout-tv'));
     }
     // Closing goes through dialogHelper, which steps back over the window's history entry - as its own closes do (Back, a
-    // click on the backdrop).
+    // click on the backdrop). Once: dialogHelper's close() only checks .hide, which comes at the end of the fade-out, and
+    // each close that starts during it steps back in history again (two clicks on the ring, or two Escapes, left the page).
     function nfRqDlgClose(w) {
-        if (w.shut) return;
+        if (w.shut || w.closing) return;
         try { w.dh.close(w.dlg); } catch (e) {}
+    }
+    // The backdrop's own close is dialogHelper's click (and contextmenu) listener on the window's container, which has the
+    // same flaw; and the second click of a double-click on a tile lands on the container of the window the first one has
+    // just opened, and would close it again at once. So while a window is up, one listener ahead of everything takes such
+    // a press away while the window is closing, and in its first 300 ms. On the document in the capture phase: Chromium 87
+    // (JMP) calls a target's own listeners in the order they were added, so one on the container would run after
+    // dialogHelper's.
+    var NF_RQ_DLG_SETTLE = 300;
+    function nfRqDlgGuard(w) {
+        return function (e) {
+            try {
+                if (!e.target || e.target !== w.dlg.dialogContainer) return;
+                if (!w.closing && Date.now() - w.at >= NF_RQ_DLG_SETTLE) return;
+                e.preventDefault();
+                e.stopPropagation();
+            } catch (err) {}
+        };
     }
     // The playback edge (applyDynamic): a window still open goes.
     function nfRqDlgShut() {
@@ -6971,6 +7030,8 @@
         var dlg = w.dlg;
         dlg.addEventListener('click', function (e) {
             try {
+                // A window on its way out takes no press (a second click of the ring, a request into the fade-out).
+                if (w.closing) return;
                 var t = e.target && e.target.closest ? e.target.closest('[data-nf-act]') : null;
                 if (!t || !dlg.contains(t) || t.getAttribute('aria-disabled') === 'true') return;
                 var act = t.getAttribute('data-nf-act');
@@ -7038,9 +7099,9 @@
             '<span class="material-icons" aria-hidden="true">' + icon + '</span> ' + esc(label) + '</button>';
     }
     // A state, not an action: a button that takes no press, so the focus can rest on it (TV).
-    function nfRqDlgChip(st, label) {
+    function nfRqDlgChip(st, label, icon) {
         return '<button type="button" class="nf-hero-btn nf-rq-done" data-nf-k="primary" data-state="' + st + '" aria-disabled="true">' +
-            '<span class="material-icons" aria-hidden="true">check</span> ' + esc(label) + '</button>';
+            '<span class="material-icons" aria-hidden="true">' + (icon || 'check') + '</span> ' + esc(label) + '</button>';
     }
     function nfRqDlgAnyPick(w) {
         for (var i = 0; w.seasons && i < w.seasons.length; i++) { if (w.seasons[i].pick) return true; }
@@ -7054,8 +7115,9 @@
     //                     "✓ Verfügbar";
     //   partly there:     ▶, and "Weitere Staffeln anfragen" while a season is left - else as available;
     //   blocklisted:      nothing (the note says why).
-    // A request control is drawn off (aria-disabled) while requests cannot be sent (nfRqSubmitOk), and for a series none
-    // of whose seasons can be asked for.
+    // A request control is drawn off (aria-disabled) while requests cannot be sent (nfRqSubmitOk). A series none of whose
+    // seasons can be asked for gets no request control at all, but a state: "Noch keine Folgen" when no season has an
+    // episode yet (a series still to come), else "✓ Angefragt" (Seerr has every season).
     function nfRqDlgActs(w) {
         if (w.blocked) return '';
         var m = w.m;
@@ -7071,7 +7133,8 @@
             '<span class="material-icons" aria-hidden="true">info</span></button>';
         if (st === 'request') {
             if (busy) return nfRqDlgBtn('primary', 'req', 'nf-rq-req nf-rq-busy', 'file_download', l.requesting, true);
-            return nfRqDlgBtn('primary', tv ? 'jump' : 'req', 'nf-rq-req', 'file_download', l.request, off || (tv && !left));
+            if (tv && !left) return w.seasons.length ? nfRqDlgChip('requested', l.requested) : nfRqDlgChip('soon', l.noEpisodes, 'schedule');
+            return nfRqDlgBtn('primary', tv ? 'jump' : 'req', 'nf-rq-req', 'file_download', l.request, off);
         }
         if (st === 'pending' || st === 'requested') return nfRqDlgChip(st, l.requested);
         if (st === 'partial' && tv && left) {
@@ -7150,7 +7213,8 @@
         var foot = '';
         if (can) {
             var busy = Object.prototype.hasOwnProperty.call(nfRqSending, w.m.key);
-            var label = busy ? l.requesting : (on === list.length && on > 1 ? l.requestAll : (on === 1 ? l.request1 : l.requestN.replace('{0}', on)));
+            // Nothing ticked: the plain word, drawn off - never "0 Staffeln anfragen".
+            var label = busy ? l.requesting : (!on ? l.request : (on === list.length && on > 1 ? l.requestAll : (on === 1 ? l.request1 : l.requestN.replace('{0}', on))));
             foot = '<div class="nf-rq-seasons-foot">' + nfRqDlgBtn('foot', 'foot', 'nf-rq-req' + (busy ? ' nf-rq-busy' : ''), 'file_download', label, off || !on) + '</div>';
         }
         return '<h3 class="nf-rq-dlg-seasons-title">' + esc(l.seasons) + '</h3><div class="nf-rq-season-list">' + rows + '</div>' + foot;
@@ -7246,7 +7310,7 @@
     // the details page's own Play is pressed): a link of that kind, clicked once the window has gone.
     function nfRqDlgGo(w, act) {
         var jf = w.play;
-        if (!jf || jf !== w.m.jf || w.leaving) return;
+        if (!jf || jf !== w.m.jf || w.leaving || w.closing) return;
         var sid = (ApiClient.serverId && ApiClient.serverId()) || '';
         var path = '/details?id=' + jf + (sid ? '&serverId=' + sid : '');
         w.leaving = true;
