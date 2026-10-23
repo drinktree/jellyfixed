@@ -15,6 +15,14 @@
     var NF_BOOT = (window.__ctConfig && typeof window.__ctConfig === 'object') ? window.__ctConfig : null;
     function nfBoot(key) { return NF_BOOT ? NF_BOOT[key] : undefined; }
 
+    // Whether this page carries the Requests code. Where requests are off - no Jellyseerr
+    // Bridge loaded, or the option off - the server leaves the whole Requests block out of
+    // the script (ThemeTransformation.CutRequests: ~95 KB that every page load would carry),
+    // so every use of a name of that block outside it asks this first. A function
+    // declaration is hoisted, so the answer is right from the first line, and typeof never
+    // throws on a name that is not there.
+    var nfRqHere = typeof setupSeerrNav === 'function';
+
     // ---- Keyboard-focus state (html.nf-kb) ----
     // Chromium 83 (JMP's QtWebEngine 5.15) and WebView < 86 cannot parse
     // :focus-visible, so every focus rule in the sheet is dropped there and
@@ -1374,6 +1382,13 @@
     var navFetching = false;
     var nfNavHash = null;
     var nfNavRq = false;      // the strip was built with the Requests tab
+    // The Requests page's address. jellyfin-web lets nobody add a route: an unknown one is
+    // its "page not found", and on a phone it takes the drawer away. So the Requests page
+    // lives on the search route, under a parameter of the theme's own that jellyfin's
+    // search page ignores and keeps. Here, not in the Requests block, because the strip
+    // compares every tab with it, and that block is not on every page (nfRqHere).
+    var NF_RQ_PAGE = '/search?nfview=requests';
+    var NF_RQ_HREF = '#' + NF_RQ_PAGE;
 
     // Mirrors appRouter.getRouteUrl in jellyfin-web 10.11 exactly. The old
     // ".html" legacy paths (movies.html, list.html, …) no longer exist as
@@ -1394,7 +1409,7 @@
         var h = href.toLowerCase();
         // The Requests page is a parameter on the search route. Only that parameter
         // is the tab's: jellyfin's own search page belongs to no tab.
-        if (h === NF_RQ_HREF) return nfRqRoute() === 'page';
+        if (h === NF_RQ_HREF) return nfRqHere && nfRqRoute() === 'page';
         var base = h.replace('#', '').split('?')[0];
         if (base.indexOf('home') !== -1) return isHomePage();
         if (base === '' || hash.indexOf(base) === -1) return false;
@@ -1419,7 +1434,7 @@
         // old strip it fell to <body>, and the TV user's place was gone (measured with a
         // bridge that answered 4 s late). The Requests tab itself hands it to its
         // neighbour, the last tab.
-        var rq = nfRqLive();
+        var rq = nfRqHere && nfRqLive();
         var existing = anchor.querySelector('.nf-nav-tabs');
         var refocus = null;
         if (existing && nfNavRq !== rq) {
@@ -1440,7 +1455,7 @@
             existing.querySelectorAll('.nf-nav-tab').forEach(function (a) {
                 var on = navIsActive(a.getAttribute('href'));
                 a.classList.toggle('active', on);
-                if (a.classList.contains('nf-nav-req')) nfRqCurrent(a, on);
+                if (nfRqHere && a.classList.contains('nf-nav-req')) nfRqCurrent(a, on);
             });
             return;
         }
@@ -3917,7 +3932,7 @@
         // A Requests window still open (a cast or a remote's "play") closes on the same edge -
         // here only: nfStopAllPreviewMedia also runs on tab switches and on every play-intent
         // click, and neither may close it.
-        if (playing && !nfWasPlaying) { nfStopAllPreviewMedia(); nfRqDlgShut(); }
+        if (playing && !nfWasPlaying) { nfStopAllPreviewMedia(); if (nfRqHere) nfRqDlgShut(); }
         nfWasPlaying = playing;
         if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();
@@ -3945,13 +3960,15 @@
         // applyDynamic() as soon as the configuration arrives.
         if (CT_CONFIG === null) return;
         setupNavTabs();
-        // Requests: the "Anfragen" entries. Through nfRqLive it also asks the bridge,
-        // once each, what the gate still needs to know.
-        setupSeerrNav();
-        // …and the Requests page itself, which lives on #/search?nfview=requests.
-        setupSeerrPage();
-        // …and the row under jellyfin's own search results, #/search?query=…, on the same page.
-        setupSeerrSearch();
+        if (nfRqHere) {
+            // Requests: the "Anfragen" entries. Through nfRqLive it also asks the bridge,
+            // once each, what the gate still needs to know.
+            setupSeerrNav();
+            // …and the Requests page itself, which lives on #/search?nfview=requests.
+            setupSeerrPage();
+            // …and the row under jellyfin's own search results, #/search?query=…, on the same page.
+            setupSeerrSearch();
+        }
         setupHero();   // self-gates + cleans up the hero when off-Home
         var onHome = isHomePage();
         // These build/scan the home container and each re-derives activeHomeContainer()
@@ -4011,7 +4028,7 @@
         var heroGlow = heroVisible;
         // The Requests page's billboard is the other artwork the bar floats over: the
         // same transparent bar, top scrim and zero page padding as home's.
-        if (!heroVisible && nfRqHeroVisible()) heroVisible = true;
+        if (!heroVisible && nfRqHere && nfRqHeroVisible()) heroVisible = true;
         // Toggle the root classes only when the value CHANGES or the header lost its class
         // (Jellyfin recreates .skinHeader on client-side navigation) — so a settled home
         // page doesn't rewrite classes every frame, but a fresh header is still re-synced.
@@ -4790,6 +4807,101 @@
         } catch (e) {}
     }
 
+    // ============ Requests: the settings line, on every page ============
+    // The drawer's line under "Requests in the app" (renderPanel). Requests come through a
+    // second plugin, and the part of them that can be wrong is set up there, so the drawer
+    // says where the bridge stands: installed and loaded, given a Seerr to talk to, taking
+    // requests from this administrator. The line has the most to say exactly where the
+    // server leaves the Requests block below out of the page - no bridge loaded: not
+    // installed, waiting for a restart, disabled - so it stands outside that block, and so
+    // do the probe it shares with the block's gate and the two helpers that read a refusal.
+    // The dashboard page asks the same (configPage.html checkSeerr) and cannot reach this
+    // script, so it carries its own copy of these steps and words: keep the two alike. Asked
+    // afresh each time - an administrator who has just mended the bridge's settings wants to
+    // see that - and nothing the pages go by is written. Resolves [text, tone], tone 'ok' |
+    // 'bad' | ''; never rejects.
+    var NF_RQ_BRIDGE_ID = 'd2fcf9c8c3c747e89dd68de9867e36bb';
+    // An update or a disable lists the bridge once per version until the next restart; the
+    // entry that counts is the best of them. Deleted (uninstalled) and Superseded (an older
+    // version) are on their way out and do not count.
+    var NF_RQ_PLUGIN_RANK = { Active: 5, Restart: 4, Disabled: 3 };
+    function nfRqSetupLine() {
+        var failed = ['The server did not answer this check. Reload this page and look again.', ''];
+        try {
+            return ApiClient.getInstalledPlugins().then(function (list) {
+                var best = null;
+                (list || []).forEach(function (p) {
+                    if (!p || String(p.Id || '').replace(/-/g, '').toLowerCase() !== NF_RQ_BRIDGE_ID) return;
+                    if (p.Status === 'Deleted' || p.Status === 'Superseded' || p.Status === 'Superceded') return;
+                    if (!best || (NF_RQ_PLUGIN_RANK[p.Status] || 0) > (NF_RQ_PLUGIN_RANK[best.Status] || 0)) best = p;
+                });
+                if (!best) return ['✗ The Jellyseerr Bridge plugin is not installed. Add its repository (https://raw.githubusercontent.com/monjaka/jellyfin-plugin-jellyseerr-bridge/main/manifest.json) in Dashboard → Plugins, install it, restart Jellyfin. Its web-loader script is not needed.', 'bad'];
+                if (best.Status === 'Restart') return ['Restart Jellyfin to load the Jellyseerr Bridge.', ''];
+                if (best.Status === 'Disabled') return ['The Jellyseerr Bridge is disabled in Dashboard → Plugins.', ''];
+                if (best.Status !== 'Active') return ['The Jellyseerr Bridge could not be loaded (see the server log).', ''];
+                return ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/Status')).then(function (s) {
+                    if (!s || s.isConfigured !== true) return ['✗ Enter the Seerr address and API key in the Jellyseerr Bridge settings.', 'bad'];
+                    var host = typeof s.jellyseerrHost === 'string' && s.jellyseerrHost ? s.jellyseerrHost : 'Seerr';
+                    return nfRqProbe().then(function (v) {
+                        if (v === 'no') return ['✗ Your own account is not on the bridge\'s allowed list. If you listed users there, use the IDs without dashes.', 'bad'];
+                        if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
+                        return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
+                    });
+                });
+            }).then(null, function () { return failed; });
+        } catch (e) { return Promise.resolve(failed); }
+    }
+
+    // May this user send requests? The bridge (0.1.0.5) checks a request in a fixed
+    // order, and this one is refused by the third check at the latest, so it never
+    // reaches Seerr. All three answers measured on the rig against the real bridge:
+    //  1. submissions switched off: 403 {"message":"Request submission is disabled
+    //     by the Jellyfin administrator."}                                  -> 'off'
+    //  2. not on the bridge's allow-list: 403 with no body at all (Forbid()) -> 'no'
+    //  3. allowed: 400 {"message":"mediaType must be movie or tv."}         -> 'ok'
+    // A 403 is 'off' only when its message says "disabled": the same test a real
+    // request's refusal gets (nfRqPost). Any other 403, with a body or without, is a
+    // refusal of the user. An answer that is no 403 at all (a future bridge that
+    // validates first, a server error, the network) is a yes: nobody is turned away
+    // on a guess, and a real request's own refusal says so plainly and is then
+    // remembered (nfRqPermKeep).
+    function nfRqProbe() {
+        try {
+            return ApiClient.ajax({
+                type: 'POST', url: ApiClient.getUrl('JellyseerrBridge/Request'),
+                data: JSON.stringify({ mediaType: 'probe', mediaId: 0 }),
+                contentType: 'application/json', dataType: 'json'
+            }).then(function () { return 'ok'; }, function (r) {
+                if (!r || r.status !== 403) return 'ok';
+                return nfRqText(r).then(function (t) {
+                    return /disabled/i.test(nfRqMessage(t)) ? 'off' : 'no';
+                });
+            });
+        } catch (e) { return Promise.resolve('ok'); }
+    }
+
+    // A refusal's body as text, or null when it cannot be read. jellyfin-apiclient
+    // rejects any status from 400 up with the raw Response, its body still unread.
+    function nfRqText(r) {
+        try {
+            if (r && typeof r.text === 'function') {
+                return r.text().then(function (t) { return t == null ? '' : String(t); }, function () { return null; });
+            }
+        } catch (e) {}
+        return Promise.resolve(null);
+    }
+    // The words of a refusal: the bridge's and Seerr's {message}, Seerr's {error},
+    // ASP.NET's ProblemDetails {title}, or else the text itself.
+    function nfRqMessage(t) {
+        try {
+            var j = JSON.parse(t);
+            if (j && typeof j === 'object') return String(j.message || j.error || j.title || '');
+        } catch (e) {}
+        return String(t || '');
+    }
+
+    // Marker: where requests are off, the server cuts from here through the end marker (ThemeTransformation.CutRequests).
+    // @nf-requests-begin
     // ============ Requests (Seerr, through the Jellyseerr Bridge) ============
     // Films and series that are not in the library can be asked for from inside the
     // app, through the third-party Jellyseerr Bridge plugin: it hands what it is sent
@@ -4953,54 +5065,6 @@
         } catch (e) {}
     }
 
-    // May this user send requests? The bridge (0.1.0.5) checks a request in a fixed
-    // order, and this one is refused by the third check at the latest, so it never
-    // reaches Seerr. All three answers measured on the rig against the real bridge:
-    //  1. submissions switched off: 403 {"message":"Request submission is disabled
-    //     by the Jellyfin administrator."}                                  -> 'off'
-    //  2. not on the bridge's allow-list: 403 with no body at all (Forbid()) -> 'no'
-    //  3. allowed: 400 {"message":"mediaType must be movie or tv."}         -> 'ok'
-    // A 403 is 'off' only when its message says "disabled": the same test a real
-    // request's refusal gets (nfRqPost). Any other 403, with a body or without, is a
-    // refusal of the user. An answer that is no 403 at all (a future bridge that
-    // validates first, a server error, the network) is a yes: nobody is turned away
-    // on a guess, and a real request's own refusal says so plainly and is then
-    // remembered (nfRqPermKeep).
-    function nfRqProbe() {
-        try {
-            return ApiClient.ajax({
-                type: 'POST', url: ApiClient.getUrl('JellyseerrBridge/Request'),
-                data: JSON.stringify({ mediaType: 'probe', mediaId: 0 }),
-                contentType: 'application/json', dataType: 'json'
-            }).then(function () { return 'ok'; }, function (r) {
-                if (!r || r.status !== 403) return 'ok';
-                return nfRqText(r).then(function (t) {
-                    return /disabled/i.test(nfRqMessage(t)) ? 'off' : 'no';
-                });
-            });
-        } catch (e) { return Promise.resolve('ok'); }
-    }
-
-    // A refusal's body as text, or null when it cannot be read. jellyfin-apiclient
-    // rejects any status from 400 up with the raw Response, its body still unread.
-    function nfRqText(r) {
-        try {
-            if (r && typeof r.text === 'function') {
-                return r.text().then(function (t) { return t == null ? '' : String(t); }, function () { return null; });
-            }
-        } catch (e) {}
-        return Promise.resolve(null);
-    }
-    // The words of a refusal: the bridge's and Seerr's {message}, Seerr's {error},
-    // ASP.NET's ProblemDetails {title}, or else the text itself.
-    function nfRqMessage(t) {
-        try {
-            var j = JSON.parse(t);
-            if (j && typeof j === 'object') return String(j.message || j.error || j.title || '');
-        } catch (e) {}
-        return String(t || '');
-    }
-
     // Requests may be SENT: the bridge takes them, and takes them from this user.
     // Browsing works without (a disabled button and one discreet note).
     function nfRqSubmitOk() {
@@ -5010,46 +5074,6 @@
             var rec = nfRqStatusRec();
             return !!(rec && rec.v && rec.v.requestSubmissionEnabled) && nfRqPermOf(uid) === 'ok';
         } catch (e) { return false; }
-    }
-
-    // ---- Settings: the drawer's line under "Requests in the app" (renderPanel) ----
-    // Requests come through a second plugin, and the part of them that can be wrong is set up
-    // there, so the drawer says where the bridge stands: installed and loaded, given a Seerr to
-    // talk to, taking requests from this administrator. The dashboard page asks the same
-    // (configPage.html checkSeerr) and cannot reach this script, so it carries its own copy of
-    // these steps and words: keep the two alike. Asked afresh each time - an administrator who
-    // has just mended the bridge's settings wants to see that - and nothing the pages go by is
-    // written. Resolves [text, tone], tone 'ok' | 'bad' | ''; never rejects.
-    var NF_RQ_BRIDGE_ID = 'd2fcf9c8c3c747e89dd68de9867e36bb';
-    // An update or a disable lists the bridge once per version until the next restart; the
-    // entry that counts is the best of them. Deleted (uninstalled) and Superseded (an older
-    // version) are on their way out and do not count.
-    var NF_RQ_PLUGIN_RANK = { Active: 5, Restart: 4, Disabled: 3 };
-    function nfRqSetupLine() {
-        var failed = ['The server did not answer this check. Reload this page and look again.', ''];
-        try {
-            return ApiClient.getInstalledPlugins().then(function (list) {
-                var best = null;
-                (list || []).forEach(function (p) {
-                    if (!p || String(p.Id || '').replace(/-/g, '').toLowerCase() !== NF_RQ_BRIDGE_ID) return;
-                    if (p.Status === 'Deleted' || p.Status === 'Superseded' || p.Status === 'Superceded') return;
-                    if (!best || (NF_RQ_PLUGIN_RANK[p.Status] || 0) > (NF_RQ_PLUGIN_RANK[best.Status] || 0)) best = p;
-                });
-                if (!best) return ['✗ The Jellyseerr Bridge plugin is not installed. Add its repository (https://raw.githubusercontent.com/monjaka/jellyfin-plugin-jellyseerr-bridge/main/manifest.json) in Dashboard → Plugins, install it, restart Jellyfin. Its web-loader script is not needed.', 'bad'];
-                if (best.Status === 'Restart') return ['Restart Jellyfin to load the Jellyseerr Bridge.', ''];
-                if (best.Status === 'Disabled') return ['The Jellyseerr Bridge is disabled in Dashboard → Plugins.', ''];
-                if (best.Status !== 'Active') return ['The Jellyseerr Bridge could not be loaded (see the server log).', ''];
-                return ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/Status')).then(function (s) {
-                    if (!s || s.isConfigured !== true) return ['✗ Enter the Seerr address and API key in the Jellyseerr Bridge settings.', 'bad'];
-                    var host = typeof s.jellyseerrHost === 'string' && s.jellyseerrHost ? s.jellyseerrHost : 'Seerr';
-                    return nfRqProbe().then(function (v) {
-                        if (v === 'no') return ['✗ Your own account is not on the bridge\'s allowed list. If you listed users there, use the IDs without dashes.', 'bad'];
-                        if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
-                        return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
-                    });
-                });
-            }).then(null, function () { return failed; });
-        } catch (e) { return Promise.resolve(failed); }
     }
 
     // ---- Data: every call goes through ApiClient (base path and token) ----
@@ -5205,12 +5229,8 @@
     }
 
     // ---- The way in: "Anfragen" wherever the theme draws navigation ----
-    // jellyfin-web lets nobody add a route: an unknown one is its "page not found", and
-    // on a phone it takes the drawer away. So the Requests page lives on the search
-    // route, under a parameter of the theme's own that jellyfin's search page ignores
-    // and keeps.
-    var NF_RQ_PAGE = '/search?nfview=requests';
-    var NF_RQ_HREF = '#' + NF_RQ_PAGE;
+    // The page's address, NF_RQ_PAGE and NF_RQ_HREF, stands with the nav strip's state:
+    // the strip compares every tab with it on pages without this block too.
     // Material's "playlist_add". The drawer's rows draw MUI icons, one SVG path each.
     var NF_RQ_ICON = 'M14 10H3v2h11v-2zm0-4H3v2h11V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM3 16h7v-2H3v2z';
 
@@ -7395,6 +7415,9 @@
         }, function () {});
         nfRqDlgClose(w);
     }
+
+    // Marker: the end of the Requests block that the server cuts where requests are off.
+    // @nf-requests-end
 
     function init() {
         nfBrandChrome();

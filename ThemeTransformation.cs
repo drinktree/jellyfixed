@@ -61,7 +61,13 @@ namespace Jellyfin.Plugin.CustomTheme
         // The start tag of our own script element, as InjectInto writes it.
         private static readonly Regex OwnScriptStart = new("<script id=\"" + Marker + "\"[^>]*>", RegexOptions.Compiled);
 
+        // The two lines of headerButton.js around its Requests block (see CutRequests).
+        private const string RequestsBegin = "// @nf-requests-begin";
+        private const string RequestsEnd = "// @nf-requests-end";
+
+        // The script as pages get it: with the Requests block, and without it.
         private static string? _cachedScript;
+        private static string? _cachedLeanScript;
 
         /// <summary>File Transformation callback: receives the current file, returns the modified file.</summary>
         public static string IndexHtml(FileTransformationPayload payload)
@@ -89,7 +95,13 @@ namespace Jellyfin.Plugin.CustomTheme
                 return html;
             }
 
-            var script = LoadScript();
+            // Whether this page offers requests: the option is on and the Jellyseerr Bridge
+            // was loaded — the condition under which ClientConfig gives the page the
+            // bridge's version. Only then does the script carry its Requests block.
+            var cfg = Plugin.Instance?.Configuration;
+            var requests = (cfg?.SeerrRequests ?? false) && SeerrBridge.Version != null;
+
+            var script = LoadScript(requests);
             if (string.IsNullOrEmpty(script))
             {
                 return html;
@@ -101,7 +113,6 @@ namespace Jellyfin.Plugin.CustomTheme
             // for every normal user). System.Text.Json escapes <, > and & by default,
             // so the JSON can never break out of the script element.
             var configJson = "{}";
-            var cfg = Plugin.Instance?.Configuration;
             try
             {
                 if (cfg != null)
@@ -121,7 +132,7 @@ namespace Jellyfin.Plugin.CustomTheme
 
             // A page that is served while the theme offers requests itself carries the
             // theme's entry for them, not the bridge's loader as well.
-            if (replaceStock && (cfg?.SeerrRequests ?? false) && SeerrBridge.Version != null)
+            if (replaceStock && requests)
             {
                 html = StripBridgeLoader(html);
             }
@@ -544,24 +555,87 @@ namespace Jellyfin.Plugin.CustomTheme
             }
         }
 
-        private static string LoadScript()
+        /// <summary>
+        /// The script as pages get it, made once per variant and kept: with its Requests block
+        /// where <paramref name="requests"/> (the page offers requests), else without it
+        /// (<see cref="CutRequests"/>). Both lose their comment lines (<see cref="StripLineComments"/>);
+        /// the cut comes first, while the block's markers, which are comment lines, are still there.
+        /// </summary>
+        private static string LoadScript(bool requests)
         {
-            if (_cachedScript != null)
+            var cached = requests ? _cachedScript : _cachedLeanScript;
+            if (cached != null)
             {
-                return _cachedScript;
+                return cached;
             }
 
             var assembly = typeof(ThemeTransformation).Assembly;
             using var stream = assembly.GetManifestResourceStream("Jellyfin.Plugin.CustomTheme.headerButton.js");
-            if (stream == null)
+            var script = string.Empty;
+            if (stream != null)
             {
-                _cachedScript = string.Empty;
-                return _cachedScript;
+                using var reader = new StreamReader(stream);
+                var raw = reader.ReadToEnd();
+                script = StripLineComments(requests ? raw : CutRequests(raw));
             }
 
-            using var reader = new StreamReader(stream);
-            _cachedScript = StripLineComments(reader.ReadToEnd());
-            return _cachedScript;
+            if (requests)
+            {
+                _cachedScript = script;
+            }
+            else
+            {
+                _cachedLeanScript = script;
+            }
+
+            return script;
+        }
+
+        /// <summary>
+        /// The script without its Requests block, for a page that offers no requests: the option
+        /// is off, or no Jellyseerr Bridge was loaded — which is most servers, since the option is
+        /// on by default. The block is everything the feature needs once it is offered, about 95 KB
+        /// of the script as served, and the script goes into index.html whole and uncompressed on
+        /// every load that is not a 304. Cut from the line that is exactly the begin marker through
+        /// the line that is exactly the end marker. The script outside the block reaches into it
+        /// only behind a check that it is there (nfRqHere). The script comes back whole — the
+        /// feature still works, and nothing is cut wrongly — unless each marker stands on exactly
+        /// one line of its own, the end after the begin, in a text whose lines are JavaScript's
+        /// lines (<see cref="LinesAreJsLines"/>).
+        /// </summary>
+        internal static string CutRequests(string js)
+        {
+            if (string.IsNullOrEmpty(js) || !LinesAreJsLines(js))
+            {
+                return js;
+            }
+
+            int begin = -1, end = -1, begins = 0, ends = 0;
+            for (var at = 0; at < js.Length;)
+            {
+                var nl = js.IndexOf('\n', at);
+                var next = nl < 0 ? js.Length : nl + 1;
+                var line = js.AsSpan(at, next - at).Trim();
+                if (line.SequenceEqual(RequestsBegin.AsSpan()))
+                {
+                    begins++;
+                    begin = at;
+                }
+                else if (line.SequenceEqual(RequestsEnd.AsSpan()))
+                {
+                    ends++;
+                    end = next;
+                }
+
+                at = next;
+            }
+
+            if (begins != 1 || ends != 1 || end <= begin)
+            {
+                return js;
+            }
+
+            return js.Remove(begin, end - begin);
         }
 
         /// <summary>
@@ -580,13 +654,7 @@ namespace Jellyfin.Plugin.CustomTheme
         /// </summary>
         internal static string StripLineComments(string js)
         {
-            if (string.IsNullOrEmpty(js)
-                || js.Contains("/*", StringComparison.Ordinal)
-                || js.Contains("\\\n", StringComparison.Ordinal)
-                || js.Contains("\\\r", StringComparison.Ordinal)
-                || js.IndexOf('\u2028') >= 0
-                || js.IndexOf('\u2029') >= 0
-                || HasLoneCr(js))
+            if (string.IsNullOrEmpty(js) || !LinesAreJsLines(js))
             {
                 return js;
             }
@@ -609,6 +677,19 @@ namespace Jellyfin.Plugin.CustomTheme
             }
 
             return kept.ToString();
+        }
+
+        // Whether a split at '\n' gives JavaScript's own lines, and a line that starts with // is
+        // a comment to JavaScript too: the conditions StripLineComments explains, and the ones
+        // CutRequests needs to trust a marker line.
+        private static bool LinesAreJsLines(string js)
+        {
+            return !js.Contains("/*", StringComparison.Ordinal)
+                && !js.Contains("\\\n", StringComparison.Ordinal)
+                && !js.Contains("\\\r", StringComparison.Ordinal)
+                && js.IndexOf('\u2028') < 0
+                && js.IndexOf('\u2029') < 0
+                && !HasLoneCr(js);
         }
 
         // Whether a CR stands anywhere without an LF right after it.
