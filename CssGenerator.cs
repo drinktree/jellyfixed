@@ -1272,9 +1272,12 @@ html.nf-modern .MuiDialog-paper {
 
         /// <summary>
         /// The styles of the requests feature (the embedded <c>seerr.css</c>), behind the same
-        /// option as its script: with SeerrRequests off none of it is served. A file of its
-        /// own rather than more of netflix.css, so the feature's rules sit with the feature and
-        /// the base sheet stays exactly as it was for everyone who never turns it on. Comments
+        /// condition as its script (ThemeTransformation): the option on and the Jellyseerr
+        /// Bridge loaded. Off, or with no bridge, none of it is served — the option is on by
+        /// default, and most servers have no bridge. Start-up looks for the bridge before it
+        /// builds the sheet (EntryPoint), and the bridge only comes or goes with a restart.
+        /// A file of its own rather than more of netflix.css, so the feature's rules sit with
+        /// the feature and the base sheet stays exactly as it was for everyone else. Comments
         /// are stripped like the base sheet's. The two marker lines go out OUTSIDE
         /// <see cref="Compact"/>, which would drop them as comments, so that anyone reading the
         /// served sheet — and the test harness, whose LOCAL=1 mode splices the working copy of
@@ -1284,7 +1287,7 @@ html.nf-modern .MuiDialog-paper {
         /// </summary>
         private static void AppendSeerr(StringBuilder sb, PluginConfiguration config)
         {
-            if (!config.SeerrRequests)
+            if (!config.SeerrRequests || SeerrBridge.Version == null)
             {
                 return;
             }
