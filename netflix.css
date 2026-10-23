@@ -4177,6 +4177,19 @@ body { font-optical-sizing: auto; }
     outline-offset: 3px !important;
     box-shadow: 0 0 0 5px rgba(255,255,255,0.18), 0 6px 24px rgba(0,0,0,0.7) !important;
 }
+/* A theme tile (the rows, the Requests grid) showed none of it: the focus sits on its
+   picture, inside .cardScalable { overflow: hidden } in a card with jellyfin 12.2's
+   `contain: layout style paint`, so every pixel of the ring was clipped. The focused card
+   keeps layout + style containment (same box, same stacking context) and lets its paint
+   out; the ring goes on .cardScalable and follows its radius. z-index 1 (a flex or grid
+   item needs no position) lifts it over the next tile, which paints later and sits 4 px
+   away below 1000 px while the ring reaches 5 px. */
+.layout-tv .card.nf-card:focus-within { contain: layout style; z-index: 1; }
+.layout-tv .card.nf-card:focus-within .cardScalable {
+    outline: 2px solid #fff !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 5px rgba(255,255,255,0.18), 0 6px 24px rgba(0,0,0,0.7) !important;
+}
 
 /* --- 9. Depth on press: buttons dip and darken instantly (Netflix's press is a
    zero-duration transition — it feels physical). --- */
