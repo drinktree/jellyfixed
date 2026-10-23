@@ -160,7 +160,7 @@ Assets/                    # The Villa Cocquette marks and icons (embedded resou
 FileTransformation/        # Bundled File Transformation provider (separate CustomTheme.FileTransformation.dll)
 ServiceRegistrator.cs      # Registers the services with Jellyfin's DI container
 netflix.css                # Base skin stylesheet (embedded resource)
-seerr.css                  # The Requests styles (embedded resource, served only while Requests in the app is on)
+seerr.css                  # The Requests styles (embedded resource, served only while Requests in the app is on and the Jellyseerr Bridge is loaded)
 configPage.html            # Dashboard settings page
 headerButton.js            # Header button + slide-in settings panel + hero/preview/Top 10
 manifest.json              # Plugin repository manifest

@@ -387,7 +387,7 @@
                     if (p.Status === 'Deleted' || p.Status === 'Superseded' || p.Status === 'Superceded') return;
                     if (!best || (SEERR_RANK[p.Status] || 0) > (SEERR_RANK[best.Status] || 0)) best = p;
                 });
-                if (!best) return ['✗ The Jellyseerr Bridge plugin is not installed. Add its repository (https://raw.githubusercontent.com/monjaka/jellyfin-plugin-jellyseerr-bridge/main/manifest.json) in Dashboard → Plugins, install it, restart Jellyfin. Its web-loader script is not needed.', 'bad'];
+                if (!best) return ['The Jellyseerr Bridge plugin is not installed. Add its repository (https://raw.githubusercontent.com/monjaka/jellyfin-plugin-jellyseerr-bridge/main/manifest.json) in Dashboard → Plugins, install it, restart Jellyfin. Its web-loader script is not needed.', ''];
                 if (best.Status === 'Restart') return ['Restart Jellyfin to load the Jellyseerr Bridge.', ''];
                 if (best.Status === 'Disabled') return ['The Jellyseerr Bridge is disabled in Dashboard → Plugins.', ''];
                 if (best.Status !== 'Active') return ['The Jellyseerr Bridge could not be loaded (see the server log).', ''];
