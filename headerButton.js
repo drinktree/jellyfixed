@@ -535,7 +535,7 @@
     //     re-adds them), so the root classes cannot discriminate;
     //   * the `layout` app setting is only ever persisted from the Display
     //     preferences save path, so on a default install the key is absent;
-    //   * this script runs inline before </body>, before layoutManager has run at all.
+    //   * this script runs inline at the end of the body, before layoutManager has run at all.
     //
     // offsetParent is NOT usable as the visibility probe: .skinHeader is
     // position:fixed in stock and in this theme, and offsetParent is null for any
@@ -906,6 +906,9 @@
             ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental)'],
             ['IdentApps', 'toggle', 'Also in apps without the theme (Android TV, Roku …)']
         ]],
+        ['Requests', [
+            ['SeerrRequests', 'toggle', 'Requests in the app (Seerr, through the Jellyseerr Bridge plugin)']
+        ]],
         ['Logo & Header', [
             ['LogoStyle', 'select', 'Logo style', [['jellyfin','Jellyfin'],['netflix','Netflix N'],['letter','Letter'],['custom','Custom image'],['none','None']]],
             ['LogoLetter', 'select', 'Logo letter', AZ],
@@ -1249,6 +1252,32 @@
             identPath.addEventListener('change', check);
             identOn.addEventListener('change', check);
             check();
+        }
+
+        // Requests: where the Jellyseerr Bridge stands (nfRqSetupLine), under its switch, the
+        // way the intro's line sits under its path. Asked when the drawer opens and when the
+        // switch is turned on; switched off, there is nothing to report and nothing is asked.
+        // The counter keeps a slow answer to an earlier ask from writing over a newer one.
+        var rqOn = body.querySelector('[data-key="SeerrRequests"]');
+        var rqRow = rqOn && rqOn.parentNode ? rqOn.parentNode.parentNode : null;   // input, label.ct-switch, .ct-row
+        if (rqRow && rqRow.parentNode) {
+            var rqNote = document.createElement('div');
+            rqNote.setAttribute('role', 'status');
+            rqNote.style.cssText = 'font-size:12px;line-height:1.4;padding:0 0 8px;display:none;';
+            rqRow.parentNode.insertBefore(rqNote, rqRow.nextSibling);
+            var rqAsked = 0;
+            var rqSay = function (line) {
+                rqNote.textContent = line[0];
+                rqNote.style.display = line[0] ? 'block' : 'none';
+                rqNote.style.color = line[1] === 'ok' ? '#46d369' : (line[1] === 'bad' ? '#ff7a7a' : '#aaa');
+            };
+            var rqCheck = function () {
+                var ask = ++rqAsked;
+                if (!rqOn.checked) { rqSay(['', '']); return; }
+                nfRqSetupLine().then(function (line) { if (ask === rqAsked) rqSay(line); });
+            };
+            rqOn.addEventListener('change', rqCheck);
+            rqCheck();
         }
     }
 
@@ -3656,7 +3685,7 @@
         h.classList.toggle('nf-scrolled', y > 8);   // Netflix goes solid almost immediately
     }
     // Called from init() AND from every applyDynamic pass. init() alone is not
-    // enough: this script is injected inline before </body> and runs before
+    // enough: this script is injected inline at the end of the body and runs before
     // jellyfin-web's bundles have mounted anything, so at init there is no
     // .skinHeader yet and the visibility guard below would reject it forever —
     // the Netflix transparent-to-solid header would simply never happen. The
@@ -4981,6 +5010,46 @@
             var rec = nfRqStatusRec();
             return !!(rec && rec.v && rec.v.requestSubmissionEnabled) && nfRqPermOf(uid) === 'ok';
         } catch (e) { return false; }
+    }
+
+    // ---- Settings: the drawer's line under "Requests in the app" (renderPanel) ----
+    // Requests come through a second plugin, and the part of them that can be wrong is set up
+    // there, so the drawer says where the bridge stands: installed and loaded, given a Seerr to
+    // talk to, taking requests from this administrator. The dashboard page asks the same
+    // (configPage.html checkSeerr) and cannot reach this script, so it carries its own copy of
+    // these steps and words: keep the two alike. Asked afresh each time - an administrator who
+    // has just mended the bridge's settings wants to see that - and nothing the pages go by is
+    // written. Resolves [text, tone], tone 'ok' | 'bad' | ''; never rejects.
+    var NF_RQ_BRIDGE_ID = 'd2fcf9c8c3c747e89dd68de9867e36bb';
+    // An update or a disable lists the bridge once per version until the next restart; the
+    // entry that counts is the best of them. Deleted (uninstalled) and Superseded (an older
+    // version) are on their way out and do not count.
+    var NF_RQ_PLUGIN_RANK = { Active: 5, Restart: 4, Disabled: 3 };
+    function nfRqSetupLine() {
+        var failed = ['The server did not answer this check. Reload this page and look again.', ''];
+        try {
+            return ApiClient.getInstalledPlugins().then(function (list) {
+                var best = null;
+                (list || []).forEach(function (p) {
+                    if (!p || String(p.Id || '').replace(/-/g, '').toLowerCase() !== NF_RQ_BRIDGE_ID) return;
+                    if (p.Status === 'Deleted' || p.Status === 'Superseded' || p.Status === 'Superceded') return;
+                    if (!best || (NF_RQ_PLUGIN_RANK[p.Status] || 0) > (NF_RQ_PLUGIN_RANK[best.Status] || 0)) best = p;
+                });
+                if (!best) return ['✗ The Jellyseerr Bridge plugin is not installed. Add its repository (https://raw.githubusercontent.com/monjaka/jellyfin-plugin-jellyseerr-bridge/main/manifest.json) in Dashboard → Plugins, install it, restart Jellyfin. Its web-loader script is not needed.', 'bad'];
+                if (best.Status === 'Restart') return ['Restart Jellyfin to load the Jellyseerr Bridge.', ''];
+                if (best.Status === 'Disabled') return ['The Jellyseerr Bridge is disabled in Dashboard → Plugins.', ''];
+                if (best.Status !== 'Active') return ['The Jellyseerr Bridge could not be loaded (see the server log).', ''];
+                return ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/Status')).then(function (s) {
+                    if (!s || s.isConfigured !== true) return ['✗ Enter the Seerr address and API key in the Jellyseerr Bridge settings.', 'bad'];
+                    var host = typeof s.jellyseerrHost === 'string' && s.jellyseerrHost ? s.jellyseerrHost : 'Seerr';
+                    return nfRqProbe().then(function (v) {
+                        if (v === 'no') return ['✗ Your own account is not on the bridge\'s allowed list. If you listed users there, use the IDs without dashes.', 'bad'];
+                        if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
+                        return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
+                    });
+                });
+            }).then(null, function () { return failed; });
+        } catch (e) { return Promise.resolve(failed); }
     }
 
     // ---- Data: every call goes through ApiClient (base path and token) ----

@@ -128,6 +128,9 @@
                 ['IdentApple', 'toggle', 'Also on iPhone, iPad and Safari (experimental: try it on your device before relying on it)'],
                 ['IdentApps', 'toggle', 'Also in apps that do not show the theme — Android TV, Roku, Kodi … They play it with their own player and controls, when their own "Cinema mode" setting is on (the Android TV app: before films only)']
             ]],
+            ['Requests', [
+                ['SeerrRequests', 'toggle', 'Requests in the app (Seerr, through the Jellyseerr Bridge plugin): a Requests page in the navigation, results on the search page, a request window']
+            ]],
             ['Logo & Header', [
                 ['LogoStyle', 'select', 'Logo style', [['jellyfin','Jellyfin'],['netflix','Netflix N'],['letter','Letter'],['custom','Custom image'],['none','None']]],
                 ['LogoLetter', 'select', 'Logo letter', 'AZ'],
@@ -207,6 +210,7 @@
                     }
                     html += '</div>';
                     if (key === 'IdentPath') html += '<div class="ct-note" id="ctIdentNote" role="status"></div>';
+                    if (key === 'SeerrRequests') html += '<div class="ct-note" id="ctSeerrNote" role="status"></div>';
                 });
                 html += '</div>';
             });
@@ -215,6 +219,7 @@
             document.getElementById('ctBrand').addEventListener('change', updateVisibility);
             document.getElementById('ctIdentPath').addEventListener('change', checkIdent);
             document.getElementById('ctIdentEnabled').addEventListener('change', checkIdent);
+            document.getElementById('ctSeerrRequests').addEventListener('change', checkSeerr);
             setupIdentBrowse();
         }
 
@@ -331,6 +336,85 @@
             });
         }
 
+        // Requests come through a second plugin, the Jellyseerr Bridge, and the part of
+        // them that can be wrong is set up there — so this line says where the bridge
+        // stands: installed and loaded, given a Seerr to talk to, and taking requests from
+        // this administrator. The settings drawer says the same (headerButton.js,
+        // nfRqSetupLine), but this page cannot reach the theme's script, so it carries its
+        // own copy of the steps and the words: keep the two alike.
+        var SEERR_BRIDGE_ID = 'd2fcf9c8c3c747e89dd68de9867e36bb';
+        // An update or a disable lists the bridge once per version until the next restart;
+        // the entry that counts is the best of them. Deleted (uninstalled) and Superseded
+        // (an older version) are on their way out and do not count.
+        var SEERR_RANK = { Active: 5, Restart: 4, Disabled: 3 };
+        var seerrAsk = 0;
+        function seerrNote(line) {
+            var note = document.getElementById('ctSeerrNote');
+            note.className = 'ct-note' + (line[1] ? ' ' + line[1] : '');
+            note.textContent = line[0];
+        }
+        // The theme script's permission probe (nfRqProbe), copied: a request the bridge
+        // refuses before anything could reach Seerr. A 403 whose words say "disabled" is
+        // the bridge's own switch ('off'); any other 403 refuses this user ('no'); any
+        // other answer, such as the 400 its made-up type earns, is a yes ('ok').
+        function seerrProbe() {
+            try {
+                return ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('JellyseerrBridge/Request'),
+                    data: JSON.stringify({ mediaType: 'probe', mediaId: 0 }),
+                    contentType: 'application/json', dataType: 'json'
+                }).then(function () { return 'ok'; }, function (r) {
+                    if (!r || r.status !== 403) return 'ok';
+                    var read = typeof r.text === 'function' ? r.text() : Promise.resolve('');
+                    return read.then(function (t) {
+                        var words = String(t || '');
+                        try {
+                            var j = JSON.parse(words);
+                            if (j && typeof j === 'object') words = String(j.message || j.error || j.title || '');
+                        } catch (e) {}
+                        return /disabled/i.test(words) ? 'off' : 'no';
+                    }, function () { return 'no'; });
+                });
+            } catch (e) { return Promise.resolve('ok'); }
+        }
+        // [text, class] for where the bridge stands. Rejects only when the server does not
+        // answer (the probe never rejects).
+        function seerrLine() {
+            return ApiClient.getInstalledPlugins().then(function (list) {
+                var best = null;
+                (list || []).forEach(function (p) {
+                    if (!p || String(p.Id || '').replace(/-/g, '').toLowerCase() !== SEERR_BRIDGE_ID) return;
+                    if (p.Status === 'Deleted' || p.Status === 'Superseded' || p.Status === 'Superceded') return;
+                    if (!best || (SEERR_RANK[p.Status] || 0) > (SEERR_RANK[best.Status] || 0)) best = p;
+                });
+                if (!best) return ['✗ The Jellyseerr Bridge plugin is not installed. Add its repository (https://raw.githubusercontent.com/monjaka/jellyfin-plugin-jellyseerr-bridge/main/manifest.json) in Dashboard → Plugins, install it, restart Jellyfin. Its web-loader script is not needed.', 'bad'];
+                if (best.Status === 'Restart') return ['Restart Jellyfin to load the Jellyseerr Bridge.', ''];
+                if (best.Status === 'Disabled') return ['The Jellyseerr Bridge is disabled in Dashboard → Plugins.', ''];
+                if (best.Status !== 'Active') return ['The Jellyseerr Bridge could not be loaded (see the server log).', ''];
+                return ApiClient.getJSON(ApiClient.getUrl('JellyseerrBridge/Status')).then(function (s) {
+                    if (!s || s.isConfigured !== true) return ['✗ Enter the Seerr address and API key in the Jellyseerr Bridge settings.', 'bad'];
+                    var host = typeof s.jellyseerrHost === 'string' && s.jellyseerrHost ? s.jellyseerrHost : 'Seerr';
+                    return seerrProbe().then(function (v) {
+                        if (v === 'no') return ['✗ Your own account is not on the bridge\'s allowed list. If you listed users there, use the IDs without dashes.', 'bad'];
+                        if (v === 'off') return ['Connected to ' + host + '. Requests are switched off in the bridge; searching still works.', ''];
+                        return ['✓ Connected to ' + host + '. Requests go to Seerr as its administrator and are approved at once. Titles and summaries come in Seerr\'s display language.', 'ok'];
+                    });
+                });
+            });
+        }
+        // Switched off, there is nothing to report and nothing is asked. The counter keeps
+        // a slow answer to an earlier ask from writing over a newer one.
+        function checkSeerr() {
+            var ask = ++seerrAsk;
+            if (!document.getElementById('ctSeerrRequests').checked) { seerrNote(['', '']); return; }
+            if (typeof ApiClient === 'undefined' || !ApiClient.getInstalledPlugins) return;
+            seerrLine().then(function (line) {
+                if (ask === seerrAsk) seerrNote(line);
+            }, function () {
+                if (ask === seerrAsk) seerrNote(['The server did not answer this check. Reload this page and look again.', '']);
+            });
+        }
+
         function apply(config) {
             fields().forEach(function (f) {
                 var key = f[0], type = f[1];
@@ -344,6 +428,7 @@
             });
             updateVisibility();
             checkIdent();
+            checkSeerr();
         }
 
         function collect(config) {
