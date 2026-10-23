@@ -68,7 +68,7 @@
              requestMore: 'Request more seasons', requestAll: 'Request all seasons', requestN: 'Request {0} seasons', request1: 'Request 1 season', toTitle: 'Go to title',
              searchPh: 'Search movies and series', notInLib: 'Not in your library', notInLibAny: 'Not in your library – but you can request it',
              rowTrending: 'Trending Now', rowMovies: 'Popular Movies', rowTv: 'Popular Series', rowUpMovies: 'Coming Soon: Movies', rowUpTv: 'Coming Soon: Series',
-             movie: 'Movie', series: 'Series', episodes: '{0} episodes', done: '“{0}” requested',
+             movie: 'Movie', series: 'Series', episodes: '{0} episodes', episode1: '1 episode', done: '“{0}” requested',
              errAlready: 'Already requested', errNone: 'All available seasons are already requested', errForbidden: 'Your profile may not request titles',
              errDisabled: 'Requests are switched off right now', errBlocked: 'This title is blocked', errDown: 'The request service is not reachable right now', errOther: 'Something went wrong. Please try again.',
              close: 'Close', noResults: 'No results', 'with': 'With', genres: 'Genres', creator: 'Created by', director: 'Director', streaming: 'Streaming on' },
@@ -79,7 +79,7 @@
              requestMore: 'Weitere Staffeln anfragen', requestAll: 'Alle Staffeln anfragen', requestN: '{0} Staffeln anfragen', request1: '1 Staffel anfragen', toTitle: 'Zur Titelseite',
              searchPh: 'Filme und Serien suchen', notInLib: 'Nicht in deiner Bibliothek', notInLibAny: 'Nicht in deiner Bibliothek – aber anfragbar',
              rowTrending: 'Im Trend', rowMovies: 'Beliebte Filme', rowTv: 'Beliebte Serien', rowUpMovies: 'Demnächst: Filme', rowUpTv: 'Demnächst: Serien',
-             movie: 'Film', series: 'Serie', episodes: '{0} Folgen', done: '„{0}“ angefragt',
+             movie: 'Film', series: 'Serie', episodes: '{0} Folgen', episode1: '1 Folge', done: '„{0}“ angefragt',
              errAlready: 'Bereits angefragt', errNone: 'Alle verfügbaren Staffeln sind schon angefragt', errForbidden: 'Dein Profil darf keine Titel anfragen',
              errDisabled: 'Anfragen sind gerade ausgeschaltet', errBlocked: 'Dieser Titel ist gesperrt', errDown: 'Der Anfragedienst ist gerade nicht erreichbar', errOther: 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
              close: 'Schließen', noResults: 'Keine Ergebnisse', 'with': 'Mit', genres: 'Genres', creator: 'Idee', director: 'Regie', streaming: 'Verfügbar bei' }
@@ -3885,7 +3885,10 @@
         // stops the NEXT clip — an in-flight one kept decoding and streaming under the
         // player for up to 30s. .videoPlayerContainer being inserted is itself a body
         // childList mutation, so this observer always fires on the transition.
-        if (playing && !nfWasPlaying) { nfStopAllPreviewMedia(); }
+        // A Requests window still open (a cast or a remote's "play") closes on the same edge -
+        // here only: nfStopAllPreviewMedia also runs on tab switches and on every play-intent
+        // click, and neither may close it.
+        if (playing && !nfWasPlaying) { nfStopAllPreviewMedia(); nfRqDlgShut(); }
         nfWasPlaying = playing;
         if (playing) {
             if (CT_CONFIG !== null) setupRatingPlate();
@@ -5705,17 +5708,8 @@
     // cannot be acted on is an inert chip.
     function nfRqHeroHtml(m) {
         var l = nfL();
-        var st = nfRqState(m);
         var bg = (typeof m.backdrop === 'string' && NF_RQ_PATH.test(m.backdrop)) ? 'https://image.tmdb.org/t/p/w1280' + m.backdrop : '';
-        var act;
-        if (st === 'request' || st === 'partial') {
-            act = '<button type="button" class="nf-hero-btn nf-rq-req"><span class="material-icons" aria-hidden="true">file_download</span> ' + l.request + '</button>';
-        } else if (st === 'available' && nfRqPlayKnown(m) === true) {
-            // The answer is for the id the model has now: the one that goes into the link.
-            act = nfRqHeroPlayHtml(m.jf);
-        } else {
-            act = '<span class="nf-hero-btn nf-rq-done" data-state="' + st + '" aria-disabled="true"><span class="material-icons" aria-hidden="true">check</span> ' + l[st] + '</span>';
-        }
+        var act = nfRqHeroAct(m, false);
         var meta = (m.votes >= NF_RQ_MIN_VOTES ? matchHtml(m.vote, 'nf-hero-match') : '') +
             (m.year ? '<span>' + esc(m.year) + '</span>' : '') +
             '<span>' + (m.mt === 'tv' ? l.series : l.movie) + '</span>';
@@ -5732,6 +5726,19 @@
               '</div>' +
             '</div>' +
           '</div>';
+    }
+    // The billboard's action for the title's state; drawn again in place when the state changes (nfRqRefreshTiles). While
+    // a request for it is out (busy) the request button says so and takes no second press.
+    function nfRqHeroAct(m, busy) {
+        var l = nfL();
+        var st = nfRqState(m);
+        if (st === 'request' || st === 'partial') {
+            return '<button type="button" class="nf-hero-btn nf-rq-req' + (busy ? ' nf-rq-busy' : '') + '"' + (busy ? ' aria-disabled="true"' : '') + '>'
+                + '<span class="material-icons" aria-hidden="true">file_download</span> ' + (busy ? l.requesting : l.request) + '</button>';
+        }
+        // The answer is for the id the model has now: the one that goes into the link.
+        if (st === 'available' && nfRqPlayKnown(m) === true) return nfRqHeroPlayHtml(m.jf);
+        return '<span class="nf-hero-btn nf-rq-done" data-state="' + st + '" aria-disabled="true"><span class="material-icons" aria-hidden="true">check</span> ' + l[st] + '</span>';
     }
     // ▶ into the library: the nf-autoplay flow (the init click capture flags it, the details
     // page's own Play is pressed), as on home's billboard. jf is the id nfRqCanPlay verified.
@@ -5792,13 +5799,9 @@
         } catch (e) { return undefined; }
     }
 
-    // The title's own window, with its request action (a section of its own). Until it is
-    // there, a title that is not played opens nothing.
-    function nfRqOpen(m) {}
-
     // A tile's picture, clicked or pressed: a title this profile can open in the library
-    // goes to its page there; any other opens its window. One activation at a time, so a
-    // double click cannot push the details page twice.
+    // goes to its page there; any other opens its window (nfRqOpen). One activation at a time,
+    // so a double click cannot push the details page twice.
     function nfRqActivate(el) {
         var card = el.closest('[data-nf-rq]');
         var m = card ? nfRqFind(card.getAttribute('data-nf-rq')) : null;
@@ -5832,10 +5835,20 @@
         } catch (e) {}
         hash();
     }
+    // The billboard's two buttons (design Q2, Ruling R2): "Anfragen" asks for a film in one
+    // click and opens a series' window, where its seasons are chosen (and a title that is
+    // partly there, which only a series is); "Mehr Infos" opens the window.
+    function nfRqHeroPress(b) {
+        var hero = b.closest('.nf-rq-hero');
+        var m = hero ? nfRqFind(hero.getAttribute('data-nf-rq')) : null;
+        if (!m || b.getAttribute('aria-disabled') === 'true') return;
+        if (b.classList.contains('nf-rq-req') && m.mt === 'movie' && nfRqState(m) === 'request') nfRqRequest(m, null);
+        else nfRqOpen(m);
+    }
     // One click and one keydown listener for every tile, wherever one sits (bubble phase:
-    // nothing of jellyfin's is in the way of a tile without data-id). The picture is a div,
-    // so Enter and Space are the button's keys here: on a TV remote OK is Enter, and Space
-    // would scroll the page.
+    // nothing of jellyfin's is in the way of a tile without data-id), and for the billboard's
+    // buttons. The picture is a div, so Enter and Space are the button's keys here: on a TV
+    // remote OK is Enter, and Space would scroll the page.
     var nfRqTilesWired = false;
     function nfRqTilesWire() {
         if (nfRqTilesWired) return;
@@ -5843,17 +5856,23 @@
         document.addEventListener('click', function (e) {
             try {
                 var t = e.target;
-                var el = t && t.closest ? t.closest('.nf-rq-open') : null;
-                if (!el || e.defaultPrevented || e.button) return;
-                nfRqActivate(el);
+                if (!t || !t.closest || e.defaultPrevented || e.button) return;
+                var el = t.closest('.nf-rq-open');
+                if (el) { nfRqActivate(el); return; }
+                var b = t.closest('.nf-rq-hero .nf-rq-req, .nf-rq-hero .nf-rq-more');
+                if (b) nfRqHeroPress(b);
             } catch (err) {}
         });
         document.addEventListener('keydown', function (e) {
             try {
                 var el = e.target;
-                if (!el || !el.classList || !el.classList.contains('nf-rq-open')) return;
+                if (!el || !el.classList) return;
                 var k = e.key;
                 if (!(k === 'Enter' || k === ' ' || k === 'Spacebar' || e.keyCode === 13 || e.keyCode === 32)) return;
+                // A held OK repeats. On the billboard the button a request has just replaced moves the
+                // focus to "Mehr Infos": a repeat must not press that one.
+                if (e.repeat && el.closest && el.closest('.nf-rq-hero')) { e.preventDefault(); return; }
+                if (!el.classList.contains('nf-rq-open')) return;
                 if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
                 e.preventDefault();
                 nfRqActivate(el);
@@ -6484,6 +6503,764 @@
         if (!pg) return;
         pg.removeChild(row);
         if (pg.hasAttribute && pg.hasAttribute('data-nf-rq-hit')) pg.removeAttribute('data-nf-rq-hit');
+    }
+
+    // ---- A title's details: Movie/<id>, Tv/<id> ----
+    // Only the details carry what the window shows beyond the lists (runtime, age rating, cast, crew, providers) and
+    // what a series' seasons are: mediaInfo.seasons and mediaInfo.requests, which the lists lack.
+    var NF_RQ_DETAILS_TTL = 2 * 60 * 1000;
+    var NF_RQ_DETAILS_HELD = 40;
+    var nfRqDetailsHeld = {};     // uid|key -> {ts, d}
+    var nfRqDetailsAsking = {};   // uid|key -> the Promise in flight
+    var nfRqDetailsGen = {};      // uid|key -> moved on when the held answer is let go: one asked for before is not kept
+    // The details for this user, or null when they could not be had (Seerr not reachable, no answer within
+    // NF_RQ_ROW_WAIT, an answer for another title). It never rejects. Held two minutes per title, one call per title
+    // in flight; `fresh` asks again whatever is held.
+    function nfRqDetails(m, fresh) {
+        try {
+            var has = Object.prototype.hasOwnProperty;
+            var uid = ApiClient.getCurrentUserId() || '';
+            var k = uid + '|' + m.key;
+            var rec = has.call(nfRqDetailsHeld, k) ? nfRqDetailsHeld[k] : null;
+            var age = rec ? Date.now() - rec.ts : -1;
+            if (!fresh && age >= 0 && age <= NF_RQ_DETAILS_TTL) return Promise.resolve(rec.d);
+            if (has.call(nfRqDetailsAsking, k)) return nfRqDetailsAsking[k];
+            var gen = nfRqDetailsGen[k] || 0;
+            var p = new Promise(function (resolve) {
+                var over = false;
+                var timer = null;
+                var end = function (d) {
+                    if (over) return;
+                    over = true;
+                    clearTimeout(timer);
+                    if (nfRqDetailsAsking[k] === p) delete nfRqDetailsAsking[k];
+                    resolve(d);
+                };
+                timer = setTimeout(function () { end(null); }, NF_RQ_ROW_WAIT);
+                nfRqGet((m.mt === 'tv' ? 'Tv/' : 'Movie/') + m.id).then(function (d) {
+                    var ok = !!d && typeof d === 'object' && Number(d.id) === m.id;
+                    try {
+                        if (ok && (nfRqDetailsGen[k] || 0) === gen && (ApiClient.getCurrentUserId() || '') === uid) nfRqDetailsKeep(k, { ts: Date.now(), d: d });
+                    } catch (e) {}
+                    end(ok ? d : null);
+                }, function () { end(null); });
+            });
+            nfRqDetailsAsking[k] = p;
+            return p;
+        } catch (e) { return Promise.resolve(null); }
+    }
+    function nfRqDetailsKeep(k, rec) {
+        var keys = Object.keys(nfRqDetailsHeld);
+        if (keys.length >= NF_RQ_DETAILS_HELD) {
+            keys.sort(function (a, b) { return nfRqDetailsHeld[a].ts - nfRqDetailsHeld[b].ts; });
+            for (var i = 0; i <= keys.length - NF_RQ_DETAILS_HELD; i++) delete nfRqDetailsHeld[keys[i]];
+        }
+        nfRqDetailsHeld[k] = rec;
+    }
+    // A request changes what Seerr says of the title: the held answer goes, and one still out will not be kept.
+    function nfRqDetailsForget(uid, key) {
+        var k = uid + '|' + key;
+        delete nfRqDetailsHeld[k];
+        delete nfRqDetailsAsking[k];
+        nfRqDetailsGen[k] = (nfRqDetailsGen[k] || 0) + 1;
+    }
+
+    // A series' seasons as Seerr's own pages show them (TvDetails' season badges, TvRequestModal's choice): every season
+    // with a number above 0 and an episode in it (specials are not requested: Seerr drops season 0 unless an option the
+    // bridge cannot read is on). Its state: Seerr's record of the season (mediaInfo.seasons, any status but unknown) or,
+    // without one, the newest request that names it - a non-4K request still standing (not declined, not completed).
+    // `pick`: Seerr would take it - its server drops a season that a standing request names or that it knows in any
+    // state but unknown or deleted (MediaRequest.ts, the season filter), and answers 202 when none is left.
+    function nfRqSeasons(d) {
+        var out = [];
+        try {
+            var mi = d && d.mediaInfo && typeof d.mediaInfo === 'object' ? d.mediaInfo : {};
+            var known = Array.isArray(mi.seasons) ? mi.seasons : [];
+            var reqs = (Array.isArray(mi.requests) ? mi.requests : []).filter(function (r) {
+                return !!r && !r.is4k && r.status !== 3 && r.status !== 5 && Array.isArray(r.seasons);
+            });
+            (Array.isArray(d && d.seasons) ? d.seasons : []).forEach(function (s) {
+                var n = s ? Number(s.seasonNumber) : 0;
+                var eps = s ? Number(s.episodeCount) : 0;
+                if (!(n > 0) || Math.floor(n) !== n || !(eps > 0)) return;
+                var ms = null;
+                for (var i = 0; i < known.length; i++) {
+                    if (known[i] && known[i].seasonNumber === n && known[i].status !== 1) { ms = known[i]; break; }
+                }
+                var req = null;
+                var at = 0;
+                reqs.forEach(function (r) {
+                    for (var j = 0; j < r.seasons.length; j++) {
+                        if (r.seasons[j] && r.seasons[j].seasonNumber === n) {
+                            var t = Date.parse(r.createdAt) || 0;
+                            if (!req || t > at) { req = r; at = t; }
+                            return;
+                        }
+                    }
+                });
+                var ss = ms ? ms.status : 0;
+                var st = ss === 5 ? 'available' : ss === 4 ? 'partial' : ss === 3 ? 'requested' : ss === 2 ? 'pending' : 'request';
+                // No record, or a deleted one: a standing request says what it is (approved - or failed in Sonarr, which
+                // Seerr still counts as asked for - is "requested").
+                if ((!ms || ss === 7) && req) st = req.status === 1 ? 'pending' : 'requested';
+                var y = /^(\d{4})/.exec(String((s && s.airDate) || ''));
+                out.push({ n: n, eps: eps, year: y ? parseInt(y[1], 10) : null, state: st, pick: st === 'request' && !(ms && ss !== 7) });
+            });
+            out.sort(function (a, b) { return a.n - b.n; });
+        } catch (e) {}
+        return out;
+    }
+
+    // The age rating, picked as Seerr's own pages pick it: the first release with one in the region - Germany first (where
+    // the owner is, and Seerr's discover region), else the US. A German one is the FSK's number, and says so.
+    function nfRqCert(d, mt) {
+        var regions = ['DE', 'US'];
+        for (var i = 0; i < regions.length; i++) {
+            var c = '';
+            var list = mt === 'movie' ? (d.releases && d.releases.results) : (d.contentRatings && d.contentRatings.results);
+            for (var j = 0; Array.isArray(list) && j < list.length && !c; j++) {
+                var r = list[j];
+                if (!r || r.iso_3166_1 !== regions[i]) continue;
+                if (mt !== 'movie') { c = typeof r.rating === 'string' ? r.rating : ''; continue; }
+                for (var x = 0; Array.isArray(r.release_dates) && x < r.release_dates.length && !c; x++) {
+                    var v = r.release_dates[x] && r.release_dates[x].certification;
+                    if (typeof v === 'string') c = v;
+                }
+            }
+            c = c.replace(/^\s+|\s+$/g, '');
+            if (c) return regions[i] === 'DE' && /^\d+$/.test(c) ? 'FSK ' + c : c;
+        }
+        return '';
+    }
+    // The first n distinct names of a TMDB list (cast, crew, creators, genres, providers).
+    function nfRqNames(list, n) {
+        var out = [];
+        for (var i = 0; Array.isArray(list) && i < list.length && out.length < n; i++) {
+            var nm = list[i] && list[i].name;
+            if (typeof nm === 'string' && /\S/.test(nm) && out.indexOf(nm) < 0) out.push(nm);
+        }
+        return out;
+    }
+
+    // ---- Asking for a title ----
+    // What a refusal says, by nfRqPost's code.
+    var NF_RQ_ERR = { already: 'errAlready', none: 'errNone', forbidden: 'errForbidden', disabled: 'errDisabled', blocklisted: 'errBlocked', down: 'errDown', error: 'errOther' };
+    var nfRqSending = {};   // a title's key -> its request while it is out
+    // One request: a film, or a series' seasons ('all', or their numbers). One per title at a time - a second press while
+    // it is out gets the same answer. It never rejects; it resolves nfRqPost's code. The answer is said where the request
+    // was asked: in the title's window when it is open, else in a toast (the billboard asks without one).
+    function nfRqRequest(m, seasons) {
+        try {
+            if (!m || !nfRqShapeOk(m)) return Promise.resolve('error');
+            if (Object.prototype.hasOwnProperty.call(nfRqSending, m.key)) return nfRqSending[m.key];
+            var uid = ApiClient.getCurrentUserId() || '';
+            if (!uid) return Promise.resolve('error');
+            // Requests switched off at the bridge, or the probe could not get past that switch: nothing is sent.
+            if (!nfRqSubmitOk()) { nfRqAnswered(m, uid, 'disabled', null); return Promise.resolve('disabled'); }
+            var body = { mediaType: m.mt, mediaId: m.id, is4k: false };
+            if (m.mt === 'tv' && (seasons === 'all' || (Array.isArray(seasons) && seasons.length))) body.seasons = seasons === 'all' ? 'all' : seasons.slice();
+            var p = nfRqPost(body).then(function (r) {
+                delete nfRqSending[m.key];
+                var code = (r && r.code) || 'error';
+                // An answer for a user who has gone (a sign-out, a switch) changes nothing for the next one.
+                try { if ((ApiClient.getCurrentUserId() || '') === uid) nfRqAnswered(m, uid, code, body); } catch (e) {}
+                return code;
+            });
+            nfRqSending[m.key] = p;
+            var w = nfRqDlgOf(m);
+            if (w) { w.msg = ''; nfRqDlgDraw(w); }
+            nfRqRefreshTiles(m);
+            return p;
+        } catch (e) { return Promise.resolve('error'); }
+    }
+    function nfRqAnswered(m, uid, code, body) {
+        try {
+            var l = nfL();
+            var w = nfRqDlgOf(m);
+            if (code === 'requested') {
+                // Seerr sets a requested title to PROCESSING ("Angefragt") once the request is approved, which the
+                // bridge's admin key does at once - but leaves a title that is partly or fully there as it is
+                // (MediaRequestSubscriber.updateParentStatus). The 201's own copy of the title is stale (PENDING), and is
+                // not read.
+                if (m.status !== 4 && m.status !== 5) m.status = 3;
+                nfRqDetailsForget(uid, m.key);
+                if (w) {
+                    w.gen++;   // details asked for before this answer are out of date
+                    w.msg = '';
+                    if (w.seasons && body && Array.isArray(body.seasons)) {
+                        w.seasons.forEach(function (s) { if (body.seasons.indexOf(s.n) >= 0) { s.state = 'requested'; s.pick = false; } });
+                    }
+                }
+                nfRqTouch(m, uid);
+                nfRqToast(l.done.replace('{0}', m.title));
+                // What Seerr made of it, a moment later: the details again, into the model, the tiles and the window.
+                setTimeout(function () {
+                    nfRqDetails(m, true).then(function (d) { if (d && (ApiClient.getCurrentUserId() || '') === uid) nfRqTake(m, d, uid); }, function () {});
+                }, 1500);
+            } else {
+                // A bare 403: the bridge takes no requests from this user. Remembered for the session, so Requests go
+                // (nfRqLive), while the window stays to say why. 'disabled': the bridge's switch is off - remembered as the
+                // probe remembers it ('off'), so every request control is off until a fresh Status says it is on again.
+                if (code === 'forbidden') nfRqPermKeep(uid, 'no');
+                else if (code === 'disabled') nfRqPermKeep(uid, 'off');
+                var say = l[NF_RQ_ERR[code] || 'errOther'];
+                if (w) w.msg = say;
+                else nfRqToast(say);
+                nfRqRefreshTiles(m);
+                if (code === 'forbidden') applyDynamic();
+            }
+            if (w) nfRqDlgDraw(w);
+        } catch (e) {}
+    }
+    // The title's details into its one held model, which every tile, row and search of the page draws from: when what
+    // they say has changed, every tile of the title follows (nfRqTouch), and the window when it is open. A blocklisted
+    // title (status 6: nfRqModel gives none) leaves the model alone, and its window says so.
+    function nfRqTake(m, d, uid) {
+        try {
+            var w = nfRqDlgOf(m);
+            var m2 = nfRqModel(d);
+            if (!m2 || m2.key !== m.key) {
+                if (w && d && d.mediaInfo && Number(d.mediaInfo.status) === 6) { w.blocked = true; nfRqDlgDraw(w); }
+                return;
+            }
+            var was = nfRqState(m) + '|' + m.jf;
+            var held = nfRqKeep(m2, uid);
+            if (nfRqState(held) + '|' + held.jf !== was) nfRqTouch(held, uid);
+            if (w) {
+                w.m = held;
+                w.d = d;
+                if (held.mt === 'tv') nfRqDlgSeasonsTake(w, nfRqSeasons(d));
+                nfRqDlgPlay(w);
+                nfRqDlgDraw(w);
+            }
+        } catch (e) {}
+    }
+    // A title's state changed: its tiles, and the copies of it the rows keep in sessionStorage (nfRqRowsPatch).
+    function nfRqTouch(m, uid) {
+        nfRqRefreshTiles(m);
+        nfRqRowsPatch(uid, m);
+    }
+    // The rows this tab keeps in sessionStorage hold their own copy of each title. The copy of this one is brought up to
+    // date, its row's age kept. Otherwise a reload - or the first visit to the page after one - would read the old copy
+    // back, and nfRqKeep would write it over the model: the title would be requestable again. (The rows in memory and the
+    // searches' answers hold the model itself.)
+    function nfRqRowsPatch(uid, m) {
+        NF_RQ_ROWS.forEach(function (r) {
+            try {
+                var k = nfCacheKey(NF_RQ_ROWS_PART + r[0], uid);
+                var raw = JSON.parse(sessionStorage.getItem(k) || 'null');
+                if (!raw || !Array.isArray(raw.v)) return;
+                var hit = false;
+                for (var i = 0; i < raw.v.length; i++) {
+                    if (raw.v[i] && raw.v[i].key === m.key) { raw.v[i] = m; hit = true; }
+                }
+                if (hit) sessionStorage.setItem(k, JSON.stringify(raw));
+            } catch (e) {}
+        });
+    }
+
+    // Everything on the page that shows the title's state follows it: every tile's tab (the rows, the page's search, the
+    // row on jellyfin's search), the billboard's action, and a hover card that carries the title's key
+    // (.nf-pop[data-nf-rq]). Only what differs is written.
+    function nfRqRefreshTiles(m) {
+        try {
+            if (!m || typeof m.key !== 'string' || !/^(movie|tv):[1-9][0-9]*$/.test(m.key)) return;
+            var st = nfRqState(m);
+            var l = nfL();
+            var els = document.querySelectorAll('[data-nf-rq="' + m.key + '"]');
+            for (var i = 0; i < els.length; i++) {
+                var el = els[i];
+                if (el.classList.contains('nf-rq-card')) nfRqTabPut(el, st, l);
+                else if (el.classList.contains('nf-rq-hero')) nfRqHeroActPut(el, m);
+                else if (el.classList.contains('nf-pop')) nfRqPopPut(el, st, l);
+            }
+        } catch (e) {}
+    }
+    // A tile's tab, where nfRqCardHtml puts it: after the picture, before the name.
+    function nfRqTabPut(card, st, l) {
+        var tab = card.querySelector('.nf-rq-state');
+        var say = st === 'request' ? '' : (st === 'partial' ? l.partialTab : l[st]);
+        if (!say) {
+            if (tab && tab.parentNode) tab.parentNode.removeChild(tab);
+            return;
+        }
+        if (!tab) {
+            var img = card.querySelector('.cardImageContainer');
+            if (!img || !img.parentNode) return;
+            tab = document.createElement('span');
+            tab.className = 'nf-rq-state';
+            img.parentNode.insertBefore(tab, img.nextSibling);
+        }
+        if (tab.getAttribute('data-state') !== st) tab.setAttribute('data-state', st);
+        if (tab.textContent !== say) tab.textContent = say;
+    }
+    // The billboard's action. A remote's focus on the button it replaces goes to the new one, or to "Mehr Infos" when that
+    // is a state (an inert chip).
+    function nfRqHeroActPut(hero, m) {
+        var acts = hero.querySelector('.nf-hero-actions');
+        var first = acts && acts.firstElementChild;
+        if (!first || first.classList.contains('nf-rq-more')) return;
+        var html = nfRqHeroAct(m, Object.prototype.hasOwnProperty.call(nfRqSending, m.key));
+        if (first.outerHTML === html) return;
+        var t = document.createElement('div');
+        t.innerHTML = html;
+        var next = t.firstChild;
+        var had = document.activeElement === first;
+        acts.replaceChild(next, first);
+        if (had) {
+            var to = next.tagName === 'SPAN' ? acts.querySelector('.nf-rq-more') : next;
+            if (to) { try { to.focus({ preventScroll: true }); } catch (e) {} }
+        }
+        nfRqHeroLater(hero, m);
+    }
+    // A hover card: the state chip in its meta line (span.nf-rq-chip, the card's own vocabulary), and no request button
+    // once nothing is left to request.
+    function nfRqPopPut(pop, st, l) {
+        var meta = pop.querySelector('.nf-pop-meta');
+        var chip = pop.querySelector('.nf-rq-chip');
+        var say = (st === 'pending' || st === 'requested' || st === 'partial') ? l[st] : '';
+        if (!say) {
+            if (chip && chip.parentNode) chip.parentNode.removeChild(chip);
+        } else if (meta) {
+            if (!chip) {
+                chip = document.createElement('span');
+                chip.className = 'nf-rq-chip';
+                meta.appendChild(chip);
+            }
+            if (chip.getAttribute('data-state') !== st) chip.setAttribute('data-state', st);
+            if (chip.textContent !== say) chip.textContent = say;
+        }
+        if (st !== 'request' && st !== 'partial') {
+            var add = pop.querySelectorAll('.nf-rq-add');
+            for (var i = 0; i < add.length; i++) { if (add[i].parentNode) add[i].parentNode.removeChild(add[i]); }
+        }
+    }
+
+    // ---- The toast: one line, bottom left, 3.3 s ----
+    // The theme's own (jellyfin's toast is not on window), above every dialog, a polite live region. A newer one takes
+    // the place of the one that is up.
+    var nfRqToastEl = null;
+    var nfRqToastTimer = 0;
+    function nfRqToast(text) {
+        try {
+            if (nfRqToastEl && nfRqToastEl.parentNode) nfRqToastEl.parentNode.removeChild(nfRqToastEl);
+            clearTimeout(nfRqToastTimer);
+            var t = document.createElement('div');
+            t.className = 'nf-rq-toast';
+            t.setAttribute('role', 'status');
+            t.textContent = String(text == null ? '' : text);
+            document.body.appendChild(t);
+            nfRqToastEl = t;
+            nfRqToastTimer = setTimeout(function () {
+                if (t.parentNode) t.parentNode.removeChild(t);
+                if (nfRqToastEl === t) nfRqToastEl = null;
+            }, 3300);
+        } catch (e) {}
+    }
+
+    // ---- The title's window ----
+    // jellyfin's own dialog (Dashboard.dialogHelper): it pushes one same-URL history entry, so Back closes it; it holds
+    // the TV remote's focus inside it; it sits above the app bar (.dialogContainer, z-index 999999); and it wears the
+    // theme's .dialog skin, glass included. In it, Netflix's title window (design 6.5), drawn from the held model at once
+    // and filled in from the details when they come:
+    //   div.dialog.nf-rq-dlg               (dialogHelper's element, with the theme's class)
+    //     div.nf-rq-dlg-in
+    //       div.nf-rq-dlg-art              the 16:9 picture, and over its fade the title and the actions
+    //       div.nf-rq-dlg-bar              the close ring, kept in view while the window scrolls
+    //       div.nf-rq-dlg-msg              what a request answered, or why nothing can be requested
+    //       div.nf-rq-dlg-body             meta, tagline, synopsis | the facts, in the "Label: value" voice
+    //       div.nf-rq-dlg-seasons          a series' seasons, the ones Seerr would take ticked, and the button that asks
+    // One window at a time. Each part is drawn as a string and written only when it changed; a control drawn anew keeps
+    // the focus (data-nf-k names it). None of it runs on a pass: it is drawn when something happens.
+    var nfRqDlgAt = null;   // the open window's state (nfRqOpen)
+    function nfRqDlgOf(m) {
+        var w = nfRqDlgAt;
+        return w && !w.shut && m && w.m.key === m.key ? w : null;
+    }
+    function nfRqOpen(m) {
+        try {
+            var dh = window.Dashboard && window.Dashboard.dialogHelper;
+            if (!m || !nfRqShapeOk(m) || !dh || typeof dh.createDialog !== 'function' || typeof dh.open !== 'function' || typeof dh.close !== 'function') return;
+            // One at a time - unless the one held is no longer on the page and was never closed (taken away by something
+            // else). One that is closing is still held: its step back in history has to come first.
+            if (nfRqDlgAt && !nfRqDlgAt.shut && (nfRqDlgAt.closing || nfRqDlgAt.dlg.isConnected)) return;
+            var dlg = dh.createDialog({ removeOnClose: true, scrollY: true, entryAnimation: 'fadein', exitAnimation: 'fadeout',
+                size: nfMM('(max-width: 768px)') ? 'fullscreen' : undefined });
+            dlg.classList.add('nf-rq-dlg');
+            dlg.setAttribute('role', 'dialog');
+            dlg.setAttribute('aria-modal', 'true');
+            dlg.setAttribute('aria-label', m.title);
+            // Focusable itself: a click on its text leaves the focus in it, not on <body>, so its keys (Escape) still
+            // reach it - and its controls keep it when they are drawn anew.
+            dlg.setAttribute('tabindex', '-1');
+            dlg.setAttribute('data-nf-rq-dlg', m.key);
+            var w = { dh: dh, dlg: dlg, m: m, d: null, seasons: null, picked: {}, blocked: false, failed: false, msg: '', msgAt: 'top',
+                play: null, jump: false, gen: 0, leaving: false, closing: false, shut: false, opener: document.activeElement, drawn: {}, closed: null };
+            dlg.innerHTML = nfRqDlgShell(m);
+            nfRqDlgWire(w);
+            // dialogHelper's own event as any close begins (the close ring, Back, the backdrop, the playback edge).
+            dlg.addEventListener('closing', function () { w.closing = true; });
+            nfRqDlgDraw(w);
+            // Resolves once the window has closed, its history entry stepped back over.
+            w.closed = dh.open(dlg);
+            nfRqDlgAt = w;
+            w.closed.then(function () {
+                w.shut = true;
+                if (nfRqDlgAt === w) nfRqDlgAt = null;
+                // The focus goes back where the window was opened from (dialogHelper does that on TV only) - unless the
+                // window led away from the page.
+                var o = w.opener;
+                var ae = document.activeElement;
+                if (!w.leaving && o && o.isConnected && typeof o.focus === 'function' && (!ae || ae === document.body) && !nfRqTv()) {
+                    try { o.focus({ preventScroll: true }); } catch (e) {}
+                }
+            }, function () {
+                w.shut = true;
+                if (nfRqDlgAt === w) nfRqDlgAt = null;
+            });
+            // The keys go to the window from the first moment; dialogHelper moves the focus to its first control once
+            // the entry animation has run.
+            try { dlg.focus({ preventScroll: true }); } catch (e) {}
+            nfLazyImages(dlg);
+            nfRqDlgLoad(w);
+            nfRqDlgPlay(w);
+        } catch (e) {}
+    }
+    function nfRqTv() {
+        return document.documentElement.classList.contains('layout-tv') || (!!document.body && document.body.classList.contains('layout-tv'));
+    }
+    // Closing goes through dialogHelper, which steps back over the window's history entry - as its own closes do (Back, a
+    // click on the backdrop).
+    function nfRqDlgClose(w) {
+        if (w.shut) return;
+        try { w.dh.close(w.dlg); } catch (e) {}
+    }
+    // The playback edge (applyDynamic): a window still open goes.
+    function nfRqDlgShut() {
+        var w = nfRqDlgAt;
+        if (w && !w.shut) nfRqDlgClose(w);
+    }
+    // The picture: TMDB's backdrop at w1280 (spec 6.5), else the poster, cropped; with neither, the surface.
+    function nfRqDlgArt(m) {
+        if (typeof m.backdrop === 'string' && NF_RQ_PATH.test(m.backdrop)) return 'https://image.tmdb.org/t/p/w1280' + m.backdrop;
+        if (typeof m.poster === 'string' && NF_RQ_PATH.test(m.poster)) return 'https://image.tmdb.org/t/p/w780' + m.poster;
+        return '';
+    }
+    // The frame. The close ring comes after the actions in the markup, so it is not where the focus starts (the sheet
+    // shows it first); the picture is loaded the tiles' way (data-nf-bg, nfLazyImages: no Referer to TMDB).
+    function nfRqDlgShell(m) {
+        var l = nfL();
+        var art = nfRqDlgArt(m);
+        return '<div class="nf-rq-dlg-in">' +
+            '<div class="nf-rq-dlg-art">' +
+              '<div class="nf-rq-dlg-pic' + (art ? '' : ' nf-rq-dlg-noart') + '"' + (art ? ' data-nf-bg="' + esc(art) + '"' : '') + '><div class="nf-rq-dlg-fade"></div></div>' +
+              '<div class="nf-rq-dlg-hero"><h2 class="nf-rq-dlg-title">' + esc(m.title) + '</h2><div class="nf-rq-dlg-actions"></div></div>' +
+            '</div>' +
+            '<div class="nf-rq-dlg-bar"><button type="button" class="nf-rq-ring nf-rq-dlg-close" data-nf-act="close" data-nf-k="close" title="' + esc(l.close) + '" aria-label="' + esc(l.close) + '">' +
+              '<span class="material-icons" aria-hidden="true">close</span></button></div>' +
+            '<div class="nf-rq-dlg-msg" role="status" hidden></div>' +
+            '<div class="nf-rq-dlg-body"></div>' +
+            '<div class="nf-rq-dlg-seasons"></div>' +
+          '</div>';
+    }
+    // One click listener and one key listener on the window. Escape closes it on every layout. jellyfin maps Escape to
+    // Back only on TV, from its own listener on window - which skips a handled key, so on TV it is not a second close
+    // (a second step back would leave the page). A held Enter or Space repeats: a repeat must not press the control the
+    // window has just put the focus on (its request button).
+    function nfRqDlgWire(w) {
+        var dlg = w.dlg;
+        dlg.addEventListener('click', function (e) {
+            try {
+                var t = e.target && e.target.closest ? e.target.closest('[data-nf-act]') : null;
+                if (!t || !dlg.contains(t) || t.getAttribute('aria-disabled') === 'true') return;
+                var act = t.getAttribute('data-nf-act');
+                if (act === 'close') nfRqDlgClose(w);
+                else if (act === 'req') { w.msgAt = 'top'; nfRqRequest(w.m, null); }
+                else if (act === 'jump') nfRqDlgJump(w);
+                else if (act === 'play' || act === 'title') nfRqDlgGo(w, act);
+                else if (act === 'season') nfRqDlgPick(w, parseInt(t.getAttribute('data-n'), 10));
+                else if (act === 'foot') {
+                    var picked = nfRqDlgPicked(w);
+                    if (picked.length) { w.msgAt = 'foot'; nfRqRequest(w.m, picked); }
+                }
+            } catch (err) {}
+        });
+        dlg.addEventListener('keydown', function (e) {
+            try {
+                var k = e.key;
+                if (k === 'Escape' || k === 'Esc' || e.keyCode === 27) {
+                    if (e.defaultPrevented) return;
+                    e.preventDefault();
+                    nfRqDlgClose(w);
+                    return;
+                }
+                if (e.repeat && (k === 'Enter' || k === ' ' || k === 'Spacebar' || e.keyCode === 13 || e.keyCode === 32)) e.preventDefault();
+            } catch (err) {}
+        });
+    }
+    function nfRqDlgDraw(w) {
+        try {
+            var dlg = w.dlg;
+            var ae = document.activeElement;
+            var key = ae && ae !== dlg && dlg.contains(ae) ? ae.getAttribute('data-nf-k') : null;
+            nfRqDlgPart(w, '.nf-rq-dlg-actions', 'acts', nfRqDlgActs(w));
+            nfRqDlgPart(w, '.nf-rq-dlg-body', 'body', nfRqDlgBody(w));
+            nfRqDlgPart(w, '.nf-rq-dlg-seasons', 'seasons', nfRqDlgSeasonsHtml(w));
+            var msg = dlg.querySelector('.nf-rq-dlg-msg');
+            if (msg) {
+                var say = nfRqDlgSay(w);
+                if (msg.textContent !== say) msg.textContent = say;
+                if (msg.hidden !== !say) msg.hidden = !say;
+                // Said next to the control that asked: a series' seasons button is far below the actions.
+                var foot = w.msgAt === 'foot' && !!dlg.querySelector('.nf-rq-seasons-foot');
+                if (msg.classList.contains('nf-rq-dlg-msg-foot') !== foot) msg.classList.toggle('nf-rq-dlg-msg-foot', foot);
+            }
+            var now = document.activeElement;
+            if (key && (!now || now === document.body || !dlg.contains(now))) {
+                var to = dlg.querySelector('[data-nf-k="' + key + '"]') || dlg.querySelector('[data-nf-k="close"]');
+                if (to) { try { to.focus({ preventScroll: true }); } catch (e) {} }
+            }
+            if (w.jump && w.seasons) {
+                w.jump = false;
+                nfRqDlgJump(w);
+            }
+        } catch (e) {}
+    }
+    function nfRqDlgPart(w, sel, k, html) {
+        if (w.drawn[k] === html) return;
+        var el = w.dlg.querySelector(sel);
+        if (!el) return;
+        el.innerHTML = html;
+        w.drawn[k] = html;
+    }
+    function nfRqDlgBtn(k, act, cls, icon, label, off) {
+        return '<button type="button" class="nf-hero-btn ' + cls + '" data-nf-k="' + k + '" data-nf-act="' + act + '"' + (off ? ' aria-disabled="true"' : '') + '>' +
+            '<span class="material-icons" aria-hidden="true">' + icon + '</span> ' + esc(label) + '</button>';
+    }
+    // A state, not an action: a button that takes no press, so the focus can rest on it (TV).
+    function nfRqDlgChip(st, label) {
+        return '<button type="button" class="nf-hero-btn nf-rq-done" data-nf-k="primary" data-state="' + st + '" aria-disabled="true">' +
+            '<span class="material-icons" aria-hidden="true">check</span> ' + esc(label) + '</button>';
+    }
+    function nfRqDlgAnyPick(w) {
+        for (var i = 0; w.seasons && i < w.seasons.length; i++) { if (w.seasons[i].pick) return true; }
+        return false;
+    }
+    // The action row - design 6.5's state machine:
+    //   can be requested: "Anfragen" (the accent; a film is asked for here, a series leads to its seasons);
+    //   a request out:    "Wird angefragt…" (takes no press);
+    //   status 2 or 3:    "✓ Angefragt" (a state);
+    //   available:        ▶ (white) and the ring "Zur Titelseite", once Jellyfin hands this profile the item; else
+    //                     "✓ Verfügbar";
+    //   partly there:     ▶, and "Weitere Staffeln anfragen" while a season is left - else as available;
+    //   blocklisted:      nothing (the note says why).
+    // A request control is drawn off (aria-disabled) while requests cannot be sent (nfRqSubmitOk), and for a series none
+    // of whose seasons can be asked for.
+    function nfRqDlgActs(w) {
+        if (w.blocked) return '';
+        var m = w.m;
+        var l = nfL();
+        var st = nfRqState(m);
+        var tv = m.mt === 'tv';
+        var busy = Object.prototype.hasOwnProperty.call(nfRqSending, m.key);
+        var off = !nfRqSubmitOk();
+        var left = tv && (w.seasons === null || nfRqDlgAnyPick(w));
+        var play = !!w.play && w.play === m.jf && (st === 'available' || st === 'partial');
+        var playBtn = play ? nfRqDlgBtn('primary', 'play', 'nf-hero-play', 'play_arrow', l.play, false) : '';
+        var ring = '<button type="button" class="nf-rq-ring" data-nf-k="second" data-nf-act="title" title="' + esc(l.toTitle) + '" aria-label="' + esc(l.toTitle) + '">' +
+            '<span class="material-icons" aria-hidden="true">info</span></button>';
+        if (st === 'request') {
+            if (busy) return nfRqDlgBtn('primary', 'req', 'nf-rq-req nf-rq-busy', 'file_download', l.requesting, true);
+            return nfRqDlgBtn('primary', tv ? 'jump' : 'req', 'nf-rq-req', 'file_download', l.request, off || (tv && !left));
+        }
+        if (st === 'pending' || st === 'requested') return nfRqDlgChip(st, l.requested);
+        if (st === 'partial' && tv && left) {
+            var ask = busy ? nfRqDlgBtn(play ? 'second' : 'primary', 'jump', 'nf-rq-req nf-rq-busy', 'file_download', l.requesting, true)
+                : nfRqDlgBtn(play ? 'second' : 'primary', 'jump', 'nf-rq-req', 'file_download', l.requestMore, off);
+            return playBtn + ask;
+        }
+        // available, or partly there with nothing left to ask for
+        return play ? playBtn + ring : nfRqDlgChip(st, l[st]);
+    }
+    // Meta (match, year, age rating, runtime or seasons - the type until the details are in), tagline and synopsis; the
+    // facts beside them: cast, genres, director or creator, where to stream it (in Germany).
+    function nfRqDlgBody(w) {
+        var m = w.m;
+        var d = w.d;
+        var l = nfL();
+        var meta = (m.votes >= NF_RQ_MIN_VOTES ? matchHtml(m.vote, 'nf-rq-dlg-match') : '') + (m.year ? '<span>' + esc(m.year) + '</span>' : '');
+        var cert = d ? nfRqCert(d, m.mt) : '';
+        if (cert) meta += '<span class="nf-rq-dlg-cert">' + esc(cert) + '</span>';
+        var len = '';
+        if (d && m.mt === 'movie') len = nfRuntimeText((parseInt(d.runtime, 10) || 0) * 600000000);
+        else if (d) {
+            var n = parseInt(d.numberOfSeasons, 10) || 0;
+            if (!(n > 0)) n = nfRqSeasons(d).length;
+            if (n > 0) len = n + ' ' + (n === 1 ? l.season : l.seasons);
+        }
+        meta += '<span>' + esc(len || (m.mt === 'tv' ? l.series : l.movie)) + '</span>';
+        var tag = d && typeof d.tagline === 'string' ? d.tagline.replace(/^\s+|\s+$/g, '') : '';
+        var ov = d && typeof d.overview === 'string' && /\S/.test(d.overview) ? d.overview : m.overview;
+        var facts = '';
+        var fact = function (label, names) {
+            if (names.length) facts += '<div class="nf-rq-dlg-fact"><span class="nf-rq-dlg-label">' + esc(label) + '</span>' + esc(names.join(', ')) + '</div>';
+        };
+        if (d) fact(l['with'], nfRqNames(d.credits && d.credits.cast, 3));
+        fact(l.genres, d && Array.isArray(d.genres) ? nfRqNames(d.genres, 4)
+            : (m.genres || []).map(function (g) { return nfRqGenre(g); }).filter(function (g) { return !!g; }).slice(0, 4));
+        if (d && m.mt === 'movie') {
+            fact(l.director, nfRqNames((d.credits && Array.isArray(d.credits.crew) ? d.credits.crew : []).filter(function (c) { return !!c && c.job === 'Director'; }), 2));
+        }
+        if (d && m.mt === 'tv') fact(l.creator, nfRqNames(d.createdBy, 2));
+        if (d) {
+            var wp = Array.isArray(d.watchProviders) ? d.watchProviders : [];
+            for (var i = 0; i < wp.length; i++) { if (wp[i] && wp[i].iso_3166_1 === 'DE') { fact(l.streaming, nfRqNames(wp[i].flatrate, 4)); break; } }
+        }
+        return '<div class="nf-rq-dlg-main"><div class="nf-rq-dlg-meta">' + meta + '</div>' +
+            (tag ? '<div class="nf-rq-dlg-tagline">' + esc(tag) + '</div>' : '') +
+            (ov ? '<div class="nf-rq-dlg-overview">' + esc(ov) + '</div>' : '') + '</div>' +
+            (facts ? '<div class="nf-rq-dlg-facts">' + facts + '</div>' : '');
+    }
+    // A series' seasons, in the action sheet's selection voice: a season Seerr would take is a checkbox (ticked to begin
+    // with); any other shows its state. The button below asks for the ticked ones, and says how many.
+    function nfRqDlgSeasonsHtml(w) {
+        var list = w.seasons;
+        if (w.m.mt !== 'tv' || w.blocked || !list || !list.length) return '';
+        var l = nfL();
+        var off = !nfRqSubmitOk() || Object.prototype.hasOwnProperty.call(nfRqSending, w.m.key);
+        var rows = '';
+        var can = 0;
+        var on = 0;
+        for (var i = 0; i < list.length; i++) {
+            var s = list[i];
+            var sub = (s.eps === 1 ? l.episode1 : l.episodes.replace('{0}', s.eps)) + (s.year ? ' · ' + s.year : '');
+            var name = '<span class="nf-rq-season-name">' + esc(l.season + ' ' + s.n) + '</span><span class="nf-rq-season-sub">' + esc(sub) + '</span>';
+            if (s.pick) {
+                var ticked = !!w.picked[s.n];
+                can++;
+                if (ticked) on++;
+                rows += '<button type="button" class="nf-rq-season nf-rq-season-pick' + (ticked ? ' nf-rq-on' : '') + '" role="checkbox" aria-checked="' + ticked + '" data-n="' + s.n + '"' +
+                    ' data-nf-act="season" data-nf-k="season-' + s.n + '"' + (off ? ' aria-disabled="true"' : '') + '>' +
+                    '<span class="material-icons nf-rq-season-box" aria-hidden="true">' + (ticked ? 'check_box' : 'check_box_outline_blank') + '</span>' + name + '</button>';
+            } else {
+                rows += '<div class="nf-rq-season" data-n="' + s.n + '"><span class="nf-rq-season-box" aria-hidden="true"></span>' + name +
+                    (s.state === 'request' ? '' : '<span class="nf-rq-chip" data-state="' + s.state + '">' + esc(l[s.state]) + '</span>') + '</div>';
+            }
+        }
+        var foot = '';
+        if (can) {
+            var busy = Object.prototype.hasOwnProperty.call(nfRqSending, w.m.key);
+            var label = busy ? l.requesting : (on === list.length && on > 1 ? l.requestAll : (on === 1 ? l.request1 : l.requestN.replace('{0}', on)));
+            foot = '<div class="nf-rq-seasons-foot">' + nfRqDlgBtn('foot', 'foot', 'nf-rq-req' + (busy ? ' nf-rq-busy' : ''), 'file_download', label, off || !on) + '</div>';
+        }
+        return '<h3 class="nf-rq-dlg-seasons-title">' + esc(l.seasons) + '</h3><div class="nf-rq-season-list">' + rows + '</div>' + foot;
+    }
+    // The note: a request's answer; else why nothing can be asked for - a blocklisted title, a series whose seasons could
+    // not be had, requests switched off.
+    function nfRqDlgSay(w) {
+        var l = nfL();
+        if (w.blocked) return l.errBlocked;
+        if (w.msg) return w.msg;
+        if (w.failed && w.m.mt === 'tv' && !w.seasons) return l.errDown;
+        var st = nfRqState(w.m);
+        var could = w.m.mt === 'tv' ? (w.seasons === null ? st === 'request' || st === 'partial' : nfRqDlgAnyPick(w)) : st === 'request';
+        return could && !nfRqSubmitOk() ? l.errDisabled : '';
+    }
+    // New seasons from the details. A choice the user made on a season that can still be asked for is kept; any other
+    // season that can be is ticked.
+    function nfRqDlgSeasonsTake(w, list) {
+        var had = w.seasons;
+        var picked = {};
+        for (var i = 0; i < list.length; i++) {
+            if (!list[i].pick) continue;
+            var was = false;
+            for (var j = 0; had && j < had.length; j++) { if (had[j].n === list[i].n && had[j].pick) { was = true; break; } }
+            picked[list[i].n] = was ? !!w.picked[list[i].n] : true;
+        }
+        w.seasons = list;
+        w.picked = picked;
+    }
+    function nfRqDlgPick(w, n) {
+        var list = w.seasons || [];
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].n === n && list[i].pick) {
+                w.picked[n] = !w.picked[n];
+                nfRqDlgDraw(w);
+                return;
+            }
+        }
+    }
+    function nfRqDlgPicked(w) {
+        var out = [];
+        (w.seasons || []).forEach(function (s) { if (s.pick && w.picked[s.n]) out.push(s.n); });
+        return out.sort(function (a, b) { return a - b; });
+    }
+    // A series' "Anfragen": to its seasons, the focus on the button that says what will be asked for. Before the seasons
+    // are in, it happens once they are.
+    function nfRqDlgJump(w) {
+        var dlg = w.dlg;
+        if (!w.seasons) {
+            w.jump = true;
+            if (w.failed) { w.failed = false; nfRqDlgLoad(w); }
+            return;
+        }
+        var sec = dlg.querySelector('.nf-rq-dlg-seasons');
+        if (!sec || !sec.firstChild) return;
+        try { dlg.scrollTop += sec.getBoundingClientRect().top - dlg.getBoundingClientRect().top - 12; } catch (e) {}
+        var to = dlg.querySelector('.nf-rq-seasons-foot button') || sec.querySelector('.nf-rq-season-pick');
+        if (to) { try { to.focus({ preventScroll: true }); } catch (e) {} }
+    }
+    function nfRqDlgLoad(w) {
+        var g = ++w.gen;
+        var uid = ApiClient.getCurrentUserId() || '';
+        nfRqDetails(w.m).then(function (d) {
+            if (g !== w.gen || w.shut) return;
+            if (!d) {
+                w.failed = true;
+                nfRqDlgDraw(w);
+                return;
+            }
+            w.failed = false;
+            nfRqTake(w.m, d, uid);
+        }, function () {});
+    }
+    // ▶ only for an item Jellyfin hands this profile (nfRqCanPlay, asked once per item), and only for the id that was
+    // checked: the details can bring another.
+    function nfRqDlgPlay(w) {
+        var m = w.m;
+        var st = nfRqState(m);
+        if ((st !== 'available' && st !== 'partial') || !m.jf || w.play === m.jf) return;
+        var jf = m.jf;
+        nfRqCanPlay(m).then(function (ok) {
+            if (w.shut) return;
+            var now = nfRqState(w.m);
+            var yes = ok && w.m.jf === jf && (now === 'available' || now === 'partial');
+            if (yes === (w.play === jf)) return;
+            w.play = yes ? jf : null;
+            nfRqDlgDraw(w);
+        }, function () {});
+    }
+    // Away from the window into the library. The window closes first - dialogHelper steps back over its history entry and
+    // resolves open() once it has - and only then is the navigation made: one made while it is open would leave that entry
+    // behind, and Back from the title would land on nothing. ▶ is the nf-autoplay flow (the init click capture flags it,
+    // the details page's own Play is pressed): a link of that kind, clicked once the window has gone.
+    function nfRqDlgGo(w, act) {
+        var jf = w.play;
+        if (!jf || jf !== w.m.jf || w.leaving) return;
+        var sid = (ApiClient.serverId && ApiClient.serverId()) || '';
+        var path = '/details?id=' + jf + (sid ? '&serverId=' + sid : '');
+        w.leaving = true;
+        w.closed.then(function () {
+            if (act === 'title') { nfRqShow(path); return; }
+            var a = document.createElement('a');
+            a.className = 'nf-autoplay';
+            a.setAttribute('data-id', jf);
+            a.setAttribute('href', '#' + path);
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            try { a.click(); } finally { if (a.parentNode) a.parentNode.removeChild(a); }
+        }, function () {});
+        nfRqDlgClose(w);
     }
 
     function init() {

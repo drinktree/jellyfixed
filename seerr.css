@@ -470,6 +470,465 @@ html.nf-rq-view #searchPage > .nf-rq-insearch {
     line-height: 1.45;
 }
 
+/* ---- A request that is out, or that cannot be sent: the accent stays (it is still the request
+   action), quieter, with no hover and no press. While it is out it shows progress. */
+.nf-hero-btn.nf-rq-req[aria-disabled="true"] {
+    opacity: 0.55;
+    cursor: default;
+}
+.nf-hero-btn.nf-rq-req.nf-rq-busy {
+    opacity: 0.8;
+    cursor: progress;
+}
+.nf-hero-btn.nf-rq-req[aria-disabled="true"]:hover {
+    background: var(--accent-red);
+}
+.nf-hero-btn[aria-disabled="true"]:active {
+    transform: none !important;
+    filter: none !important;
+}
+
+/* ============================================================================
+   The title's window (headerButton.js, nfRqOpen)
+   ============================================================================
+   jellyfin's own dialog (Dashboard.dialogHelper) in the theme's .dialog skin - surface, hairline,
+   radius, elevation, the glass when it is on - laid out as Netflix's title window: 850 px wide,
+   centred by jellyfin's container, 32 px clear of the window's top and bottom at the most, and
+   scrolling in itself (the container is overflow: hidden). On a phone it is jellyfin's full-screen
+   dialog. No display is set on the dialog: dialogHelper shows and hides it with .hide. */
+.dialog.nf-rq-dlg {
+    width: 850px;
+    max-width: calc(100% - 32px);
+    max-height: calc(100% - 64px);
+    overflow-x: hidden;
+    font-family: var(--font-netflix);
+    color: var(--nf-text-2);
+}
+/* The full-screen dialog fills the screen (dialoghelper.scss): none of the centred one's limits. */
+.dialog.nf-rq-dlg.dialog-fullscreen {
+    width: auto;
+    max-width: none;
+    max-height: none;
+}
+/* The window takes the focus itself as it opens (before dialogHelper moves it to the first control)
+   and when a click lands on its text, so its keys reach it. A ring around the whole window says
+   nothing: (0,3,1) against the theme's [tabindex] rings at (0,3,1) and below, later in the sheet. */
+html .dialog.nf-rq-dlg:focus {
+    outline: none !important;
+    box-shadow: var(--e-4) !important;
+}
+/* A column, so the close ring's bar can come first on the screen while it comes after the actions
+   in the markup (where the focus starts), and the note can stand by the control that asked. */
+.nf-rq-dlg-in {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- The picture: 16:9 (a padder, not aspect-ratio, so JMP's Chromium needs no fallback), dark
+   until the art has come, fading into the surface at its foot. The title and the actions stand over
+   the fade, on the window's rail (48 px). */
+.nf-rq-dlg-art {
+    position: relative;
+}
+.nf-rq-dlg-pic {
+    position: relative;
+    background: #000 center 20% / cover no-repeat;
+}
+.nf-rq-dlg-pic::before {
+    content: '';
+    display: block;
+    padding-top: 56.25%;
+}
+.nf-rq-dlg-pic.nf-rq-dlg-noart {
+    background: var(--nf-surface);
+}
+.nf-rq-dlg-pic.nf-rq-dlg-noart::before {
+    padding-top: 28%;
+}
+.nf-rq-dlg-fade {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 70%;
+    background: linear-gradient(0deg, rgba(var(--nf-surface-rgb),1) 0%, rgba(var(--nf-surface-rgb),0.55) 35%, rgba(var(--nf-surface-rgb),0) 100%);
+    pointer-events: none;
+}
+.nf-rq-dlg-hero {
+    position: absolute;
+    left: 48px;
+    right: 48px;
+    bottom: 36px;
+    z-index: 2;
+}
+/* Seerr has no logo art: the title is typeset, two lines at most (the clamp clips at the box; the
+   0.1em at its foot keeps the descenders, as on the billboard). */
+.nf-rq-dlg-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    margin: 0 0 18px;
+    margin-bottom: calc(18px - 0.1em);
+    padding: 0 0 0.1em;
+    font-family: var(--font-netflix);
+    font-size: 2.4rem;
+    font-size: clamp(1.75rem, 3.2vw, 2.6rem);
+    font-weight: var(--nf-w-bold);
+    line-height: 1.05;
+    letter-spacing: var(--nf-track-display);
+    color: var(--text-main);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.45);
+}
+/* The billboard's buttons (.nf-hero-btn: ▶ white, the request in the accent, a state neutral), a size
+   down for the window. Margins, not flex gap (Chromium 83). */
+.nf-rq-dlg-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: -8px;
+}
+.nf-rq-dlg-actions > * {
+    margin-top: 8px;
+    margin-right: 10px;
+    margin-inline-end: 10px;
+}
+[dir="rtl"] .nf-rq-dlg-actions > * {
+    margin-right: 0;
+}
+.nf-rq-dlg .nf-hero-btn {
+    font-size: 1rem;
+    padding: 9px 22px;
+}
+.nf-rq-dlg .nf-hero-btn .material-icons {
+    font-size: 1.45rem;
+}
+
+/* ---- The rings: the theme's circular-button spec (--nf-ring, --nf-ring-fill) at 42 px - the close
+   ring, and "Zur Titelseite" beside ▶. */
+.nf-rq-ring {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 42px;
+    height: 42px;
+    margin: 0;
+    padding: 0;
+    border: var(--nf-ring);
+    border-radius: 50%;
+    background: var(--nf-ring-fill);
+    color: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.nf-rq-ring:hover {
+    border-color: #fff;
+    background: rgba(42,42,42,0.9);
+}
+.nf-rq-ring .material-icons {
+    font-size: 22px;
+}
+/* The close ring rides a bar of no height that sticks to the window's top while it scrolls. */
+.nf-rq-dlg-bar {
+    order: -1;
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    height: 0;
+}
+.nf-rq-dlg-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+[dir="rtl"] .nf-rq-dlg-close {
+    right: auto;
+    left: 16px;
+}
+
+/* ---- The note: what a request answered, or why nothing can be asked for. Quiet, under the picture
+   by the actions - or by a series' seasons button when that asked. */
+.nf-rq-dlg-msg {
+    order: 1;
+    margin: 0 48px 14px;
+    padding: 10px 14px;
+    border-left: 3px solid rgba(255,255,255,0.55);
+    border-radius: var(--r-badge);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-main);
+    font-size: var(--nf-t-ui);
+    line-height: 1.45;
+}
+[dir="rtl"] .nf-rq-dlg-msg {
+    border-left: 0;
+    border-right: 3px solid rgba(255,255,255,0.55);
+}
+.nf-rq-dlg-msg[hidden] {
+    display: none;
+}
+.nf-rq-dlg-msg.nf-rq-dlg-msg-foot {
+    order: 4;
+    margin-top: -18px;
+    margin-bottom: 32px;
+}
+
+/* ---- Meta, tagline and synopsis; the facts beside them in the detail page's voice: a grey label that
+   runs into its values (netflix.css, .itemDetailsGroup .detailsGroupItem), the colon typeset per
+   language. */
+.nf-rq-dlg-body {
+    order: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    column-gap: 32px;
+    padding: 6px 48px 24px;
+}
+.nf-rq-dlg-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+    color: var(--nf-text-2);
+    font-size: var(--nf-t-ui);
+    font-weight: var(--nf-w-semi);
+}
+.nf-rq-dlg-meta > * {
+    margin-right: 10px;
+    margin-inline-end: 10px;
+}
+[dir="rtl"] .nf-rq-dlg-meta > * {
+    margin-right: 0;
+}
+.nf-rq-dlg-match {
+    color: #46d369;
+    font-weight: var(--nf-w-bold);
+}
+.nf-rq-dlg-cert {
+    padding: 0 0.45em;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: var(--r-badge);
+    font-size: 0.8em;
+    line-height: 1.5;
+}
+.nf-rq-dlg-tagline {
+    margin-bottom: 8px;
+    color: var(--nf-text-3);
+    font-size: var(--nf-t-ui);
+    font-style: italic;
+}
+.nf-rq-dlg-overview {
+    color: var(--nf-text-2);
+    font-size: var(--nf-t-lead);
+    line-height: 1.5;
+}
+.nf-rq-dlg-facts {
+    color: var(--nf-text-2);
+    font-size: var(--nf-t-meta);
+    line-height: 1.5;
+}
+.nf-rq-dlg-fact {
+    margin-bottom: 9px;
+}
+.nf-rq-dlg-label {
+    color: var(--nf-text-4);
+}
+.nf-rq-dlg-label::after {
+    content: ":\00a0";
+}
+html[lang^="fr"] .nf-rq-dlg-label::after {
+    content: "\202f:\00a0";
+}
+
+/* ---- A series' seasons, in the action sheet's selection voice (netflix.css, .actionSheetMenuItem): a
+   ticked season has the accent bar and a tint at an unchanged weight; a season that cannot be asked
+   for shows its state. */
+.nf-rq-dlg-seasons {
+    order: 3;
+    padding: 0 48px 36px;
+}
+.nf-rq-dlg-seasons:empty {
+    display: none;
+}
+.nf-rq-dlg-seasons-title {
+    margin: 6px 0 12px;
+    color: var(--text-main);
+    font-family: var(--font-netflix);
+    font-size: var(--nf-t-row);
+    font-weight: var(--nf-w-bold);
+    letter-spacing: var(--nf-track-head);
+}
+.nf-rq-season-list {
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+.nf-rq-season {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 0.65em 1.2em;
+    border: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--nf-text-2);
+    font-family: var(--font-netflix);
+    font-size: var(--nf-t-ui);
+    line-height: 1.4;
+    text-align: left;
+}
+[dir="rtl"] .nf-rq-season {
+    border-left: 0;
+    border-right: 3px solid transparent;
+    text-align: right;
+}
+.nf-rq-season-pick {
+    cursor: pointer;
+}
+.nf-rq-season-pick:hover {
+    background: rgba(255,255,255,0.08);
+}
+.nf-rq-season-pick.nf-rq-on {
+    border-left-color: var(--accent-red);
+    background: rgba(255,255,255,0.05);
+    color: var(--text-main);
+}
+[dir="rtl"] .nf-rq-season-pick.nf-rq-on {
+    border-right-color: var(--accent-red);
+}
+.nf-rq-season-pick[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.6;
+}
+.nf-rq-season-box {
+    flex-shrink: 0;
+    width: 24px;
+    margin-right: 14px;
+    margin-inline-end: 14px;
+    font-size: 22px;
+}
+.nf-rq-season-sub {
+    margin-left: 10px;
+    margin-inline-start: 10px;
+    color: var(--nf-text-3);
+}
+.nf-rq-season .nf-rq-chip {
+    margin-left: auto;
+    margin-inline-start: auto;
+}
+[dir="rtl"] .nf-rq-season-box {
+    margin-right: 0;
+}
+[dir="rtl"] .nf-rq-season-sub,
+[dir="rtl"] .nf-rq-season .nf-rq-chip {
+    margin-left: 0;
+}
+.nf-rq-seasons-foot {
+    margin-top: 18px;
+}
+
+/* ---- A state chip (a season's, a hover card's): neutral, green for what can be watched. Never the
+   accent: a state is no action. */
+.nf-rq-chip {
+    display: inline-block;
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: var(--r-badge);
+    background: rgba(255,255,255,0.1);
+    color: var(--nf-text-2);
+    font-family: var(--font-netflix);
+    font-size: 0.75rem;
+    font-weight: var(--nf-w-bold);
+    line-height: 1.5;
+    white-space: nowrap;
+}
+.nf-rq-chip[data-state="available"],
+.nf-rq-chip[data-state="partial"] {
+    color: #46d369;
+}
+
+/* ---- The window on a phone (jellyfin's full-screen dialog): the title and the actions go under the
+   picture, overlapping its fade a little, and everything stands on the 16 px rail in one column. */
+@media (max-width: 768px) {
+    .nf-rq-dlg-hero {
+        position: relative;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        margin-top: -28px;
+        padding: 0 16px;
+    }
+    .nf-rq-dlg-title {
+        font-size: 1.65rem;
+        margin-bottom: calc(14px - 0.1em);
+    }
+    .nf-rq-dlg-close {
+        top: 12px;
+        right: 12px;
+    }
+    [dir="rtl"] .nf-rq-dlg-close {
+        right: auto;
+        left: 12px;
+    }
+    .nf-rq-dlg-msg {
+        margin: 14px 16px 0;
+    }
+    .nf-rq-dlg-msg.nf-rq-dlg-msg-foot {
+        margin: -12px 16px 28px;
+    }
+    .nf-rq-dlg-body {
+        display: block;
+        padding: 14px 16px 18px;
+    }
+    .nf-rq-dlg-facts {
+        margin-top: 14px;
+    }
+    .nf-rq-dlg-seasons {
+        padding: 0 16px 28px;
+    }
+    .nf-rq-season {
+        padding: 0.7em 0.8em;
+    }
+}
+
+/* ---- The toast: one line at the bottom left for 3.3 s, in the theme's toast look (netflix.css,
+   .toast), above every dialog (jellyfin's own toasts sit at the same height), clear of a notch. */
+.nf-rq-toast {
+    position: fixed;
+    left: 16px;
+    left: max(16px, env(safe-area-inset-left));
+    bottom: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 9999999;
+    box-sizing: border-box;
+    max-width: calc(100% - 32px);
+    padding: 14px 22px;
+    border-radius: var(--r-art);
+    background: #333;
+    box-shadow: var(--e-3);
+    color: var(--text-main);
+    font-family: var(--font-netflix);
+    font-size: var(--nf-t-ui);
+    line-height: 1.4;
+    pointer-events: none;
+    animation: nf-rq-toast-in 0.25s var(--nf-ease-out) both;
+}
+[dir="rtl"] .nf-rq-toast {
+    left: auto;
+    right: 16px;
+    right: max(16px, env(safe-area-inset-right));
+}
+@keyframes nf-rq-toast-in {
+    from { opacity: 0; -webkit-transform: translateY(12px); transform: translateY(12px); }
+    to { opacity: 1; -webkit-transform: none; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nf-rq-toast { animation: none; }
+}
+
 /* ---- Sizes. After the rules above, so they win on order (media queries add no
    specificity). Home's billboard: 70vh / 420 on tablets, 62vh / 360 on phones. On a phone
    the field goes under the page's name, the width of the rail, which makes the heading row
@@ -508,4 +967,10 @@ html:has(.videoPlayerContainer) .nf-rq {
 }
 html.nf-playing .nf-rq-skel .cardImageContainer::after {
     animation: none !important;
+}
+html.nf-playing .nf-rq-toast {
+    visibility: hidden !important;
+}
+html:has(.videoPlayerContainer) .nf-rq-toast {
+    visibility: hidden !important;
 }
