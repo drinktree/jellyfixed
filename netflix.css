@@ -6135,28 +6135,18 @@ html #selectServerPage .servers .card:hover { transform: none !important; box-sh
    profile's own picture and name over the password box and hides the heading row and
    the User field inline. The head is no taller than what it replaces (measured at
    1680 wide, 800-969 tall), so the crest stage's height steps (CssGenerator) hold for
-   this card too. */
+   this card too. The picture's 88px frame and the cloned picture's place are inline as
+   well: under a stale cached sheet the stock-positioned clone must still stay inside
+   its frame. */
 #loginPage form.manualLoginForm .nf-lock-head {
     display: flex;
     flex-direction: column;
     align-items: center;
     margin: 0 0 18px;
 }
-#loginPage form.manualLoginForm .nf-lock-pic {
-    position: relative;
-    width: 88px;
-    height: 88px;
-    border-radius: var(--card-radius);
-    overflow: hidden;
-}
 /* The tile's own picture element, cloned: a photo, a Villa avatar, or Jellyfin's
    blue square with its glyph. */
 #loginPage form.manualLoginForm .nf-lock-pic > * {
-    position: absolute;
-    top: 0; right: 0; bottom: 0; left: 0;
-    width: auto;
-    height: auto;
-    margin: 0;
     border-radius: 0;
     background-size: cover;
     background-position: center;
@@ -6169,32 +6159,59 @@ html #selectServerPage .servers .card:hover { transform: none !important; box-sh
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
     font-family: var(--font-netflix);
     font-size: 1.5rem;
     font-weight: var(--nf-w-med);
     color: var(--text-main);
 }
-/* "Not Mara? Back to profiles" carries the name: one line, cut short if need be. */
+/* "Not Mara? Back to profiles" on one line: a long name is cut short, never the way
+   back (the button's aria-label carries the whole sentence). German's way back is
+   longer, so its name gets less room. */
 #loginPage form.manualLoginForm.nf-lock .btnCancel > span {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+#loginPage form.manualLoginForm.nf-lock .btnCancel .nf-lock-who {
+    display: inline-block;
+    max-width: 9em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+html[lang^="de"] #loginPage form.manualLoginForm.nf-lock .btnCancel .nf-lock-who { max-width: 5em; }
 
 /* --- Villa avatars: the signed-in profile's own --------------------------------- */
 /* headerButton.js (nfOwnAvatar) sets html.nf-own-avatar and --nf-own-avatar (the
    crowned initial as an SVG data URI) for a Villa profile with no picture. Nothing
    is written into the bar's markup — React redraws the Modern avatar at will. Placed
-   after the Modern avatar rule (same weight), so its background wins. */
+   after the Modern avatar rule (same weight), so its background wins; a real picture's
+   <img> covers it. */
 html.nf-own-avatar header.MuiAppBar-root .MuiAvatar-root {
     background: var(--nf-own-avatar) center / cover no-repeat;
 }
 html.nf-own-avatar header.MuiAppBar-root .MuiAvatar-fallback { visibility: hidden; }
-html.nf-own-avatar .headerUserButton {
-    background: var(--nf-own-avatar) center / cover no-repeat !important;
+/* Legacy and TV: only while the button shows the stock glyph (Jellyfin swaps in
+   .headerUserButtonRound and a picture div when there is a picture), and in the box a
+   picture gets there: 30px in a 33px button, 40px in a 44px one on TV. */
+html.nf-own-avatar .headerUserButton:not(.headerUserButtonRound) { padding: 1.5px !important; }
+html.nf-own-avatar .headerUserButton:not(.headerUserButtonRound) > .material-icons.person {
+    display: block;
+    width: 30px;
+    height: 30px;
+    overflow: hidden;
+    border-radius: 4px;
+    color: transparent;
+    background: var(--nf-own-avatar) center / cover no-repeat;
 }
-html.nf-own-avatar .headerUserButton > .material-icons.person { visibility: hidden; }
+html.layout-tv.nf-own-avatar .headerUserButton:not(.headerUserButtonRound) { padding: 2px !important; }
+html.layout-tv.nf-own-avatar .headerUserButton:not(.headerUserButtonRound) > .material-icons.person {
+    width: 40px;
+    height: 40px;
+}
 
 /* =============================================
    v3.1.0 — QUEUE / NOW PLAYING

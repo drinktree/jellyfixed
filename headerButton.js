@@ -1016,7 +1016,6 @@
             // Only for the user it was asked for: a slow answer that lands after a
             // switch of user must not open (or close) Requests for the next one.
             if (nfAdminState.uid === uid) nfAdminState.limited = !!(u && u.Policy && u.Policy.MaxParentalRating != null);
-            if (nfAdminState.uid === uid) nfOwnAvatar(u);
             if (nfAdminState.admin) addButton();
             else document.querySelectorAll('.ct-settings-btn').forEach(function (b) { b.remove(); });
             // The Requests gate has been waiting on this answer (nfRqUser), and for a
@@ -3382,12 +3381,22 @@
     // Jellyfin draws each profile as a tile whose .cardContent carries data-userid,
     // data-username and data-haspw; a profile without a picture gets a stock blue
     // .cardImage with a person glyph instead of a .cardImageContainer with its photo.
+
+    // The two languages the theme speaks, or null for any other: there Jellyfin's own
+    // translated heading and Cancel stay, rather than English words among French ones.
+    function nfLOwn() {
+        var l = (document.documentElement.getAttribute('lang') || navigator.language || '').toLowerCase();
+        return l.indexOf('de') === 0 ? LOCALES.de : (l.indexOf('en') === 0 ? LOCALES.en : null);
+    }
+
     function nfLoginGate() {
         var page = document.querySelector('#loginPage:not(.hide)');
         if (!page) return;
+        // Only once Jellyfin has listed profiles: its form is not hidden in the markup,
+        // and on a server that lists none it opens the manual form a moment later.
         var h1 = page.querySelector('.visualLoginForm h1');
-        var words = nfL().whoWatching;
-        if (h1 && h1.textContent !== words) h1.textContent = words;
+        var own = nfLOwn();
+        if (h1 && own && h1.textContent !== own.whoWatching && page.querySelector('#divUsers .card')) h1.textContent = own.whoWatching;
         if (nfBoot('Brand') !== 'villa') return;
         var tiles = page.querySelectorAll('#divUsers .cardContent');
         var ids = null, colours = null;
@@ -3435,17 +3444,31 @@
         if (!form || form.classList.contains('hide')) { if (nfLockState) nfLockUndo(); return; }
         if (nfLockState) return;
         var pick = nfLockPick;
-        var nameBox = document.getElementById('txtManualName');
+        var nameBox = form.querySelector('#txtManualName');
+        var pwBox = form.querySelector('#txtManualPassword');
         if (!pick || Date.now() - pick.t > 4000 || !nameBox || nameBox.value !== pick.name) return;
         nfLockPick = null;
-        var st = { form: form, head: null, hidden: [], label: null, text: null };
+        var st = { form: form, head: null, hidden: [], label: null, text: null, cancel: null, pw: pwBox, described: null };
         var head = document.createElement('div');
         head.className = 'nf-lock-head';
+        // The frame's box and the clone's place are inline, like everything else that
+        // must hold under a stale cached sheet: the clone is the tile's own picture
+        // element, and stock positions a .cardImage absolutely — without its frame it
+        // spread over the whole page and covered the password box.
         var frame = document.createElement('div');
         frame.className = 'nf-lock-pic';
-        if (pick.pic) frame.appendChild(pick.pic.cloneNode(true));
+        frame.style.cssText = 'position:relative;width:88px;height:88px;margin:0 auto;overflow:hidden;border-radius:var(--card-radius,4px)';
+        if (pick.pic) {
+            var clone = pick.pic.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.top = clone.style.right = clone.style.bottom = clone.style.left = '0';
+            clone.style.width = clone.style.height = 'auto';
+            clone.style.margin = '0';
+            frame.appendChild(clone);
+        }
         var name = document.createElement('div');
         name.className = 'nf-lock-name';
+        name.id = 'nfLockName';
         name.textContent = pick.name;
         head.appendChild(frame);
         head.appendChild(name);
@@ -3461,12 +3484,29 @@
             st.hidden.push([el, el.style.display]);
             el.style.display = 'none';
         });
+        // Whose password it is, for a screen reader: the heading that said so is hidden.
+        if (pwBox) {
+            st.described = pwBox.getAttribute('aria-describedby');
+            pwBox.setAttribute('aria-describedby', 'nfLockName');
+        }
+        // "Not Mara? Back to profiles": a long name is cut short, never the way back.
+        // In a language the theme does not speak, Jellyfin's own Cancel stays.
+        var own = nfLOwn();
         var cancel = form.querySelector('.btnCancel');
         var label = cancel ? (cancel.querySelector('span') || cancel) : null;
-        if (label) {
+        var cut = own ? own.notYou.split('{0}') : null;
+        if (label && cut && cut.length === 2) {
             st.label = label;
             st.text = label.textContent;
-            label.textContent = nfL().notYou.replace('{0}', pick.name);
+            st.cancel = cancel;
+            var who = document.createElement('span');
+            who.className = 'nf-lock-who';
+            who.textContent = pick.name;
+            label.textContent = '';
+            label.appendChild(document.createTextNode(cut[0]));
+            label.appendChild(who);
+            label.appendChild(document.createTextNode(cut[1]));
+            cancel.setAttribute('aria-label', cut[0] + pick.name + cut[1]);
         }
         nfLockState = st;
         form.classList.add('nf-lock');
@@ -3479,6 +3519,11 @@
             if (st.head && st.head.parentNode) st.head.parentNode.removeChild(st.head);
             st.hidden.forEach(function (h) { h[0].style.display = h[1]; });
             if (st.label) st.label.textContent = st.text;
+            if (st.cancel) st.cancel.removeAttribute('aria-label');
+            if (st.pw) {
+                if (st.described) st.pw.setAttribute('aria-describedby', st.described);
+                else st.pw.removeAttribute('aria-describedby');
+            }
             st.form.classList.remove('nf-lock');
         } catch (e) {}
     }
@@ -3570,33 +3615,85 @@
     // crowned initial, in the same colour as on the sign-in page. React redraws the
     // Modern bar's avatar whenever it likes, so nothing is written into it: the picture
     // is a custom property on <html> that the sheet's .nf-own-avatar rules read.
-    var nfAvPub = null;
-    function nfAvPublicIds(cb) {
-        if (!nfAvPub) {
-            nfAvPub = new Promise(function (resolve) {
-                setTimeout(function () { resolve(null); }, 10000);
-                try {
-                    ApiClient.getPublicUsers().then(function (users) {
-                        resolve((users || []).map(function (u) { return String((u && u.Id) || '').toLowerCase(); }));
-                    }, function () { resolve(null); });
-                } catch (e) { resolve(null); }
-            });
+    // Decided per signed-in user: on a switch or a sign-out the old one goes at once
+    // (never the previous profile's letter on the next one), and the last answer is
+    // kept in localStorage so a page load paints it before the server has answered.
+    var nfOwnUid = null;
+    var NF_OWN_KEY = 'nf-own-avatar';
+    function nfOwnHeld(uid) {
+        try {
+            var h = JSON.parse(localStorage.getItem(NF_OWN_KEY) || 'null');
+            return h && h.u === uid && typeof h.c === 'string' ? h.c : null;
+        } catch (e) { return null; }
+    }
+    function nfOwnHold(uid, css) {
+        try {
+            if (css) localStorage.setItem(NF_OWN_KEY, JSON.stringify({ u: uid, c: css }));
+            else localStorage.removeItem(NF_OWN_KEY);
+        } catch (e) {}
+    }
+    function nfOwnPaint(css) {
+        var root = document.documentElement;
+        if (css) {
+            root.style.setProperty('--nf-own-avatar', css);
+            root.classList.add('nf-own-avatar');
+        } else {
+            root.classList.remove('nf-own-avatar');
         }
-        nfAvPub.then(function (ids) {
-            if (!ids) nfAvPub = null;
-            cb(ids || []);
+    }
+
+    // The ids /Users/Public lists (lower case), or null when it failed or took over 10 s.
+    function nfAvPublicIds() {
+        return new Promise(function (resolve) {
+            setTimeout(function () { resolve(null); }, 10000);
+            try {
+                ApiClient.getPublicUsers().then(function (users) {
+                    resolve((users || []).map(function (u) { return String((u && u.Id) || '').toLowerCase(); }));
+                }, function () { resolve(null); });
+            } catch (e) { resolve(null); }
         });
     }
 
-    function nfOwnAvatar(u) {
-        var root = document.documentElement;
-        if (nfBoot('Brand') !== 'villa' || !u || !u.Id || u.PrimaryImageTag) { root.classList.remove('nf-own-avatar'); return; }
-        var uid = String(u.Id).toLowerCase();
-        nfAvPublicIds(function (ids) {
-            if (String(ApiClient.getCurrentUserId() || '').toLowerCase() !== uid) return;
-            var colour = ids.indexOf(uid) >= 0 ? nfAvColours(ids)[uid] : nfAvHash(uid) % NF_AV_PALETTE.length;
-            root.style.setProperty('--nf-own-avatar', nfAvatarCss(u.Name, colour));
-            root.classList.add('nf-own-avatar');
+    // Once per applyDynamic pass; a read of the user id when nothing changed.
+    function nfOwnAvatar() {
+        if (nfBoot('Brand') !== 'villa') return;
+        // Every switch of profile passes the sign-in page, where the bar is hidden: let
+        // go there, so the next profile can never come up wearing this one's letter.
+        if (/^#\/login\b/i.test(location.hash)) {
+            if (nfOwnUid !== null) { nfOwnUid = null; nfOwnPaint(null); }
+            return;
+        }
+        var uid = null;
+        try { uid = (typeof ApiClient !== 'undefined' && ApiClient.getCurrentUserId && ApiClient.getCurrentUserId()) || null; } catch (e) {}
+        uid = uid ? String(uid).toLowerCase() : null;
+        if (uid === nfOwnUid) return;
+        nfOwnUid = uid;
+        nfOwnPaint(uid ? nfOwnHeld(uid) : null);
+        if (!uid || !ApiClient.getCurrentUser || !ApiClient.getPublicUsers) return;
+        // The list and the user side by side, not one after the other.
+        var list = nfAvPublicIds();
+        ApiClient.getCurrentUser().then(function (u) {
+            if (nfOwnUid !== uid) return;
+            if (!u || String(u.Id || '').toLowerCase() !== uid || u.PrimaryImageTag) {
+                nfOwnPaint(null);
+                nfOwnHold(uid, null);
+                return;
+            }
+            list.then(function (ids) {
+                if (nfOwnUid !== uid) return;
+                // No list: keep what was held (or the stock glyph) and ask again in a
+                // while — a colour from the hash alone could differ from the sign-in page.
+                if (!ids) {
+                    setTimeout(function () { if (nfOwnUid === uid) nfOwnUid = null; }, 30000);
+                    return;
+                }
+                var colour = ids.indexOf(uid) >= 0 ? nfAvColours(ids)[uid] : nfAvHash(uid) % NF_AV_PALETTE.length;
+                var css = nfAvatarCss(u.Name, colour);
+                nfOwnPaint(css);
+                nfOwnHold(uid, css);
+            });
+        }, function () {
+            if (nfOwnUid === uid) setTimeout(function () { if (nfOwnUid === uid) nfOwnUid = null; }, 30000);
         });
     }
 
@@ -4151,6 +4248,7 @@
         // sheet needs a root class to clear the bar over the gate's backdrop.
         document.documentElement.classList.toggle('nf-session', /^#\/(login|selectserver|addserver|forgotpassword|forgotpasswordpin)\b/i.test(location.hash));
         nfStampLogin();
+        nfOwnAvatar();
         // jellyfin-web replaces window.ApiClient on sign-in, and the ident can only be
         // fetched once there is a token: both are a property read when already done.
         nfIdentWrap();
