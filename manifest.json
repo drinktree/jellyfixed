@@ -13,7 +13,7 @@
         "changelog": "A Netflix-style sign-in. The row of profiles on the sign-in page now asks \u201cWho\u2019s watching?\u201d (in English and German; other languages keep Jellyfin\u2019s own heading). Picking a profile that has a password opens a profile lock instead of the bare form: that profile\u2019s picture and name over a single password box, with \u201cNot Mara? Back to profiles\u201d to go back. A profile without a password still signs in straight away, and Manual Login keeps the plain form. In both house styles.\n\nVilla Cocquette gets crowned initials: a profile without a picture shows its initial in gold under a small crown, framed, on one of eight jewel colours \u2014 on the sign-in page, in the profile lock and as your own avatar in the header. A profile\u2019s colour follows from the profile, so it is the same on every device, and no two profiles on the sign-in page share one while the eight last (adding or hiding a profile can move the others\u2019 colours). The theme draws them itself: Jellyfin\u2019s profile pictures are not changed, a profile with a real picture keeps it, and apps that do not show the theme (such as the Android TV app) keep their own look.\n\nA profile appears on the sign-in page only when Jellyfin lists it there: Dashboard \u2192 Users \u2192 the profile \u2192 untick \u201cHide this user from login screens\u201d. Tested on Jellyfin 12.3.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/drinktree/jellyfixed/releases/download/v3.5.0/custom-theme-v3.5.0.zip",
-        "checksum": "",
+        "checksum": "534dcf185bc4a478581a5b73f6c70510",
         "timestamp": "2026-10-27T13:56:07Z"
       },
       {
