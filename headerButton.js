@@ -79,7 +79,9 @@
              movie: 'Movie', series: 'Series', episodes: '{0} episodes', episode1: '1 episode', noEpisodes: 'No episodes yet', done: '“{0}” requested',
              errAlready: 'Already requested', errNone: 'All available seasons are already requested', errForbidden: 'Your profile may not request titles',
              errDisabled: 'Requests are switched off right now', errBlocked: 'This title is blocked', errDown: 'The request service is not reachable right now', errOther: 'Something went wrong. Please try again.',
-             close: 'Close', noResults: 'No results', 'with': 'With', genres: 'Genres', creator: 'Created by', director: 'Director', streaming: 'Streaming on' },
+             close: 'Close', noResults: 'No results', 'with': 'With', genres: 'Genres', creator: 'Created by', director: 'Director', streaming: 'Streaming on',
+             // The sign-in page's profile row and the profile lock.
+             whoWatching: 'Who’s watching?', notYou: 'Not {0}? Back to profiles' },
         de: { home: 'Startseite', play: 'Abspielen', moreInfo: 'Mehr Infos', myList: 'Meine Liste', like: 'Gefällt mir', cw: 'Weiterschauen', season: 'Staffel', seasons: 'Staffeln', sound: 'Ton an/aus', pause: 'Pause', slide: 'Folie', themeSettings: 'Theme-Einstellungen', scrollBack: 'Nach links', scrollFwd: 'Nach rechts', labelPlay: 'Abspielen', labelResume: 'Weiter', labelReplay: 'Erneut', tipWatched: 'Gesehen', tipFavorite: 'Favorit', tipMore: 'Mehr',
              newReleases: 'Neu hinzugefügt', watchAgain: 'Nochmal ansehen', becauseYouWatched: 'Weil du {0} gesehen hast', newBadge: 'Neu hinzugefügt', match: '{0} % Übereinstimmung', minLeft: 'Noch {0} Min.', hourAbbr: '{0}h', minAbbr: '{0}m', removeRow: 'Aus Zeile entfernen', page: 'Seite', more: 'mehr',
              requests: 'Anfragen', request: 'Anfragen', requesting: 'Wird angefragt…', requested: 'Angefragt', pending: 'Ausstehend', partial: 'Teilweise verfügbar', available: 'Verfügbar',
@@ -90,7 +92,8 @@
              movie: 'Film', series: 'Serie', episodes: '{0} Folgen', episode1: '1 Folge', noEpisodes: 'Noch keine Folgen', done: '„{0}“ angefragt',
              errAlready: 'Bereits angefragt', errNone: 'Alle verfügbaren Staffeln sind schon angefragt', errForbidden: 'Dein Profil darf keine Titel anfragen',
              errDisabled: 'Anfragen sind gerade ausgeschaltet', errBlocked: 'Dieser Titel ist gesperrt', errDown: 'Der Anfragedienst ist gerade nicht erreichbar', errOther: 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
-             close: 'Schließen', noResults: 'Keine Ergebnisse', 'with': 'Mit', genres: 'Genres', creator: 'Idee', director: 'Regie', streaming: 'Verfügbar bei' }
+             close: 'Schließen', noResults: 'Keine Ergebnisse', 'with': 'Mit', genres: 'Genres', creator: 'Idee', director: 'Regie', streaming: 'Verfügbar bei',
+             whoWatching: 'Wer schaut gerade?', notYou: 'Nicht {0}? Zurück zu den Profilen' }
     };
     function nfL() {
         var l = (document.documentElement.getAttribute('lang') || navigator.language || 'en').toLowerCase();
@@ -1013,6 +1016,7 @@
             // Only for the user it was asked for: a slow answer that lands after a
             // switch of user must not open (or close) Requests for the next one.
             if (nfAdminState.uid === uid) nfAdminState.limited = !!(u && u.Policy && u.Policy.MaxParentalRating != null);
+            if (nfAdminState.uid === uid) nfOwnAvatar(u);
             if (nfAdminState.admin) addButton();
             else document.querySelectorAll('.ct-settings-btn').forEach(function (b) { b.remove(); });
             // The Requests gate has been waiting on this answer (nfRqUser), and for a
@@ -3368,6 +3372,232 @@
         }
         root.classList.toggle('nf-login', on);
         root.classList.toggle('nf-login-card', !!form && !form.classList.contains('hide'));
+        if (on) nfLoginGate();
+        nfLoginLock(form);
+    }
+
+    // ============ Sign-in: "Who's watching?", the profile lock, Villa avatars ============
+    // Netflix asks "Who's watching?" over its profiles; Jellyfin's "Please sign in"
+    // stays on the manual form, which is a form. Both brands.
+    // Jellyfin draws each profile as a tile whose .cardContent carries data-userid,
+    // data-username and data-haspw; a profile without a picture gets a stock blue
+    // .cardImage with a person glyph instead of a .cardImageContainer with its photo.
+    function nfLoginGate() {
+        var page = document.querySelector('#loginPage:not(.hide)');
+        if (!page) return;
+        var h1 = page.querySelector('.visualLoginForm h1');
+        var words = nfL().whoWatching;
+        if (h1 && h1.textContent !== words) h1.textContent = words;
+        if (nfBoot('Brand') !== 'villa') return;
+        var tiles = page.querySelectorAll('#divUsers .cardContent');
+        var ids = null, colours = null;
+        for (var i = 0; i < tiles.length; i++) {
+            var pic = tiles[i].querySelector('.cardImage');
+            if (!pic || pic.getAttribute('data-nf-av')) continue;
+            if (!ids) {
+                ids = [];
+                for (var k = 0; k < tiles.length; k++) ids.push(tiles[k].getAttribute('data-userid') || '');
+                colours = nfAvColours(ids);
+            }
+            // Inline, like the photo tiles Jellyfin draws: a stale cached sheet still
+            // shows the avatar, never the avatar under the glyph.
+            pic.style.backgroundImage = nfAvatarCss(tiles[i].getAttribute('data-username'), colours[(tiles[i].getAttribute('data-userid') || '').toLowerCase()]);
+            pic.style.backgroundSize = 'cover';
+            pic.style.backgroundPosition = 'center';
+            pic.style.backgroundRepeat = 'no-repeat';
+            var glyph = pic.querySelector('.cardImageIcon');
+            if (glyph) glyph.style.display = 'none';
+            pic.setAttribute('data-nf-av', '1');
+        }
+    }
+
+    // The profile lock. Picking a profile that has a password makes Jellyfin open its
+    // manual form with the name typed in and the cursor in the password box; this turns
+    // that form into Netflix's lock: the profile's own picture and name, one password
+    // box, and a way back. Only a pick does it — "Manual login", and the form Jellyfin
+    // opens by itself on a server that lists no profiles, stay the stock form. The pick
+    // is caught in the capture phase, before Jellyfin's own handler opens the form.
+    var nfLockPick = null;
+    var nfLockState = null;
+    function nfLoginPick(e) {
+        if (!/^#\/login\b/i.test(location.hash)) return;
+        try {
+            var card = e.target && e.target.closest ? e.target.closest('.card') : null;
+            var content = card && card.parentNode && card.parentNode.id === 'divUsers' ? card.querySelector('.cardContent') : null;
+            var pic = content && content.querySelector('.cardImageContainer, .cardImage');
+            nfLockPick = content && content.getAttribute('data-haspw') !== 'false'
+                ? { name: content.getAttribute('data-username') || '', pic: pic, t: Date.now() } : null;
+        } catch (err) { nfLockPick = null; }
+    }
+    document.addEventListener('click', nfLoginPick, true);
+
+    function nfLoginLock(form) {
+        if (!form || form.classList.contains('hide')) { if (nfLockState) nfLockUndo(); return; }
+        if (nfLockState) return;
+        var pick = nfLockPick;
+        var nameBox = document.getElementById('txtManualName');
+        if (!pick || Date.now() - pick.t > 4000 || !nameBox || nameBox.value !== pick.name) return;
+        nfLockPick = null;
+        var st = { form: form, head: null, hidden: [], label: null, text: null };
+        var head = document.createElement('div');
+        head.className = 'nf-lock-head';
+        var frame = document.createElement('div');
+        frame.className = 'nf-lock-pic';
+        if (pick.pic) frame.appendChild(pick.pic.cloneNode(true));
+        var name = document.createElement('div');
+        name.className = 'nf-lock-name';
+        name.textContent = pick.name;
+        head.appendChild(frame);
+        head.appendChild(name);
+        form.insertBefore(head, form.firstChild);
+        st.head = head;
+        // The heading row and the User field go inline, so a stale cached sheet
+        // cannot show the name twice.
+        var title = form.querySelector('h1');
+        var row = title && title.parentNode !== form ? title.parentNode : title;
+        var field = nameBox.closest ? nameBox.closest('.inputContainer') : null;
+        [row, field].forEach(function (el) {
+            if (!el) return;
+            st.hidden.push([el, el.style.display]);
+            el.style.display = 'none';
+        });
+        var cancel = form.querySelector('.btnCancel');
+        var label = cancel ? (cancel.querySelector('span') || cancel) : null;
+        if (label) {
+            st.label = label;
+            st.text = label.textContent;
+            label.textContent = nfL().notYou.replace('{0}', pick.name);
+        }
+        nfLockState = st;
+        form.classList.add('nf-lock');
+    }
+
+    function nfLockUndo() {
+        var st = nfLockState;
+        nfLockState = null;
+        try {
+            if (st.head && st.head.parentNode) st.head.parentNode.removeChild(st.head);
+            st.hidden.forEach(function (h) { h[0].style.display = h[1]; });
+            if (st.label) st.label.textContent = st.text;
+            st.form.classList.remove('nf-lock');
+        } catch (e) {}
+    }
+
+    // Villa avatars: a profile with no picture gets its initial in gold under a small
+    // crown, framed, on one of eight jewel colours — the look the owner chose on
+    // 2026-10-27. An SVG data URI: no request and no font file, the letter takes the
+    // device's own serif. Profiles with a real picture keep it everywhere.
+    var NF_AV_PALETTE = [
+        ['#86283A', '#2A080F'], ['#1F7356', '#05201A'], ['#26407A', '#070E24'], ['#5E2868', '#1A0820'],
+        ['#186B77', '#05212A'], ['#86521F', '#291505'], ['#97435C', '#2D0C18'], ['#45454D', '#101013']
+    ];
+    var nfAvMemo = {};
+
+    // FNV-1a, 32 bit, without Math.imul (the prime's shifts instead).
+    function nfAvHash(s) {
+        var h = 0x811c9dc5;
+        s = String(s || '').toLowerCase();
+        for (var i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+        }
+        return h >>> 0;
+    }
+
+    // Each profile's colour follows from its id, so it is the same on every device
+    // and every visit; among the profiles the sign-in page lists, no two share one
+    // while the eight last. The order is the hashes' own, not the page's.
+    function nfAvColours(ids) {
+        var seen = {}, list = [], out = {}, used = {}, n = 0, size = NF_AV_PALETTE.length;
+        ids.forEach(function (id) {
+            id = String(id || '').toLowerCase();
+            if (!id || seen[id]) return;
+            seen[id] = 1;
+            list.push({ id: id, h: nfAvHash(id) });
+        });
+        list.sort(function (a, b) { return a.h - b.h || (a.id < b.id ? -1 : 1); });
+        list.forEach(function (u) {
+            if (n === size) { used = {}; n = 0; }
+            var c = u.h % size;
+            while (used[c]) c = (c + 1) % size;
+            used[c] = 1;
+            n++;
+            out[u.id] = c;
+        });
+        return out;
+    }
+
+    // The first letter or digit, upper-cased. Spaces, ASCII punctuation and characters
+    // outside the BMP (emoji, as a rule) are skipped; a name with nothing else draws
+    // the crown alone.
+    function nfAvLetter(name) {
+        var s = String(name || '');
+        for (var i = 0; i < s.length; i++) {
+            var c = s.charCodeAt(i);
+            if (c >= 0xD800 && c <= 0xDBFF) { i++; continue; }
+            if (c >= 0xDC00 && c <= 0xDFFF) continue;
+            if (c <= 0x20 || (c < 0x80 && !/[0-9A-Za-z]/.test(s.charAt(i)))) continue;
+            return s.charAt(i).toUpperCase().charAt(0);
+        }
+        return '';
+    }
+
+    function nfAvatarCss(name, colour) {
+        var letter = nfAvLetter(name);
+        var p = NF_AV_PALETTE[((colour | 0) % NF_AV_PALETTE.length + NF_AV_PALETTE.length) % NF_AV_PALETTE.length];
+        var key = letter + '|' + p[0];
+        if (nfAvMemo[key]) return nfAvMemo[key];
+        var g = 'url(#g)';
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">'
+            + '<defs><radialGradient id="b" cx="50%" cy="30%" r="85%"><stop offset="0" stop-color="' + p[0] + '"/><stop offset="1" stop-color="' + p[1] + '"/></radialGradient>'
+            + '<linearGradient id="g" gradientUnits="userSpaceOnUse" x1="40" y1="24" x2="160" y2="176"><stop offset="0" stop-color="#F8EBBE"/><stop offset=".42" stop-color="#D2A859"/><stop offset=".72" stop-color="#A97C31"/><stop offset="1" stop-color="#EDD293"/></linearGradient></defs>'
+            + '<rect width="200" height="200" fill="url(#b)"/>'
+            + '<rect x="12" y="12" width="176" height="176" rx="5" fill="none" stroke="' + g + '" stroke-width="2.2" opacity=".75"/>'
+            + '<rect x="19" y="19" width="162" height="162" rx="2" fill="none" stroke="' + g + '" stroke-width=".9" opacity=".45"/>'
+            + '<g transform="translate(85 30) scale(.3)">'
+            + '<path fill="' + g + '" d="M10 58 L3 18 L31 40 L50 8 L69 40 L97 18 L90 58 Z"/>'
+            + '<rect fill="' + g + '" x="9" y="61" width="82" height="11" rx="2"/>'
+            + '<circle fill="' + g + '" cx="3" cy="13" r="6"/><circle fill="' + g + '" cx="50" cy="5" r="7"/><circle fill="' + g + '" cx="97" cy="13" r="6"/>'
+            + '<circle fill="#3B2A0E" cx="30" cy="66.5" r="3.2"/><circle fill="#3B2A0E" cx="50" cy="66.5" r="3.6"/><circle fill="#3B2A0E" cx="70" cy="66.5" r="3.2"/>'
+            + '</g>'
+            + (letter ? '<text x="100" y="150" text-anchor="middle" font-family="\'Bodoni 72\',\'Bodoni Moda\',Didot,\'Playfair Display\',\'Noto Serif\',Georgia,serif" font-weight="700" font-size="112" fill="' + g + '">' + esc(letter) + '</text>' : '')
+            + '</svg>';
+        nfAvMemo[key] = 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '")';
+        return nfAvMemo[key];
+    }
+
+    // The signed-in profile's own avatar in the header (Villa, no picture): the same
+    // crowned initial, in the same colour as on the sign-in page. React redraws the
+    // Modern bar's avatar whenever it likes, so nothing is written into it: the picture
+    // is a custom property on <html> that the sheet's .nf-own-avatar rules read.
+    var nfAvPub = null;
+    function nfAvPublicIds(cb) {
+        if (!nfAvPub) {
+            nfAvPub = new Promise(function (resolve) {
+                setTimeout(function () { resolve(null); }, 10000);
+                try {
+                    ApiClient.getPublicUsers().then(function (users) {
+                        resolve((users || []).map(function (u) { return String((u && u.Id) || '').toLowerCase(); }));
+                    }, function () { resolve(null); });
+                } catch (e) { resolve(null); }
+            });
+        }
+        nfAvPub.then(function (ids) {
+            if (!ids) nfAvPub = null;
+            cb(ids || []);
+        });
+    }
+
+    function nfOwnAvatar(u) {
+        var root = document.documentElement;
+        if (nfBoot('Brand') !== 'villa' || !u || !u.Id || u.PrimaryImageTag) { root.classList.remove('nf-own-avatar'); return; }
+        var uid = String(u.Id).toLowerCase();
+        nfAvPublicIds(function (ids) {
+            if (String(ApiClient.getCurrentUserId() || '').toLowerCase() !== uid) return;
+            var colour = ids.indexOf(uid) >= 0 ? nfAvColours(ids)[uid] : nfAvHash(uid) % NF_AV_PALETTE.length;
+            root.style.setProperty('--nf-own-avatar', nfAvatarCss(u.Name, colour));
+            root.classList.add('nf-own-avatar');
+        });
     }
 
     // ============ Logo -> Home ============

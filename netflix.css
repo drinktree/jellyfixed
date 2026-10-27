@@ -6130,6 +6130,72 @@ html #selectServerPage .servers .card:hover { transform: none !important; box-sh
     #loginPage .visualLoginForm h1 { font-size: 1.9rem !important; }
 }
 
+/* --- The profile lock ------------------------------------------------------------- */
+/* Picking a profile that has a password: headerButton.js (nfLoginLock) puts the
+   profile's own picture and name over the password box and hides the heading row and
+   the User field inline. The head is no taller than what it replaces (measured at
+   1680 wide, 800-969 tall), so the crest stage's height steps (CssGenerator) hold for
+   this card too. */
+#loginPage form.manualLoginForm .nf-lock-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 0 18px;
+}
+#loginPage form.manualLoginForm .nf-lock-pic {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    border-radius: var(--card-radius);
+    overflow: hidden;
+}
+/* The tile's own picture element, cloned: a photo, a Villa avatar, or Jellyfin's
+   blue square with its glyph. */
+#loginPage form.manualLoginForm .nf-lock-pic > * {
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    width: auto;
+    height: auto;
+    margin: 0;
+    border-radius: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+#loginPage form.manualLoginForm .nf-lock-pic .cardImageIcon { font-size: 52px; }
+#loginPage form.manualLoginForm .nf-lock-name {
+    max-width: 100%;
+    margin-top: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-netflix);
+    font-size: 1.5rem;
+    font-weight: var(--nf-w-med);
+    color: var(--text-main);
+}
+/* "Not Mara? Back to profiles" carries the name: one line, cut short if need be. */
+#loginPage form.manualLoginForm.nf-lock .btnCancel > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Villa avatars: the signed-in profile's own --------------------------------- */
+/* headerButton.js (nfOwnAvatar) sets html.nf-own-avatar and --nf-own-avatar (the
+   crowned initial as an SVG data URI) for a Villa profile with no picture. Nothing
+   is written into the bar's markup — React redraws the Modern avatar at will. Placed
+   after the Modern avatar rule (same weight), so its background wins. */
+html.nf-own-avatar header.MuiAppBar-root .MuiAvatar-root {
+    background: var(--nf-own-avatar) center / cover no-repeat;
+}
+html.nf-own-avatar header.MuiAppBar-root .MuiAvatar-fallback { visibility: hidden; }
+html.nf-own-avatar .headerUserButton {
+    background: var(--nf-own-avatar) center / cover no-repeat !important;
+}
+html.nf-own-avatar .headerUserButton > .material-icons.person { visibility: hidden; }
+
 /* =============================================
    v3.1.0 — QUEUE / NOW PLAYING
    ============================================= */
